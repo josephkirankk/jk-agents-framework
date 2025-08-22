@@ -16,10 +16,19 @@ def _format_agents_listing(agents: List[AgentConfig]) -> str:
     return "\n".join(lines)
 
 
-def build_supervisor_compiled(supervisor_cfg: SupervisorConfig, agents_cfg: List[AgentConfig], default_model: str, business_context: str = "", checkpointer=MemorySaver()):
+def build_supervisor_compiled(
+    supervisor_cfg: SupervisorConfig,
+    agents_cfg: List[AgentConfig],
+    default_model: str,
+    business_context: str = "",
+    checkpointer=MemorySaver(),
+):
     agents_list = _format_agents_listing(agents_cfg)
     prompt_filled = supervisor_cfg.prompt.replace("{{agents}}", agents_list)
-    prompt_filled = prompt_filled.replace("{{business_context}}", business_context)
+    prompt_filled = prompt_filled.replace(
+        "{{business_context}}",
+        business_context,
+    )
 
     supervisor_model = supervisor_cfg.model or default_model
 

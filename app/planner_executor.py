@@ -251,9 +251,15 @@ async def execute_plan(
         "supervisor": {"input": 0, "output": 0, "total": 0},
         "worker": {"input": 0, "output": 0, "total": 0},
     }
+    sup_system_context = (
+        "Business context:\n"
+        f"{business_context}\n\n"
+        "User goal:\n"
+        f"{user_input}"
+    )
     sup_state = {
         "messages": [
-            {"role": "system", "content": business_context},
+            {"role": "system", "content": sup_system_context},
             {"role": "user", "content": user_input},
         ]
     }
@@ -370,9 +376,14 @@ async def execute_plan(
         next_task_override: Optional[str] = None
         while True:
             attempts += 1
+            # Include both business context and the user's goal
+            # for clearer guidance
+            goal_text = plan.goal or user_input
             system_context = (
                 "Business context:\n"
                 f"{business_context}\n\n"
+                "User goal:\n"
+                f"{goal_text}\n\n"
                 f"Previous step results:\n{summarize_results()}"
             )
             user_task = next_task_override or step.task

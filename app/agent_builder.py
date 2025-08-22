@@ -1,11 +1,11 @@
 from __future__ import annotations
 import logging
-from typing import Dict, Tuple, Optional
+from typing import Dict
 
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
-from .mcp_loader import load_mcp_tools, close_mcp_client, build_http_tools
+from .mcp_loader import load_mcp_tools, build_http_tools
 from .config import AgentConfig
 
 log = logging.getLogger("agent_builder")
@@ -26,17 +26,28 @@ def _format_mcp_summary(servers_cfg: Dict[str, Dict]) -> str:
     return "\n".join(lines)
 
 
-async def build_react_agent(agent_cfg: AgentConfig, default_model: str, checkpointer=MemorySaver()):
+async def build_react_agent(
+    agent_cfg: AgentConfig,
+    default_model: str,
+    checkpointer=MemorySaver(),
+):
 
     model_id = agent_cfg.model or default_model
-    servers_raw = {k: v.dict(exclude_none=True) for k, v in agent_cfg.mcp_servers.items()}
+    servers_raw = {
+        k: v.dict(exclude_none=True)
+        for k, v in agent_cfg.mcp_servers.items()
+    }
 
     mcp_client, tools = await load_mcp_tools(servers_raw)
     # Merge in HTTP tools (non-MCP) if configured
     try:
         http_tools = build_http_tools(agent_cfg.http_tools)
     except Exception as e:
-        log.exception("Failed building HTTP tools for agent %s: %s", agent_cfg.name, e)
+        log.exception(
+            "Failed building HTTP tools for agent %s: %s",
+            agent_cfg.name,
+            e,
+        )
         http_tools = []
     tools = list(tools) + list(http_tools)
 
