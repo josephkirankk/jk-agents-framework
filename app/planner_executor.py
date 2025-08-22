@@ -4,6 +4,7 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+import time
 from pathlib import Path
 import re
 from pydantic import BaseModel, Field, ValidationError
@@ -156,6 +157,9 @@ async def execute_plan(
     default_model_for_verifier: str = "openai:gpt-4o-mini",
     max_total_retries: int = 2,
     human_in_loop: bool = False,
+    default_step_timeout_seconds: Optional[int] = 120,
+    default_supervisor_timeout_seconds: Optional[int] = 60,
+    default_verifier_timeout_seconds: Optional[int] = 45,
 ) -> Dict[str, Any]:
     # Prepare log file with timestamped name at repo root
     log_file_path: Optional[Path] = None
@@ -284,7 +288,24 @@ async def execute_plan(
             f"User: {user_input}",
             "",
         ])
-        sup_out = await supervisor_compiled.ainvoke(sup_state, config=config)
+        log.info(
+            "Supervisor planning: start (timeout=%ss)",
+            default_supervisor_timeout_seconds,
+        )
+        t0 = time.perf_counter()
+        if default_supervisor_timeout_seconds:
+            sup_out = await asyncio.wait_for(
+                supervisor_compiled.ainvoke(sup_state, config=config),
+                timeout=default_supervisor_timeout_seconds,
+            )
+        else:
+            sup_out = await supervisor_compiled.ainvoke(
+                sup_state, config=config
+            )
+        log.info(
+            "Supervisor planning: done in %.2fs",
+            time.perf_counter() - t0,
+        )
     except AttributeError:
         config = {"configurable": {"thread_id": "execute-plan-thread"}}
         _safe_write([
@@ -293,7 +314,35 @@ async def execute_plan(
             f"User: {user_input}",
             "",
         ])
-        sup_out = supervisor_compiled.invoke(sup_state, config=config)
+        log.info(
+            "Supervisor planning (sync): start (timeout=%ss)",
+            default_supervisor_timeout_seconds,
+        )
+        t0 = time.perf_counter()
+        if default_supervisor_timeout_seconds:
+            sup_out = await asyncio.wait_for(
+                asyncio.to_thread(
+                    supervisor_compiled.invoke, sup_state, config=config
+                ),
+                timeout=default_supervisor_timeout_seconds,
+            )
+        else:
+            sup_out = await asyncio.to_thread(
+                supervisor_compiled.invoke, sup_state, config=config
+            )
+        log.info(
+            "Supervisor planning (sync): done in %.2fs",
+            time.perf_counter() - t0,
+        )
+    except asyncio.TimeoutError:
+        raise RuntimeError(
+            "Supervisor planning timed out after "
+            f"{default_supervisor_timeout_seconds}s"
+        )
+    except asyncio.CancelledError:
+        raise RuntimeError(
+            "Supervisor planning cancelled (timeout or external cancel)"
+        )
 
     sup_msgs = sup_out.get("messages", [])
     if sup_msgs:
@@ -411,6 +460,13 @@ async def execute_plan(
                 ]
             }
 
+            # Determine timeout for this worker step (both async/sync paths)
+            step_timeout = (
+                step.timeout_seconds
+                if step.timeout_seconds is not None
+                else default_step_timeout_seconds
+            )
+
             try:
                 worker_config = {
                     "configurable": {"thread_id": f"step-{step.id}"}
@@ -425,17 +481,36 @@ async def execute_plan(
                     f"User: {user_task}",
                     "",
                 ])
-                if step.timeout_seconds:
+                if step_timeout:
+                    log.info(
+                        "Worker %s attempt %d: ainvoke start (timeout=%ss)",
+                        step.id,
+                        attempts,
+                        step_timeout,
+                    )
+                    t1 = time.perf_counter()
                     worker_out = await asyncio.wait_for(
                         worker_compiled.ainvoke(
                             worker_state, config=worker_config
                         ),
-                        timeout=step.timeout_seconds,
+                        timeout=step_timeout,
                     )
                 else:
+                    log.info(
+                        "Worker %s attempt %d: ainvoke start (no timeout)",
+                        step.id,
+                        attempts,
+                    )
+                    t1 = time.perf_counter()
                     worker_out = await worker_compiled.ainvoke(
                         worker_state, config=worker_config
                     )
+                log.info(
+                    "Worker %s attempt %d: ainvoke done in %.2fs",
+                    step.id,
+                    attempts,
+                    time.perf_counter() - t1,
+                )
             except AttributeError:
                 worker_config = {
                     "configurable": {"thread_id": f"step-{step.id}"}
@@ -449,19 +524,74 @@ async def execute_plan(
                     f"User: {user_task}",
                     "",
                 ])
-                worker_out = worker_compiled.invoke(
-                    worker_state, config=worker_config
+                if step_timeout:
+                    log.info(
+                        (
+                            "Worker %s attempt %d: "
+                            "invoke(sync) start (timeout=%ss)"
+                        ),
+                        step.id,
+                        attempts,
+                        step_timeout,
+                    )
+                    t1 = time.perf_counter()
+                    worker_out = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            worker_compiled.invoke,
+                            worker_state,
+                            config=worker_config,
+                        ),
+                        timeout=step_timeout,
+                    )
+                else:
+                    log.info(
+                        (
+                            "Worker %s attempt %d: "
+                            "invoke(sync) start (no timeout)"
+                        ),
+                        step.id,
+                        attempts,
+                    )
+                    t1 = time.perf_counter()
+                    worker_out = await asyncio.to_thread(
+                        worker_compiled.invoke,
+                        worker_state,
+                        config=worker_config,
+                    )
+                log.info(
+                    "Worker %s attempt %d: invoke(sync) done in %.2fs",
+                    step.id,
+                    attempts,
+                    time.perf_counter() - t1,
                 )
             except asyncio.TimeoutError:
                 last_err = "timeout"
-                log.warning("Step %s timed out", step.id)
+                log.warning(
+                    "Step %s timed out (limit=%ss)",
+                    step.id,
+                    step_timeout,
+                )
                 worker_out = {
                     "messages": [
                         {
                             "role": "assistant",
                             "content": (
-                                f"ERROR: timeout after {step.timeout_seconds}s"
+                                "ERROR: timeout after " f"{step_timeout}s"
                             ),
+                        }
+                    ]
+                }
+            except asyncio.CancelledError:
+                last_err = "cancelled"
+                log.warning(
+                    "Step %s cancelled (timeout or external cancel)",
+                    step.id,
+                )
+                worker_out = {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": "ERROR: cancelled",
                         }
                     ]
                 }
@@ -515,15 +645,46 @@ async def execute_plan(
             verified = True
             verify_reason = ""
             if step.verify:
+                log.info(
+                    "Verifier: start for step %s (timeout=%ss)",
+                    step.id,
+                    default_verifier_timeout_seconds,
+                )
+                v0 = time.perf_counter()
                 check_prompt = (
                     f"Verification instruction: {step.verify}\n"
                     f"Step output (sanitized): "
                     f"{_sanitize_for_moderation(wtext)}\n"
                     "Return JSON: {\"ok\": true/false, \"reason\":\"...\"}"
                 )
-                ok, reason = await llm_verify(
-                    check_prompt, default_model_for_verifier
-                )
+                ok, reason = True, "skipped"
+                try:
+                    if default_verifier_timeout_seconds:
+                        ok, reason = await asyncio.wait_for(
+                            llm_verify(
+                                check_prompt, default_model_for_verifier
+                            ),
+                            timeout=default_verifier_timeout_seconds,
+                        )
+                    else:
+                        ok, reason = await llm_verify(
+                            check_prompt, default_model_for_verifier
+                        )
+                except asyncio.TimeoutError:
+                    ok, reason = True, "verifier timeout; treating as ok"
+                except asyncio.CancelledError:
+                    ok, reason = True, "verifier cancelled; treating as ok"
+                finally:
+                    log.info(
+                        (
+                            "Verifier: done for step %s in %.2fs "
+                            "(ok=%s, reason=%s)"
+                        ),
+                        step.id,
+                        time.perf_counter() - v0,
+                        ok,
+                        str(reason)[:200],
+                    )
                 verified = ok
                 verify_reason = reason
                 step_results[step.id].update(

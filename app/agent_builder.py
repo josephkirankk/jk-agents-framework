@@ -62,5 +62,6 @@ async def build_react_agent(
         version="v2",
         checkpointer=checkpointer,
     )
+    log.info("Agent prompt:\n%s", prompt_filled)
     log.info("Built agent %s with %d tools", agent_cfg.name, len(tools))
     return agent, mcp_client

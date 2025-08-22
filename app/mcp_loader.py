@@ -1,5 +1,7 @@
 from __future__ import annotations
-import asyncio, logging, json
+import asyncio
+import logging
+import json
 from typing import Any, Dict, List, Tuple, Optional
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -9,6 +11,7 @@ import aiohttp
 import requests
 
 log = logging.getLogger("mcp_loader")
+
 
 class TimeoutTool(BaseTool):
     name: str = "timeout_wrapper"
@@ -59,6 +62,7 @@ class TimeoutTool(BaseTool):
                 last_exc = e
         raise last_exc or RuntimeError("Inner tool failed with unknown error")
 
+ 
 async def load_mcp_tools(
     servers_cfg: Dict[str, Any],
     tool_timeout: float = 15.0,
@@ -72,7 +76,9 @@ async def load_mcp_tools(
         transport = spec.get("transport", "stdio")
         if transport == "stdio":
             if "command" not in spec:
-                raise ValueError(f"stdio MCP server '{name}' requires 'command'")
+                raise ValueError(
+                    f"stdio MCP server '{name}' requires 'command'"
+                )
             client_cfg[name] = {
                 "transport": "stdio",
                 "command": spec["command"],
@@ -81,7 +87,9 @@ async def load_mcp_tools(
             }
         elif transport in ("sse", "streamable_http", "http"):
             if "url" not in spec:
-                raise ValueError(f"{transport} MCP server '{name}' requires 'url'")
+                raise ValueError(
+                    f"{transport} MCP server '{name}' requires 'url'"
+                )
             client_cfg[name] = {
                 "transport": transport,
                 "url": spec["url"],
@@ -105,7 +113,6 @@ async def load_mcp_tools(
             f"Unexpected get_tools() return type: {type(tools)}"
         )
 
-
     wrapped: List[BaseTool] = []
     bad = []
     for t in tools:
@@ -118,16 +125,30 @@ async def load_mcp_tools(
         ):
             bad.append(type(t).__name__)
             continue
-        # Use tools directly without wrapping for now to avoid Pydantic issues
-        wrapped.append(t)
+    # Wrap with timeout/retry so a single tool call
+    # can't stall the step
+        try:
+            wrapped.append(
+                TimeoutTool(
+                    inner=t,
+                    timeout=float(tool_timeout),
+                    retries=int(tool_retries),
+                )
+            )
+        except Exception:
+            # If wrapping fails for any reason, fall back to the raw tool
+            wrapped.append(t)
     if bad:
-        raise RuntimeError(f"get_tools() returned unexpected objects: {set(bad)}")
+        raise RuntimeError(
+            f"get_tools() returned unexpected objects: {set(bad)}"
+        )
 
     log_names = ", ".join([getattr(t, "name", "<unknown>") for t in wrapped])
     log.info(
         "Loaded %d tools from MCP servers: %s", len(wrapped), log_names
     )
     return mcp_client, list(wrapped)
+
 
 async def close_mcp_client(mcp_client: Optional[MultiServerMCPClient]):
     if not mcp_client:
@@ -190,12 +211,24 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
         if isinstance(params_schema, list) and len(params_schema) == 1:
             single_param = params_schema[0].get("name")
 
-        async def _http_async(input: str, _method=method, _url=url, _headers=headers, _params_schema=params_schema, _response_path=response_path, _single_param=single_param):
+        async def _http_async(
+            input: str,
+            _method=method,
+            _url=url,
+            _headers=headers,
+            _params_schema=params_schema,
+            _response_path=response_path,
+            _single_param=single_param,
+        ):
             """Async HTTP call implementation."""
             payload: Dict[str, Any] = {}
             if input:
                 try:
-                    payload = json.loads(input) if isinstance(input, str) else input
+                    payload = (
+                        json.loads(input)
+                        if isinstance(input, str)
+                        else input
+                    )
                 except Exception:
                     if _single_param:
                         payload = {_single_param: input}
@@ -215,13 +248,29 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                             body = {}
                         body[pname] = payload[pname]
 
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(
+                total=20,
+                connect=5,
+                sock_read=15,
+                sock_connect=5,
+            )
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 if _method == "GET":
-                    resp = await session.get(_url, params=query, headers=_headers)
+                    resp = await session.get(
+                        _url, params=query, headers=_headers
+                    )
                 elif _method == "POST":
-                    resp = await session.post(_url, params=query, json=body, headers=_headers)
+                    resp = await session.post(
+                        _url, params=query, json=body, headers=_headers
+                    )
                 else:
-                    resp = await session.request(_method, _url, params=query, json=body, headers=_headers)
+                    resp = await session.request(
+                        _method,
+                        _url,
+                        params=query,
+                        json=body,
+                        headers=_headers,
+                    )
                 async with resp:
                     txt = await resp.text()
             try:
@@ -238,12 +287,24 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                 return json.dumps(cur)
             return json.dumps(data)
 
-        def _http_sync(input: str, _method=method, _url=url, _headers=headers, _params_schema=params_schema, _response_path=response_path, _single_param=single_param):
+        def _http_sync(
+            input: str,
+            _method=method,
+            _url=url,
+            _headers=headers,
+            _params_schema=params_schema,
+            _response_path=response_path,
+            _single_param=single_param,
+        ):
             """Sync HTTP call implementation for tool.run."""
             payload: Dict[str, Any] = {}
             if input:
                 try:
-                    payload = json.loads(input) if isinstance(input, str) else input
+                    payload = (
+                        json.loads(input)
+                        if isinstance(input, str)
+                        else input
+                    )
                 except Exception:
                     if _single_param:
                         payload = {_single_param: input}
@@ -264,11 +325,22 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                         body[pname] = payload[pname]
 
             if _method == "GET":
-                r = requests.get(_url, params=query, headers=_headers, timeout=15)
+                r = requests.get(
+                    _url, params=query, headers=_headers, timeout=15
+                )
             elif _method == "POST":
-                r = requests.post(_url, params=query, json=body, headers=_headers, timeout=15)
+                r = requests.post(
+                    _url, params=query, json=body, headers=_headers, timeout=15
+                )
             else:
-                r = requests.request(_method, _url, params=query, json=body, headers=_headers, timeout=15)
+                r = requests.request(
+                    _method,
+                    _url,
+                    params=query,
+                    json=body,
+                    headers=_headers,
+                    timeout=15,
+                )
             txt = r.text
             try:
                 data = json.loads(txt)

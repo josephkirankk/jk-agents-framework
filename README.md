@@ -8,6 +8,9 @@ system with:
 - Executor that runs steps in topological order with retries, timeouts, and verification
 - FastAPI wrapper exposing /invoke and /plan_and_run endpoints
 
+## Run
+-  .venv\Scripts\python.exe -m app.main --config config\brave_math_weather.yaml "print the current population of india in ASCII art"
+
 ## Quickstart
 1. Create virtualenv and install:
    ```bash
@@ -34,6 +37,7 @@ system with:
 ## MCP servers
 
 - deno cache --node-modules-dir=auto jsr:@pydantic/mcp-run-python
+
 
 ## Azure OpenAI setup
 
