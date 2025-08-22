@@ -179,15 +179,17 @@ async def execute_plan(
             }
 
             try:
+                worker_config = {"configurable": {"thread_id": f"step-{step.id}"}}
                 if step.timeout_seconds:
                     worker_out = await asyncio.wait_for(
-                        worker_compiled.ainvoke(worker_state),
+                        worker_compiled.ainvoke(worker_state, config=worker_config),
                         timeout=step.timeout_seconds,
                     )
                 else:
-                    worker_out = await worker_compiled.ainvoke(worker_state)
+                    worker_out = await worker_compiled.ainvoke(worker_state, config=worker_config)
             except AttributeError:
-                worker_out = worker_compiled.invoke(worker_state)
+                worker_config = {"configurable": {"thread_id": f"step-{step.id}"}}
+                worker_out = worker_compiled.invoke(worker_state, config=worker_config)
             except asyncio.TimeoutError:
                 last_err = "timeout"
                 log.warning("Step %s timed out", step.id)

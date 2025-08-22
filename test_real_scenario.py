@@ -139,16 +139,41 @@ async def test_full_workflow():
                 print(f"✓ Workflow execution completed!")
                 print(f"📊 Results summary:")
                 
-                for step_id, result in results.items():
-                    status = "✓" if result.get("success", False) else "✗"
-                    print(f"  {status} {step_id}: {result.get('status', 'Unknown')}")
+                # Access the steps from the results dictionary
+                steps = results.get("steps", {})
+                plan_info = results.get("plan", {})
+                final_result = results.get("final_result", {})
+                
+                goal = plan_info.get('goal', 'No goal specified')
+                print(f"  ✓ plan: {goal}")
+                print(f"  ✓ status: {results.get('status', 'Unknown')}")
+                
+                for step_id, result in steps.items():
+                    status = "✓" if result.get("ok", False) else "✗"
+                    agent_name = result.get("agent", "Unknown")
+                    step_status = ('Completed' if result.get('ok', False)
+                                   else 'Failed')
+                    msg = f"  {status} {step_id} ({agent_name}): {step_status}"
+                    print(msg)
                     
-                    if result.get("success") and result.get("output"):
-                        output = result["output"]
-                        # Truncate long outputs for readability
-                        if len(output) > 300:
-                            output = output[:300] + "..."
+                    # Show output summary if available
+                    if result.get("ok") and result.get("output_summary"):
+                        output = result["output_summary"]
                         print(f"      Output: {output}")
+                    
+                    # Show error if failed
+                    if not result.get("ok") and result.get("last_error"):
+                        print(f"      Error: {result['last_error']}")
+                
+                # Show final aggregated results
+                if final_result:
+                    step_count = len(final_result)
+                    print(f"  ✓ final_result: Available ({step_count} steps)")
+                    for step_id, step_data in final_result.items():
+                        summary = step_data.get("summary", "No summary")
+                        if len(summary) > 100:
+                            summary = summary[:100] + "..."
+                        print(f"      {step_id}: {summary}")
                 
             except Exception as e:
                 print(f"✗ Workflow execution failed: {e}")
@@ -156,7 +181,7 @@ async def test_full_workflow():
                 traceback.print_exc()
                 continue
         
-        print(f"\n" + "=" * 60)
+        print("\n" + "=" * 60)
         print("🎉 WORKFLOW TEST COMPLETED!")
         print("=" * 60)
         return True
@@ -167,14 +192,17 @@ async def test_full_workflow():
         traceback.print_exc()
         return False
     finally:
-        # Clean up agents
-        if 'mcp_clients' in locals():
-            for client in mcp_clients.values():
-                if client and hasattr(client, 'close'):
-                    try:
-                        await client.close()
-                    except:
-                        pass
+        # Clean up agents (mcp_clients may not exist if error occurs early)
+        try:
+            if 'mcp_clients' in locals() and mcp_clients:
+                for client in mcp_clients.values():
+                    if client and hasattr(client, 'close'):
+                        try:
+                            await client.close()
+                        except Exception:
+                            pass
+        except Exception:
+            pass
 
 
 async def main():
