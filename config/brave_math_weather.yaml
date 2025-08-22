@@ -1,0 +1,82 @@
+models:
+  default: "openai:gpt-4o-mini"
+  supervisor: "openai:gpt-4o-mini"
+  temperature: 0.0
+
+business_context: |
+  You are a multi-agent system for web research and simple API tasks. Use web search for facts
+  and use math/weather HTTP tools for precise answers. Always verify numbers. Cite URLs for web facts.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: ""
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+
+    You are the Supervisor/Planner. Decompose the user's request into a minimal sequence of steps.
+    Use the appropriate agents from this list:
+    {{agents}}
+
+    Return JSON only with the structure:
+    {
+      "goal": "<short goal>",
+      "plan": [
+        {"id":"s1", "agent":"search_agent", "task":"...", "depends_on":[], "verify":"..."},
+        {"id":"s2", "agent":"math_agent", "task":"...", "depends_on":["s1"], "verify":"..."}
+      ]
+    }
+
+agents:
+  - name: "search_agent"
+    description: "Brave web search via MCP SSE"
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are SearchAgent. Use the Brave MCP server to search and summarize.
+      Always:
+      - Provide accurate, up-to-date info
+      - Include 2-3 key sources as URLs
+      - Keep it concise
+      Available MCP servers:
+      {{mcpservers}}
+    mcp_servers:
+      brave:
+        description: "Brave search MCP server (SSE)"
+        transport: "sse"
+        url: "http://localhost:8080/sse"
+
+  - name: "math_agent"
+    description: "Compute numbers precisely using math HTTP endpoint"
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are MathAgent. Prefer calling the provided HTTP tool for arithmetic.
+      Return only the final numeric result unless asked otherwise.
+    mcp_servers: {}
+    http_tools:
+      calc:
+        description: "Calculate arithmetic expression"
+        method: GET
+        url: "http://localhost:8001/calculate"
+        params:
+          - name: expression
+            in: query
+        response_path: result
+
+  - name: "weather_agent"
+    description: "Get current weather from local FastAPI weather server"
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are WeatherAgent. Use the weather HTTP tool to get the weather by city.
+      Return: "City: temp C, condition" or an error message.
+    mcp_servers: {}
+    http_tools:
+      weather:
+        description: "Get weather for a city"
+        method: GET
+        url: "http://localhost:8002/weather"
+        params:
+          - name: city
+            in: query

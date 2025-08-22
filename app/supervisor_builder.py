@@ -26,12 +26,7 @@ def build_supervisor_compiled(supervisor_cfg: SupervisorConfig, agents_cfg: List
     sup_agent = create_react_agent(
         model=supervisor_model,
         tools=[],
-        prompt=(
-            prompt_filled.strip()
-            + "\n\nIMPORTANT: Return the agent routing decision as a JSON object only, with keys: agent, task, reason. Example:\n"
-            + '{"agent":"math_agent","task":"Compute 19*37","reason":"explicit arithmetic request"}\n'
-            + "Respond with JSON only and nothing else."
-        ),
+        prompt=prompt_filled.strip(),
         name="supervisor",
         version="v2",
         checkpointer=checkpointer,

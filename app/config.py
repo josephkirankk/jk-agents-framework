@@ -45,6 +45,9 @@ class AgentConfig(BaseModel):
     model: Optional[str] = None
     prompt: str
     mcp_servers: Dict[str, MCPServerConfig] = Field(default_factory=dict)
+    # Optional simple HTTP tools configuration (non-MCP)
+    # Each entry defines a callable HTTP endpoint exposed as a LangChain Tool
+    http_tools: Dict[str, Dict] = Field(default_factory=dict)
 
 
 class SupervisorConfig(BaseModel):
