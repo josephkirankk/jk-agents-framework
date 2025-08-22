@@ -9,12 +9,19 @@ log = logging.getLogger("mcp_loader")
 
 class TimeoutTool(BaseTool):
     name: str
-    description: Optional[str]
+    description: str = ""
 
-    def __init__(self, inner: BaseTool, timeout: float = 15.0, retries: int = 2):
+    def __init__(self, inner: BaseTool, timeout: float = 15.0, retries: int = 2, **kwargs):
+        tool_name = getattr(inner, "name", getattr(inner, "tool_name", "unnamed_tool"))
+        tool_desc = getattr(inner, "description", "")
+        
+        super().__init__(
+            name=tool_name,
+            description=tool_desc,
+            **kwargs
+        )
+        
         self._inner = inner
-        self.name = getattr(inner, "name", getattr(inner, "tool_name", "unnamed_tool"))
-        self.description = getattr(inner, "description", "")
         self._timeout = float(timeout)
         self._retries = int(retries)
 
@@ -83,15 +90,17 @@ async def load_mcp_tools(servers_cfg: Dict[str, Any], tool_timeout: float = 15.0
     wrapped: List[BaseTool] = []
     bad = []
     for t in tools:
-        if not (hasattr(t, "name") and (callable(getattr(t, "run", None)) or callable(getattr(t, "arun", None)))):
+        if not (hasattr(t, "name") and (callable(getattr(t, "run", None)) or 
+                                       callable(getattr(t, "arun", None)))):
             bad.append(type(t).__name__)
             continue
-        wrapped.append(TimeoutTool(t, timeout=tool_timeout, retries=tool_retries))
+        # Use tools directly without wrapping for now to avoid Pydantic issues
+        wrapped.append(t)
     if bad:
         raise RuntimeError(f"get_tools() returned unexpected objects: {set(bad)}")
 
     log_names = ", ".join([getattr(t, "name", "<unknown>") for t in wrapped])
-    log.info("Loaded and wrapped %d tools from MCP servers: %s", len(wrapped), log_names)
+    log.info("Loaded %d tools from MCP servers: %s", len(wrapped), log_names)
     return mcp_client, list(wrapped)
 
 async def close_mcp_client(mcp_client: Optional[MultiServerMCPClient]):

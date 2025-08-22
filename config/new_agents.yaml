@@ -40,39 +40,24 @@ supervisor:
     Respond with JSON only and nothing else.
 
 agents:
-  - name: "web_agent"
-    description: "Performs web lookups and retrieval using streamable HTTP MCP servers."
+  - name: "search_agent"
+    description: "Performs web searches and information retrieval using Brave search."
     model: "openai:gpt-4o-mini"
     prompt: |
-      You are WebAgent. Available MCP servers:
+      You are SearchAgent. Available MCP servers:
       {{mcpservers}}
-      When given a task, fetch facts using MCP tools as needed and return a concise result. Cite sources if applicable.
+      
+      When given a task, use the Brave search MCP tools to find relevant information.
+      Always:
+      - Provide accurate, up-to-date information
+      - Cite sources with URLs when available
+      - Be concise but thorough in your responses
+      - If multiple search results are needed, perform separate searches
+      
+      Return your findings in a clear, structured format.
     mcp_servers:
-      websearch:
-        description: "Brave search MCP server (streamable-http)."
-        transport: "streamable_http"
-        url: "http://localhost:8000/mcp"
+      brave_search:
+        description: "Brave search MCP server for web searches"
+        transport: "sse"
+        url: "http://localhost:8080/sse"
         env: {}
-
-  - name: "math_agent"
-    description: "Performs precise numeric computation via MCP math server."
-    model: "openai:gpt-4o-mini"
-    prompt: |
-      You are MathAgent. Available MCP servers:
-      {{mcpservers}}
-      When given a numeric task, prefer MCP tool calculations and return a precise result.
-    mcp_servers:
-      math:
-        description: "Arithmetic MCP (add/multiply) via stdio."
-        transport: "stdio"
-        command: "python"
-        args: ["examples/mcp_servers/math_server.py"]
-        env: {}
-
-  - name: "test_agent"
-    description: "Simple test agent with no MCP servers for validating Azure OpenAI setup."
-    model: "openai:gpt-4o-mini"
-    prompt: |
-      You are a helpful test agent. Answer the user's question directly without using any external tools.
-      Be concise and accurate in your responses.
-    mcp_servers: {}

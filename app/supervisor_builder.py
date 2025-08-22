@@ -34,7 +34,7 @@ def build_supervisor_compiled(supervisor_cfg: SupervisorConfig, agents_cfg: List
         ),
         name="supervisor",
         version="v2",
+        checkpointer=checkpointer,
     )
-    compiled = sup_agent.compile(checkpointer=checkpointer)
     log.info("Supervisor compiled (model=%s)", supervisor_model)
-    return compiled
+    return sup_agent

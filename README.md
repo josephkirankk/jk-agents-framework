@@ -29,3 +29,21 @@ system with:
    ```bash
    curl -X POST "http://localhost:8000/plan_and_run" -H "Content-Type: application/json" -d '{"input":"Get Mumbai weather and compare to Delhi"}'
    ```
+
+## Azure OpenAI setup
+
+This repo supports both OpenAI and Azure OpenAI. If these environment variables are present, models like `openai:gpt-4o-mini` are auto-switched to `azure_openai:gpt-4o-mini` and used with Azure OpenAI SDK:
+
+- AZURE_OPENAI_API_KEY
+- AZURE_OPENAI_ENDPOINT (e.g., https://your-resource-name.openai.azure.com)
+- Optional per-deployment: AZURE_OPENAI_API_VERSION (defaults to SDK)
+
+Windows PowerShell example:
+
+```
+$env:AZURE_OPENAI_API_KEY="<your-key>"
+$env:AZURE_OPENAI_ENDPOINT="https://<your-resource>.openai.azure.com"
+python -m app.main "Research ACME quarterly results and summarize with sources."
+```
+
+If your Brave MCP requires auth headers, add them under `headers` in `config/agents.yaml` for the `web_agent` MCP server.
