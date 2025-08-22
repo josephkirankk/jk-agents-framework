@@ -4,8 +4,7 @@ models:
   temperature: 0.0
 
 business_context: |
-  You are a multi-agent system for web research and simple API tasks. Use web search for facts
-  and use math/weather HTTP tools for precise answers. Always verify numbers. Cite URLs for web facts.
+  You are a multi-agent system who will always use the most appropriate agent for the task at hand.
 
 persistence:
   type: "memory"
