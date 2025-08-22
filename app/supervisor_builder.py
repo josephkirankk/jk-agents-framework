@@ -31,5 +31,22 @@ def build_supervisor_compiled(supervisor_cfg: SupervisorConfig, agents_cfg: List
         version="v2",
         checkpointer=checkpointer,
     )
+    # Print/log the exact planning prompt used
+    try:
+        full_prompt = prompt_filled.strip()
+        log.info(
+            "Supervisor planning prompt (model=%s):\n%s",
+            supervisor_model,
+            full_prompt,
+        )
+        print(
+            "Supervisor planning prompt (model="
+            + str(supervisor_model)
+            + "):\n"
+            + full_prompt
+        )
+    except Exception as e:
+        log.warning("Failed to print supervisor planning prompt: %s", e)
+
     log.info("Supervisor compiled (model=%s)", supervisor_model)
     return sup_agent

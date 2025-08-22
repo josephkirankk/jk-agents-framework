@@ -161,6 +161,18 @@ async def execute_plan(
             {"role": "user", "content": user_input},
         ]
     }
+    # Print/log the query/messages used to build the plan
+    try:
+        log.info(
+            "Supervisor invocation messages to build plan:\n%s",
+            json.dumps(sup_state, indent=2, ensure_ascii=False),
+        )
+        print(
+            "Supervisor invocation messages to build plan:\n"
+            + json.dumps(sup_state, indent=2, ensure_ascii=False)
+        )
+    except Exception as e:
+        log.warning("Failed to print supervisor invocation messages: %s", e)
     try:
         config = {"configurable": {"thread_id": "execute-plan-thread"}}
         sup_out = await supervisor_compiled.ainvoke(sup_state, config=config)
@@ -200,6 +212,14 @@ async def execute_plan(
                     PlanStep(id="s1", agent=first_agent, task=user_input)
                 ],
             )
+
+    # Print the complete plan JSON for visibility/debugging
+    try:
+        plan_json_str = json.dumps(plan.dict(), indent=2, ensure_ascii=False)
+        log.info("Complete plan JSON:\n%s", plan_json_str)
+        print("Complete plan JSON:\n" + plan_json_str)
+    except Exception as e:
+        log.warning("Failed to serialize plan to JSON: %s", e)
 
     for step in plan.plan:
         if step.agent not in agents_map:

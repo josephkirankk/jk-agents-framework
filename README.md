@@ -30,6 +30,11 @@ system with:
    curl -X POST "http://localhost:8000/plan_and_run" -H "Content-Type: application/json" -d '{"input":"Get Mumbai weather and compare to Delhi"}'
    ```
 
+
+## MCP servers
+
+- deno cache --node-modules-dir=auto jsr:@pydantic/mcp-run-python
+
 ## Azure OpenAI setup
 
 This repo supports both OpenAI and Azure OpenAI. If these environment variables are present, models like `openai:gpt-4o-mini` are auto-switched to `azure_openai:gpt-4o-mini` and used with Azure OpenAI SDK:
