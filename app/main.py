@@ -1,7 +1,6 @@
 from __future__ import annotations
 import argparse
 import asyncio
-import json
 import logging
 from pathlib import Path
 import os
@@ -16,6 +15,10 @@ from .agent_builder import build_react_agent
 from .supervisor_builder import build_supervisor_compiled
 from .planner_executor import execute_plan
 from .mcp_loader import close_mcp_client
+from .markdown_formatter import (
+    format_result_as_markdown,
+    format_direct_agent_result
+)
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 
@@ -146,7 +149,14 @@ async def run_direct_agent(
             text = getattr(last_msg, "content", "")
         else:
             text = ""
-        print(text)
+        
+        # Format as user-friendly Markdown
+        formatted_output = format_direct_agent_result(
+            content=text,
+            agent_name=agent_name,
+            user_input=user_input
+        )
+        print(formatted_output)
     finally:
         await close_mcp_client(mcp_client)
 
@@ -170,8 +180,13 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
             business_context=app_cfg.business_context or "",
             default_model_for_verifier=default_model,
         )
-        # Pretty print final result
-        print(json.dumps(result.get("final_result", result), indent=2))
+        # Format as user-friendly Markdown
+        formatted_output = format_result_as_markdown(
+            result=result,
+            user_input=user_input,
+            business_context=app_cfg.business_context
+        )
+        print(formatted_output)
     finally:
         # Cleanup MCP clients
         for client in mcp_clients.values():
