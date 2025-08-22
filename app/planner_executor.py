@@ -360,12 +360,26 @@ async def execute_plan(
     # Count only actual retries across the entire plan (not initial attempts)
     global_retries_done = 0
 
-    def summarize_results() -> str:
-        parts = []
+    def _format_previous_results_for_step(
+        depends_on: Optional[List[str]],
+    ) -> str:
+        """Build text for "Previous step results" passed to the next worker.
+
+        Show full raw outputs for dependency steps to avoid truncation issues,
+        and compact summaries for other prior steps.
+        """
+        if not step_results:
+            return "(none)"
+        dep_set = set(depends_on or [])
+        parts: List[str] = []
         for sid, info in step_results.items():
-            parts.append(
-                f"{sid}: {info.get('output_summary', '(no output)')}"
-            )
+            if sid in dep_set:
+                parts.append(f"{sid} (full): {info.get('raw', '')}")
+            else:
+                parts.append(
+                    f"{sid} (summary): "
+                    f"{info.get('output_summary', '(no output)')}"
+                )
         return "\n".join(parts)
 
     for step in ordered_steps:
@@ -376,15 +390,17 @@ async def execute_plan(
         next_task_override: Optional[str] = None
         while True:
             attempts += 1
-            # Include both business context and the user's goal
-            # for clearer guidance
+            # Include both business context and the user's goal for clearer
+            # guidance. Provide full raw outputs for direct dependencies to
+            # avoid losing critical details.
             goal_text = plan.goal or user_input
+            prev_text = _format_previous_results_for_step(step.depends_on)
             system_context = (
                 "Business context:\n"
                 f"{business_context}\n\n"
                 "User goal:\n"
                 f"{goal_text}\n\n"
-                f"Previous step results:\n{summarize_results()}"
+                f"Previous step results:\n{prev_text}"
             )
             user_task = next_task_override or step.task
             worker_compiled = agents_map[step.agent]
@@ -471,7 +487,8 @@ async def execute_plan(
                 tokens["worker"]["total"] += wu.get("total_tokens", 0)
             else:
                 wtext = ""
-            summary = (wtext[:400] + "...") if len(wtext) > 400 else wtext
+            # Use a longer summary to avoid truncating key facts
+            summary = (wtext[:1200] + "...") if len(wtext) > 1200 else wtext
 
             # Log worker response
             _safe_write([
@@ -625,4 +642,5 @@ async def execute_plan(
         "plan": plan.dict(),
         "steps": step_results,
         "final_result": final_agg,
+        "status": "completed",
     }
