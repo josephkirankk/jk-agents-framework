@@ -1,0 +1,125 @@
+models:
+  # Use LM Studio (OpenAI-compatible) Gemma model
+  default: "openai:google/gemma-3n-e4b"
+  supervisor: "openai:google/gemma-3n-e4b"
+  temperature: 0.0
+
+business_context: |
+  You are a multi-agent system who will always use the most appropriate agent for the task at hand.
+  Rules :
+    - Do not include unnecessary steps.
+    - Have simple verification questions to confirm the result of each step.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: ""
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+
+    You are the Supervisor/Planner. Decompose the user's request into a minimal sequence of steps.
+
+    Always use Human responder as the final step to write a human readable response.
+
+    Use the appropriate agents from this list:
+    {{agents}}
+
+    Return JSON only with the structure:
+    {
+      "goal": "<short goal>",
+      "plan": [
+        {"id":"s1", "agent":"search_agent", "task":"...", "depends_on":[], "verify":"..."},
+        {"id":"s2", "agent":"math_agent", "task":"...", "depends_on":["s1"], "verify":"..."}
+      ]
+    }
+
+agents:
+  - name: "search_agent"
+    description: "Brave web search via MCP SSE"
+    model: "openai:google/gemma-3n-e4b"
+    prompt: |
+      You are SearchAgent. Use the Brave MCP server to search and summarize.
+      Always:
+      - Provide accurate, up-to-date info
+      - Include 2-3 key sources as URLs
+      - Keep it concise
+      Available MCP servers:
+      {{mcpservers}}
+    mcp_servers:
+      brave:
+        description: "Brave search MCP server (SSE)"
+        transport: "sse"
+        url: "http://localhost:8080/sse"
+
+  - name: "human_response_agent"
+    description: "Human responder"
+    model: "openai:google/gemma-3n-e4b"
+    prompt: |
+      Understand the full user request and multistep responses and provide a final response which is consistent with the user request.
+      Return only the final human response, nothing else.
+    mcp_servers: {}
+
+  - name: "math_agent"
+    description: "Compute numbers precisely using math HTTP endpoint"
+    model: "openai:google/gemma-3n-e4b"
+    prompt: |
+      You are MathAgent. Prefer calling the provided HTTP tool for arithmetic.
+      Return only the final numeric result unless asked otherwise.
+    mcp_servers: {}
+    http_tools:
+      calc:
+        description: "Calculate arithmetic expression"
+        method: GET
+        url: "http://localhost:8001/calculate"
+        params:
+          - name: expression
+            in: query
+        response_path: result
+
+  - name: "weather_agent"
+    description: "Get current weather from local FastAPI weather server"
+    model: "openai:google/gemma-3n-e4b"
+    prompt: |
+      You are WeatherAgent. Use the weather HTTP tool to get the weather by city.
+      Return: "City: temp C, condition" or an error message.
+    mcp_servers: {}
+    http_tools:
+      weather:
+        description: "Get weather for a city"
+        method: GET
+        url: "http://localhost:8002/weather"
+        params:
+          - name: city
+            in: query
+
+  - name: "python_exec_agent"
+    description: "Writes small Python snippets and executes them via an MCP Python runner"
+    model: "openai:google/gemma-3n-e4b"
+    prompt: |
+      You are CodeRunner. When asked to compute, transform data, or prototype logic,
+      write a clear, minimal Python snippet and execute it using the available Python
+      execution MCP tool. Then return:
+      - The code you ran (fenced as ```python ... ```)
+      - The resulting output (or error)
+      Be careful:
+      - Prefer pure-Python stdlib; avoid network or file side-effects
+      - Keep snippets short and deterministic
+      - If execution fails, fix the code and retry once
+      Available MCP servers:
+      {{mcpservers}}
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"

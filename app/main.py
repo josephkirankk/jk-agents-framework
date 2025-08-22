@@ -61,18 +61,22 @@ def load_app_config(cfg_path: Path | None = None) -> AppConfig:
     data["models"] = models
 
     # If Azure OpenAI env is present, switch provider prefix to azure_openai
+    # unless an OpenAI-compatible BASE_URL is explicitly set (e.g., LM Studio)
     is_azure = bool(
         os.getenv("AZURE_OPENAI_API_KEY")
         and os.getenv("AZURE_OPENAI_ENDPOINT")
     )
-    if is_azure:
+    openai_base_url = (
+        os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
+    )
+    if is_azure and not openai_base_url:
         # Normalize endpoint (remove trailing slash) for SDK compatibility
         ep = os.getenv("AZURE_OPENAI_ENDPOINT")
         if ep and ep.endswith("/"):
             os.environ["AZURE_OPENAI_ENDPOINT"] = ep.rstrip("/")
 
-    # If a deployment name is specified, use it as the model id
-    # after the provider prefix
+        # If a deployment name is specified, use it as the model id
+        # after the provider prefix
         deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
 
         def _to_azure(mid: str) -> str:
@@ -85,7 +89,10 @@ def load_app_config(cfg_path: Path | None = None) -> AppConfig:
                 return "azure_openai:" + model_tail
             return mid
 
-        data["models"] = {k: _to_azure(v) for k, v in data["models"].items()}
+        # Rewrite model ids in-place to azure_openai:*
+        data["models"] = {
+            k: _to_azure(v) for k, v in data["models"].items()
+        }
 
         # Also adjust agent-specific and supervisor model ids if given
         agents_list = data.get("agents") or []
