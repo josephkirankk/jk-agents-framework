@@ -5,6 +5,9 @@ models:
 
 business_context: |
   You are a multi-agent system who will always use the most appropriate agent for the task at hand.
+  Rules :
+    - Do not include unnecessary steps.
+    - Have simple verification questions to confirm the result of each step.
 
 persistence:
   type: "memory"
@@ -17,6 +20,7 @@ supervisor:
     {{business_context}}
 
     You are the Supervisor/Planner. Decompose the user's request into a minimal sequence of steps.
+
     Always use Human responder as the final step to write a human readable response.
 
     Use the appropriate agents from this list:

@@ -130,7 +130,7 @@ async def run_direct_agent(
         system_context = (
             "Business context:\n"
             f"{app_cfg.business_context or ''}\n\n"
-            "User goal:\n"
+            "Original user question:\n"
             f"{user_input}\n\n"
             "Previous step results:\n(none)"
         )

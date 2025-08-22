@@ -258,7 +258,7 @@ async def execute_plan(
     sup_system_context = (
         "Business context:\n"
         f"{business_context}\n\n"
-        "User goal:\n"
+        "Original user question:\n"
         f"{user_input}"
     )
     sup_state = {
@@ -412,10 +412,13 @@ async def execute_plan(
     def _format_previous_results_for_step(
         depends_on: Optional[List[str]],
     ) -> str:
-        """Build text for "Previous step results" passed to the next worker.
+        """Build text for "Previous step results" for the next worker.
 
-        Show full raw outputs for dependency steps to avoid truncation issues,
-        and compact summaries for other prior steps.
+        For dependency steps: include full request and full response.
+    For other prior steps: include summarized request and summarized
+    response.
+        This balances completeness with brevity so downstream agents
+        understand both what was asked and what came back.
         """
         if not step_results:
             return "(none)"
@@ -423,10 +426,20 @@ async def execute_plan(
         parts: List[str] = []
         for sid, info in step_results.items():
             if sid in dep_set:
-                parts.append(f"{sid} (full): {info.get('raw', '')}")
-            else:
+                # Full detail for dependencies
                 parts.append(
-                    f"{sid} (summary): "
+                    f"{sid} request (full): "
+                    f"{info.get('request', '')}"
+                )
+                parts.append(f"{sid} response (full): {info.get('raw', '')}")
+            else:
+                # Summaries for non-dependencies
+                parts.append(
+                    f"{sid} request (summary): "
+                    f"{info.get('request_summary', '(no request)')}"
+                )
+                parts.append(
+                    f"{sid} response (summary): "
                     f"{info.get('output_summary', '(no output)')}"
                 )
         return "\n".join(parts)
@@ -439,16 +452,16 @@ async def execute_plan(
         next_task_override: Optional[str] = None
         while True:
             attempts += 1
-            # Include both business context and the user's goal for clearer
-            # guidance. Provide full raw outputs for direct dependencies to
+            # Include both business context and the original user question
+            # for clearer guidance. Provide full raw outputs for direct
+            # dependencies to
             # avoid losing critical details.
-            goal_text = plan.goal or user_input
             prev_text = _format_previous_results_for_step(step.depends_on)
             system_context = (
                 "Business context:\n"
                 f"{business_context}\n\n"
-                "User goal:\n"
-                f"{goal_text}\n\n"
+                "Original user question:\n"
+                f"{user_input}\n\n"
                 f"Previous step results:\n{prev_text}"
             )
             user_task = next_task_override or step.task
@@ -629,11 +642,21 @@ async def execute_plan(
                 wtext or "(empty)",
                 "",
             ])
+            # Summarize the request we sent to the worker so we can include it
+            # in subsequent steps' context without overwhelming them.
+            request_text = user_task
+            request_summary = (
+                (request_text[:400] + "...")
+                if len(request_text) > 400
+                else request_text
+            )
 
             step_results[step.id] = {
                 "agent": step.agent,
                 "task": step.task,
                 "attempts": attempts,
+                "request": request_text,
+                "request_summary": request_summary,
                 "raw": wtext,
                 "output_summary": summary,
                 "ok": True
