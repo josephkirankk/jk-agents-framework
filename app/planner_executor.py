@@ -3,6 +3,8 @@ import json
 import asyncio
 import logging
 from typing import Dict, List, Optional, Any
+from datetime import datetime
+from pathlib import Path
 import re
 from pydantic import BaseModel, Field, ValidationError
 from .utils import extract_json_block
@@ -155,6 +157,100 @@ async def execute_plan(
     max_total_retries: int = 2,
     human_in_loop: bool = False,
 ) -> Dict[str, Any]:
+    # Prepare log file with timestamped name at repo root
+    log_file_path: Optional[Path] = None
+    try:
+        ts = datetime.now().strftime("%Y%m%d%H%M%S")
+        repo_root = Path(__file__).resolve().parents[1]
+        log_file_path = repo_root / f"agentlog_{ts}.log"
+    except Exception:
+        log_file_path = None
+
+    def _safe_write(lines: List[str]):
+        if not log_file_path:
+            return
+        try:
+            with log_file_path.open("a", encoding="utf-8") as f:
+                for line in lines:
+                    f.write(line)
+                    if not line.endswith("\n"):
+                        f.write("\n")
+        except Exception as e:
+            log.debug("Log file write failed: %s", e)
+
+    def _extract_usage(msg: Any) -> Dict[str, int]:
+        usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        try:
+            # LangChain AIMessage often carries usage_metadata
+            meta = getattr(msg, "usage_metadata", None)
+            if meta and isinstance(meta, dict):
+                usage.update({
+                    "input_tokens": int(meta.get("input_tokens", 0) or 0),
+                    "output_tokens": int(meta.get("output_tokens", 0) or 0),
+                    "total_tokens": int(
+                        meta.get("total_tokens", 0)
+                        or (
+                            int(meta.get("input_tokens", 0) or 0)
+                            + int(meta.get("output_tokens", 0) or 0)
+                        )
+                    ),
+                })
+                return usage
+            # Some providers embed in response_metadata
+            rmeta = getattr(msg, "response_metadata", None)
+            if isinstance(rmeta, dict):
+                token_usage = rmeta.get("token_usage") or rmeta.get("usage")
+                if isinstance(token_usage, dict):
+                    usage.update({
+                        "input_tokens": int(
+                            token_usage.get(
+                                "prompt_tokens",
+                                token_usage.get("input_tokens", 0),
+                            )
+                            or 0
+                        ),
+                        "output_tokens": int(
+                            token_usage.get(
+                                "completion_tokens",
+                                token_usage.get("output_tokens", 0),
+                            )
+                            or 0
+                        ),
+                    })
+                    usage["total_tokens"] = (
+                        usage["input_tokens"] + usage["output_tokens"]
+                    )
+                    return usage
+            # Dict-shaped message
+            if isinstance(msg, dict):
+                um = msg.get("usage_metadata") or msg.get("usage")
+                if isinstance(um, dict):
+                    usage.update({
+                        "input_tokens": int(um.get("input_tokens", 0) or 0),
+                        "output_tokens": int(um.get("output_tokens", 0) or 0),
+                    })
+                    usage["total_tokens"] = (
+                        usage["input_tokens"] + usage["output_tokens"]
+                    )
+        except Exception:
+            pass
+        return usage
+
+    # Initialize log header
+    _safe_write([
+        "=== jk-agents run log ===",
+        f"Started: {datetime.now().isoformat(timespec='seconds')}",
+        f"User input: {user_input}",
+        f"Business context: {(business_context or '(none)')}",
+        "",
+    ])
+
+    # Track usage summary
+    calls = {"supervisor": 0, "worker": 0}
+    tokens = {
+        "supervisor": {"input": 0, "output": 0, "total": 0},
+        "worker": {"input": 0, "output": 0, "total": 0},
+    }
     sup_state = {
         "messages": [
             {"role": "system", "content": business_context},
@@ -175,9 +271,22 @@ async def execute_plan(
         log.warning("Failed to print supervisor invocation messages: %s", e)
     try:
         config = {"configurable": {"thread_id": "execute-plan-thread"}}
+        # Log supervisor request
+        _safe_write([
+            "--- Supervisor Request ---",
+            f"System: {business_context}",
+            f"User: {user_input}",
+            "",
+        ])
         sup_out = await supervisor_compiled.ainvoke(sup_state, config=config)
     except AttributeError:
         config = {"configurable": {"thread_id": "execute-plan-thread"}}
+        _safe_write([
+            "--- Supervisor Request ---",
+            f"System: {business_context}",
+            f"User: {user_input}",
+            "",
+        ])
         sup_out = supervisor_compiled.invoke(sup_state, config=config)
 
     sup_msgs = sup_out.get("messages", [])
@@ -185,9 +294,21 @@ async def execute_plan(
         # LangGraph messages are objects with .content attribute
         last_msg = sup_msgs[-1]
         sup_text = getattr(last_msg, "content", "")
+        # Track usage for supervisor
+        calls["supervisor"] += 1
+        u = _extract_usage(last_msg)
+        tokens["supervisor"]["input"] += u.get("input_tokens", 0)
+        tokens["supervisor"]["output"] += u.get("output_tokens", 0)
+        tokens["supervisor"]["total"] += u.get("total_tokens", 0)
     else:
         sup_text = ""
     log.info("Supervisor plan text: %s", sup_text[:400])
+    # Log supervisor response
+    _safe_write([
+        "--- Supervisor Response ---",
+        sup_text or "(empty)",
+        "",
+    ])
 
     plan = parse_plan_text(sup_text)
     if not plan:
@@ -267,6 +388,16 @@ async def execute_plan(
                 worker_config = {
                     "configurable": {"thread_id": f"step-{step.id}"}
                 }
+                # Log worker request
+                _safe_write([
+                    (
+                        f"--- Worker Request (step={step.id}, "
+                        f"agent={step.agent}, attempt={attempts}) ---"
+                    ),
+                    f"System: {system_context}",
+                    f"User: {user_task}",
+                    "",
+                ])
                 if step.timeout_seconds:
                     worker_out = await asyncio.wait_for(
                         worker_compiled.ainvoke(
@@ -282,6 +413,15 @@ async def execute_plan(
                 worker_config = {
                     "configurable": {"thread_id": f"step-{step.id}"}
                 }
+                _safe_write([
+                    (
+                        f"--- Worker Request (step={step.id}, "
+                        f"agent={step.agent}, attempt={attempts}) ---"
+                    ),
+                    f"System: {system_context}",
+                    f"User: {user_task}",
+                    "",
+                ])
                 worker_out = worker_compiled.invoke(
                     worker_state, config=worker_config
                 )
@@ -312,9 +452,25 @@ async def execute_plan(
                 # LangGraph messages are objects with .content attribute
                 last_msg = wmsgs[-1]
                 wtext = getattr(last_msg, "content", "")
+                # Track usage for worker
+                calls["worker"] += 1
+                wu = _extract_usage(last_msg)
+                tokens["worker"]["input"] += wu.get("input_tokens", 0)
+                tokens["worker"]["output"] += wu.get("output_tokens", 0)
+                tokens["worker"]["total"] += wu.get("total_tokens", 0)
             else:
                 wtext = ""
             summary = (wtext[:400] + "...") if len(wtext) > 400 else wtext
+
+            # Log worker response
+            _safe_write([
+                (
+                    f"--- Worker Response (step={step.id}, "
+                    f"agent={step.agent}, attempt={attempts}) ---"
+                ),
+                wtext or "(empty)",
+                "",
+            ])
 
             step_results[step.id] = {
                 "agent": step.agent,
@@ -414,9 +570,35 @@ async def execute_plan(
         sid: {"summary": info["output_summary"], "raw": info["raw"]}
         for sid, info in step_results.items()
     }
+
+    # Write summary to log
+    total_calls = calls["supervisor"] + calls["worker"]
+    total_input = tokens["supervisor"]["input"] + tokens["worker"]["input"]
+    total_output = tokens["supervisor"]["output"] + tokens["worker"]["output"]
+    total_tokens = tokens["supervisor"]["total"] + tokens["worker"]["total"]
+    _safe_write([
+        "=== Summary ===",
+        (
+            "LLM calls: total="
+            f"{total_calls}, supervisor={calls['supervisor']}, "
+            f"worker={calls['worker']}"
+        ),
+        (
+            "Tokens: "
+            f"supervisor(input={tokens['supervisor']['input']}, "
+            f"output={tokens['supervisor']['output']}, "
+            f"total={tokens['supervisor']['total']}), "
+            f"worker(input={tokens['worker']['input']}, "
+            f"output={tokens['worker']['output']}, "
+            f"total={tokens['worker']['total']}), "
+            f"overall(input={total_input}, output={total_output}, "
+            f"total={total_tokens})"
+        ),
+        "",
+        "End of log",
+    ])
     return {
         "plan": plan.dict(),
         "steps": step_results,
         "final_result": final_agg,
-        "status": "completed",
     }

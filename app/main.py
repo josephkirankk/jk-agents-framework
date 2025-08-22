@@ -186,7 +186,9 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
             user_input=user_input,
             business_context=app_cfg.business_context
         )
+        print(20*"**")
         print(formatted_output)
+        print(20*"**")
     finally:
         # Cleanup MCP clients
         for client in mcp_clients.values():
