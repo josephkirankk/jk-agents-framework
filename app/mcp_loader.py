@@ -38,25 +38,74 @@ class TimeoutTool(BaseTool):
         self._inner = inner
         self._timeout = float(timeout)
         self._retries = int(retries)
+        # Propagate structured args schema and return behavior so callers
+        # know how to format inputs and handle outputs.
+        try:
+            self.args_schema = getattr(inner, "args_schema", None)
+        except Exception:
+            # Some tools may raise on access; ignore.
+            self.args_schema = None
+        try:
+            self.return_direct = bool(getattr(inner, "return_direct", False))
+        except Exception:
+            self.return_direct = False
 
-    def _run(self, input: str):
+    def _run(self, *args: Any, **kwargs: Any):
         last_exc: Optional[BaseException] = None
         for attempt in range(self._retries):
             try:
-                return self._inner.run(input)
+                # Prefer structured kwargs if provided
+                payload: Any
+                if kwargs:
+                    payload = dict(kwargs)
+                elif args:
+                    payload = args[0]
+                else:
+                    payload = None
+                # If the inner tool expects structured args (args_schema), but
+                # got a string, coerce to a dict so inner BaseTool doesn't
+                # fail.
+                try:
+                    inner_schema = getattr(self._inner, "args_schema", None)
+                except Exception:
+                    inner_schema = None
+                if inner_schema is not None and isinstance(payload, str):
+                    try:
+                        payload = json.loads(payload)
+                    except Exception:
+                        # Common generic key for text-like inputs
+                        payload = {"query": payload}
+                return self._inner.run(payload)
             except Exception as e:
                 last_exc = e
         raise last_exc or RuntimeError("Inner tool failed with unknown error")
 
-    async def _arun(self, input: str):
+    async def _arun(self, *args: Any, **kwargs: Any):
         last_exc: Optional[BaseException] = None
         for attempt in range(self._retries):
             try:
+                # Prefer structured kwargs if provided
+                payload: Any
+                if kwargs:
+                    payload = dict(kwargs)
+                elif args:
+                    payload = args[0]
+                else:
+                    payload = None
+                try:
+                    inner_schema = getattr(self._inner, "args_schema", None)
+                except Exception:
+                    inner_schema = None
+                if inner_schema is not None and isinstance(payload, str):
+                    try:
+                        payload = json.loads(payload)
+                    except Exception:
+                        payload = {"query": payload}
                 if hasattr(self._inner, "arun"):
-                    coro = self._inner.arun(input)
+                    coro = self._inner.arun(payload)
                 else:
                     loop = asyncio.get_running_loop()
-                    coro = loop.run_in_executor(None, self._inner.run, input)
+                    coro = loop.run_in_executor(None, self._inner.run, payload)
                 return await asyncio.wait_for(coro, timeout=self._timeout)
             except Exception as e:
                 last_exc = e
@@ -254,25 +303,36 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                 sock_read=15,
                 sock_connect=5,
             )
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                if _method == "GET":
-                    resp = await session.get(
-                        _url, params=query, headers=_headers
-                    )
-                elif _method == "POST":
-                    resp = await session.post(
-                        _url, params=query, json=body, headers=_headers
-                    )
-                else:
-                    resp = await session.request(
-                        _method,
-                        _url,
-                        params=query,
-                        json=body,
-                        headers=_headers,
-                    )
-                async with resp:
-                    txt = await resp.text()
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    if _method == "GET":
+                        resp = await session.get(
+                            _url, params=query, headers=_headers
+                        )
+                    elif _method == "POST":
+                        resp = await session.post(
+                            _url, params=query, json=body, headers=_headers
+                        )
+                    else:
+                        resp = await session.request(
+                            _method,
+                            _url,
+                            params=query,
+                            json=body,
+                            headers=_headers,
+                        )
+                    async with resp:
+                        txt = await resp.text()
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                return json.dumps({
+                    "error": "http_request_failed",
+                    "message": str(e),
+                    "url": _url,
+                    "hint": (
+                        "Ensure the service is running (e.g., python "
+                        "examples/mcp_servers/math_server.py)"
+                    ),
+                })
             try:
                 data = json.loads(txt)
             except Exception:
@@ -324,24 +384,39 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                             body = {}
                         body[pname] = payload[pname]
 
-            if _method == "GET":
-                r = requests.get(
-                    _url, params=query, headers=_headers, timeout=15
-                )
-            elif _method == "POST":
-                r = requests.post(
-                    _url, params=query, json=body, headers=_headers, timeout=15
-                )
-            else:
-                r = requests.request(
-                    _method,
-                    _url,
-                    params=query,
-                    json=body,
-                    headers=_headers,
-                    timeout=15,
-                )
-            txt = r.text
+            try:
+                if _method == "GET":
+                    r = requests.get(
+                        _url, params=query, headers=_headers, timeout=15
+                    )
+                elif _method == "POST":
+                    r = requests.post(
+                        _url,
+                        params=query,
+                        json=body,
+                        headers=_headers,
+                        timeout=15,
+                    )
+                else:
+                    r = requests.request(
+                        _method,
+                        _url,
+                        params=query,
+                        json=body,
+                        headers=_headers,
+                        timeout=15,
+                    )
+                txt = r.text
+            except requests.exceptions.RequestException as e:
+                return json.dumps({
+                    "error": "http_request_failed",
+                    "message": str(e),
+                    "url": _url,
+                    "hint": (
+                        "Ensure the service is running (e.g., python "
+                        "examples/mcp_servers/math_server.py)"
+                    ),
+                })
             try:
                 data = json.loads(txt)
             except Exception:
