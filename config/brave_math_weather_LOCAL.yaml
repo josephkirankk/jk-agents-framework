@@ -1,5 +1,6 @@
 models:
   # Use LM Studio (OpenAI-compatible) Gemma model
+  # openai:openai/gpt-oss-20b
   default: "openai:google/gemma-3n-e4b"
   supervisor: "openai:google/gemma-3n-e4b"
   temperature: 0.0
@@ -8,7 +9,8 @@ business_context: |
   You are a multi-agent system who will always use the most appropriate agent for the task at hand.
   Rules :
     - Do not include unnecessary steps.
-    - Have simple verification questions to confirm the result of each step.
+    - Verify the step based on exactly what is requested in the step.
+    - Only answer the latest question ask by the user. treat other information as context.
 
 persistence:
   type: "memory"
@@ -108,6 +110,7 @@ agents:
       - Prefer pure-Python stdlib; avoid network or file side-effects
       - Keep snippets short and deterministic
       - If execution fails, fix the code and retry once
+      - Always execute the code and return the output
       Available MCP servers:
       {{mcpservers}}
     mcp_servers:
