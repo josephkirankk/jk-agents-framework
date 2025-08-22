@@ -351,7 +351,8 @@ async def execute_plan(
     ordered_steps = topo_sort_steps(plan.plan)
 
     step_results: Dict[str, Dict[str, Any]] = {}
-    global_attempts = 0
+    # Count only actual retries across the entire plan (not initial attempts)
+    global_retries_done = 0
 
     def summarize_results() -> str:
         parts = []
@@ -369,7 +370,6 @@ async def execute_plan(
         next_task_override: Optional[str] = None
         while True:
             attempts += 1
-            global_attempts += 1
             system_context = (
                 "Business context:\n"
                 f"{business_context}\n\n"
@@ -525,30 +525,40 @@ async def execute_plan(
                     )
 
                 if attempts <= local_retry_limit:
+                    # Check global retry budget before consuming another retry
+                    if global_retries_done >= max_total_retries:
+                        log.warning(
+                            "Reached global retry limit (%d). "
+                            "Aborting plan execution.",
+                            max_total_retries,
+                        )
+                        if human_in_loop:
+                            return {
+                                "plan": plan.dict(),
+                                "steps": step_results,
+                                "status": "paused_for_human",
+                                "failed_step": step.id,
+                            }
+                        raise RuntimeError(
+                            (
+                                "Plan execution aborted: step {sid} "
+                                "failed and retries exhausted"
+                            ).format(sid=step.id)
+                        )
+                    # Consume one global retry and try again
+                    global_retries_done += 1
+                    # attempts is 1 on first failure -> this is retry #1
+                    cur_retry = attempts
                     log.info(
-                        "Retrying step %s (attempt %d/%d)",
+                        "Retrying step %s (retry %d/%d, global %d/%d)",
                         step.id,
-                        attempts,
+                        cur_retry,
                         local_retry_limit,
-                    )
-                    continue
-                if global_attempts >= max_total_retries:
-                    log.warning(
-                        "Reached global retry limit (%d). Aborting plan "
-                        "execution.",
+                        global_retries_done,
                         max_total_retries,
                     )
-                    if human_in_loop:
-                        return {
-                            "plan": plan.dict(),
-                            "steps": step_results,
-                            "status": "paused_for_human",
-                            "failed_step": step.id,
-                        }
-                    raise RuntimeError(
-                        "Plan execution aborted: step {sid} failed and "
-                        "retries exhausted".format(sid=step.id)
-                    )
+                    continue
+                # Local retries exhausted
                 if human_in_loop:
                     return {
                         "plan": plan.dict(),
@@ -556,9 +566,12 @@ async def execute_plan(
                         "status": "paused_for_human",
                         "failed_step": step.id,
                     }
+                # Fail the plan with a clear message
                 raise RuntimeError(
-                    "Step {sid} failed: last_error={err}, verify_failed={vf}, "
-                    "reason={reason}".format(
+                    (
+                        "Step {sid} failed: last_error={err}, "
+                        "verify_failed={vf}, reason={reason}"
+                    ).format(
                         sid=step.id,
                         err=last_err,
                         vf=(not verified),
