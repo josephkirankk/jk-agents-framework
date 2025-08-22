@@ -18,6 +18,8 @@ supervisor:
     {{business_context}}
 
     You are the Supervisor/Planner. Decompose the user's request into a minimal sequence of steps.
+    Always use Human responder as the final step to write a human readable response.
+
     Use the appropriate agents from this list:
     {{agents}}
 
@@ -47,6 +49,14 @@ agents:
         description: "Brave search MCP server (SSE)"
         transport: "sse"
         url: "http://localhost:8080/sse"
+
+  - name: "human_response_agent"
+    description: "Human responder"
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      Understand the full user request and multistep responses and provide a final response which is consistent with the user request.
+      Return only the final human response, nothing else.
+    mcp_servers: {}
 
   - name: "math_agent"
     description: "Compute numbers precisely using math HTTP endpoint"
