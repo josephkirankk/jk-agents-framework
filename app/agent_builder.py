@@ -7,6 +7,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from .mcp_loader import load_mcp_tools, build_http_tools
 from .config import AgentConfig
+from .template_utils import render_prompt
 
 log = logging.getLogger("agent_builder")
 
@@ -30,6 +31,10 @@ async def build_react_agent(
     agent_cfg: AgentConfig,
     default_model: str,
     checkpointer=MemorySaver(),
+    *,
+    business_context: str = "",
+    original_user_question: str = "",
+    dependent_request_responses: str = "",
 ):
 
     model_id = agent_cfg.model or default_model
@@ -52,7 +57,25 @@ async def build_react_agent(
     tools = list(tools) + list(http_tools)
 
     summary = _format_mcp_summary(servers_raw)
-    prompt_filled = agent_cfg.prompt.replace("{{mcpservers}}", summary)
+    # Render prompt with Jinja2 so templates can use variables like
+    # {{ mcpservers }}, {{ businessContext }}, {{ original_user_question }}, {{ agent_name }}, {{ dependent_request_responses }}
+    ctx = {
+        "mcpservers": summary,
+        "businessContext": business_context or "",
+        "original_user_question": original_user_question or "",
+        "agent_name": agent_cfg.name,
+        "dependent_request_responses": dependent_request_responses or "",
+    }
+    try:
+        prompt_filled = render_prompt(agent_cfg.prompt or "", ctx)
+    except Exception as e:
+        log.exception(
+            "Failed to render prompt for agent %s with Jinja2: %s. Falling back to raw prompt.",
+            agent_cfg.name,
+            e,
+        )
+        # Fallback to simple replacement for mcpservers
+        prompt_filled = (agent_cfg.prompt or "").replace("{{mcpservers}}", summary)
 
     agent = create_react_agent(
         model=model_id,
@@ -65,6 +88,7 @@ async def build_react_agent(
     # Attach model identifier for downstream logging without changing APIs
     try:
         setattr(agent, "_model_id", model_id)
+        setattr(agent, "_rendered_prompt", prompt_filled)
     except Exception:
         pass
     log.info("Agent prompt:\n%s", prompt_filled)

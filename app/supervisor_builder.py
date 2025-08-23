@@ -5,6 +5,7 @@ from typing import List
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from .config import SupervisorConfig, AgentConfig
+from .template_utils import render_prompt
 
 log = logging.getLogger("supervisor_builder")
 
@@ -22,13 +23,23 @@ def build_supervisor_compiled(
     default_model: str,
     business_context: str = "",
     checkpointer=MemorySaver(),
+    *,
+    original_user_question: str = "",
 ):
     agents_list = _format_agents_listing(agents_cfg)
-    prompt_filled = supervisor_cfg.prompt.replace("{{agents}}", agents_list)
-    prompt_filled = prompt_filled.replace(
-        "{{business_context}}",
-        business_context,
-    )
+    # Render with Jinja2 so templates can use:
+    # {{ agents }}, {{ business_context }}, {{ original_user_question }}
+    ctx = {
+        "agents": agents_list,
+        "business_context": business_context or "",
+        "original_user_question": original_user_question or "",
+    }
+    try:
+        prompt_filled = render_prompt(supervisor_cfg.prompt or "", ctx)
+    except Exception:
+        # Fall back to simple replacements
+        prompt_filled = (supervisor_cfg.prompt or "").replace("{{agents}}", agents_list)
+        prompt_filled = prompt_filled.replace("{{business_context}}", business_context)
 
     supervisor_model = supervisor_cfg.model or default_model
 
@@ -43,6 +54,7 @@ def build_supervisor_compiled(
     # Attach model identifier for downstream logging without changing APIs
     try:
         setattr(sup_agent, "_model_id", supervisor_model)
+        setattr(sup_agent, "_rendered_prompt", prompt_filled.strip())
     except Exception:
         pass
     # Print/log the exact planning prompt used

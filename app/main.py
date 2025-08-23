@@ -107,14 +107,23 @@ def load_app_config(cfg_path: Path | None = None) -> AppConfig:
     return AppConfig(**data)
 
 
-async def build_agents_map(app_cfg: AppConfig):
-    """Build agents and return agent map and MCP clients for cleanup."""
+async def build_agents_map(app_cfg: AppConfig, *, user_input: str = ""):
+    """Build agents and return agent map and MCP clients for cleanup.
+
+    Pass original user input to allow Jinja2 prompt rendering.
+    """
     agents_map: Dict[str, object] = {}
     mcp_clients: Dict[str, Optional[MultiServerMCPClient]] = {}
 
     default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
     for a in app_cfg.agents:
-        compiled, mcp_client = await build_react_agent(a, default_model)
+        compiled, mcp_client = await build_react_agent(
+            a,
+            default_model,
+            business_context=app_cfg.business_context or "",
+            original_user_question=user_input or "",
+            dependent_request_responses="",
+        )
         agents_map[a.name] = compiled
         if mcp_client:
             mcp_clients[a.name] = mcp_client
@@ -132,13 +141,17 @@ async def run_direct_agent(
     if not target:
         raise SystemExit(f"Agent '{agent_name}' not found in config")
 
-    compiled, mcp_client = await build_react_agent(target, default_model)
+    compiled, mcp_client = await build_react_agent(
+        target,
+        default_model,
+        business_context=app_cfg.business_context or "",
+        original_user_question=user_input,
+        dependent_request_responses="",
+    )
     try:
         system_context = (
             "Business context:\n"
             f"{app_cfg.business_context or ''}\n\n"
-            "Original user question:\n"
-            f"{user_input}\n\n"
             "Previous step results:\n(none)"
         )
         state = {"messages": [
@@ -178,9 +191,10 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
         app_cfg.agents,
         default_model,
         app_cfg.business_context or "",
+        original_user_question=user_input,
     )
     # Build workers
-    agents_map, mcp_clients = await build_agents_map(app_cfg)
+    agents_map, mcp_clients = await build_agents_map(app_cfg, user_input=user_input)
     try:
         result = await execute_plan(
             supervisor_compiled=supervisor,
@@ -188,6 +202,8 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
             user_input=user_input,
             business_context=app_cfg.business_context or "",
             default_model_for_verifier=default_model,
+            agents_configs=app_cfg.agents,
+            default_model=default_model,
         )
         # Format as user-friendly Markdown
         formatted_output = format_result_as_markdown(

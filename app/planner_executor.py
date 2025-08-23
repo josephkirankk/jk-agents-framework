@@ -160,6 +160,8 @@ async def execute_plan(
     default_step_timeout_seconds: Optional[int] = 120,
     default_supervisor_timeout_seconds: Optional[int] = 60,
     default_verifier_timeout_seconds: Optional[int] = 45,
+    agents_configs: Optional[List] = None,
+    default_model: str = "openai:gpt-4o-mini",
 ) -> Dict[str, Any]:
     # Prepare log file with timestamped name at repo root
     log_file_path: Optional[Path] = None
@@ -257,9 +259,7 @@ async def execute_plan(
     }
     sup_system_context = (
         "Business context:\n"
-        f"{business_context}\n\n"
-        "Original user question:\n"
-        f"{user_input}"
+        f"{business_context}"
     )
     sup_state = {
         "messages": [
@@ -285,7 +285,8 @@ async def execute_plan(
         _safe_write([
             "--- Supervisor Request ---",
             f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
-            f"System: {business_context}",
+            f"Planning Prompt: {getattr(supervisor_compiled, '_rendered_prompt', '(none)')}",
+            f"System Context: {sup_system_context}",
             f"User: {user_input}",
             "",
         ])
@@ -312,7 +313,8 @@ async def execute_plan(
         _safe_write([
             "--- Supervisor Request ---",
             f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
-            f"System: {business_context}",
+            f"Planning Prompt: {getattr(supervisor_compiled, '_rendered_prompt', '(none)')}",
+            f"System Context: {sup_system_context}",
             f"User: {user_input}",
             "",
         ])
@@ -411,40 +413,33 @@ async def execute_plan(
     # Count only actual retries across the entire plan (not initial attempts)
     global_retries_done = 0
 
-    def _format_previous_results_for_step(
+    def _format_dependent_request_responses(
         depends_on: Optional[List[str]],
     ) -> str:
-        """Build text for "Previous step results" for the next worker.
+        """Build dependent_request_responses string for agent prompt template.
 
-        For dependency steps: include full request and full response.
-    For other prior steps: include summarized request and summarized
-    response.
-        This balances completeness with brevity so downstream agents
-        understand both what was asked and what came back.
+        Format:
+        Previous Steps :
+        User Agent : <task string say dependent step 1>
+        Agent Response : <result from the worker step 1>
+        User Agent : <task string say dependent step 2>
+        Agent Response : <result from the worker step 2>
         """
-        if not step_results:
-            return "(none)"
-        dep_set = set(depends_on or [])
-        parts: List[str] = []
+        if not step_results or not depends_on:
+            return ""
+
+        dep_set = set(depends_on)
+        lines: List[str] = ["Previous Steps :"]
+
+        # Process dependencies in order they appear in step_results (execution order)
         for sid, info in step_results.items():
             if sid in dep_set:
-                # Full detail for dependencies
-                parts.append(
-                    f"{sid} request (full): "
-                    f"{info.get('request', '')}"
-                )
-                parts.append(f"{sid} response (full): {info.get('raw', '')}")
-            else:
-                # Summaries for non-dependencies
-                parts.append(
-                    f"{sid} request (summary): "
-                    f"{info.get('request_summary', '(no request)')}"
-                )
-                parts.append(
-                    f"{sid} response (summary): "
-                    f"{info.get('output_summary', '(no output)')}"
-                )
-        return "\n".join(parts)
+                task = info.get('request', '')
+                response = info.get('raw', '')
+                lines.append(f"User Agent : {task}")
+                lines.append(f"Agent Response : {response}")
+
+        return "\n".join(lines) if len(lines) > 1 else ""
 
     for step in ordered_steps:
         attempts = 0
@@ -454,20 +449,18 @@ async def execute_plan(
         next_task_override: Optional[str] = None
         while True:
             attempts += 1
-            # Include both business context and the original user question
-            # for clearer guidance. Provide full raw outputs for direct
-            # dependencies to
-            # avoid losing critical details.
-            prev_text = _format_previous_results_for_step(step.depends_on)
-            system_context = (
-                "Business context:\n"
-                f"{business_context}\n\n"
-                "Original user question:\n"
-                f"{user_input}\n\n"
-                f"Previous step results:\n{prev_text}"
-            )
+            # Build dependent request/responses for this step
+            dependent_req_resp = _format_dependent_request_responses(step.depends_on)
+
+            # Use existing compiled agent but inject dependent context via system message
             user_task = next_task_override or step.task
             worker_compiled = agents_map[step.agent]
+
+            # Build system context with business context and dependent steps
+            system_context = f"Business context:\n{business_context}"
+            if dependent_req_resp:
+                system_context += f"\n\n{dependent_req_resp}"
+
             worker_state = {
                 "messages": [
                     {"role": "system", "content": system_context},
@@ -493,7 +486,8 @@ async def execute_plan(
                         f"agent={step.agent}, attempt={attempts}) ---"
                     ),
                     f"Model: {getattr(worker_compiled, '_model_id', 'unknown')}",
-                    f"System: {system_context}",
+                    f"Agent Prompt: {getattr(worker_compiled, '_rendered_prompt', '(none)')}",
+                    f"System Context: {system_context}",
                     f"User: {user_task}",
                     "",
                 ])
@@ -537,7 +531,8 @@ async def execute_plan(
                         f"agent={step.agent}, attempt={attempts}) ---"
                     ),
                     f"Model: {getattr(worker_compiled, '_model_id', 'unknown')}",
-                    f"System: {system_context}",
+                    f"Agent Prompt: {getattr(worker_compiled, '_rendered_prompt', '(none)')}",
+                    f"System Context: {system_context}",
                     f"User: {user_task}",
                     "",
                 ])

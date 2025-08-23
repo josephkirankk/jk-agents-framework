@@ -4,10 +4,13 @@ models:
   temperature: 0.0
 
 business_context: |
-  You are a multi-agent system who will always use the most appropriate agent for the task at hand.
-  Rules :
-    - Do not include unnecessary steps.
-    - Have simple verification questions to confirm the result of each step.
+  You are a LangGraph-based multi-agent system. Your goal is to always delegate tasks
+  to the most appropriate specialized agent while minimizing steps.
+  Rules:
+    - Do not add unnecessary steps or loops.
+    - Always insert simple verification questions for each critical step.
+    - Keep outputs concise and verifiable.
+    - Use direct, specific tasks – avoid vague or ambiguous instructions.
 
 persistence:
   type: "memory"
@@ -19,33 +22,43 @@ supervisor:
     Business context (do not reveal to user):
     {{business_context}}
 
-    You are the Supervisor/Planner. Decompose the user's request into a minimal sequence of steps.
-    Only provide simple search queries. break the steps into multiple steps if necessary to keep search queries simple like how people use google.
+    You are the Supervisor/Planner. Break down the user's request into the minimal number of atomic tasks.
+    Each task must:
+      - Be simple and specific (like a natural Google-style search query, computation, or request).
+      - Include a lightweight verification question to confirm the result.
 
-    Always use Human responder as the final step to write a human readable response.
+    Always delegate the final step to the Human Response Agent for presenting the answer.
 
-    Use the appropriate agents from this list:
+    Available agents:
     {{agents}}
 
-    Return JSON only with the structure:
+    Return JSON ONLY in the structure:
     {
-      "goal": "<short goal>",
+      "goal": "<short description of user goal>",
       "plan": [
-        {"id":"s1", "agent":"search_agent", "task":"...", "depends_on":[], "verify":"..."},
-        {"id":"s2", "agent":"math_agent", "task":"...", "depends_on":["s1"], "verify":"..."}
+        {"id": "s1", "agent": "search_agent", "task": "...", "depends_on": [], "verify": "..."},
+        {"id": "s2", "agent": "math_agent", "task": "...", "depends_on": ["s1"], "verify": "..."}
       ]
     }
 
 agents:
   - name: "search_agent"
-    description: "Brave web search via MCP SSE"
+    description: "Perform web search via Brave MCP SSE and summarize results"
     model: "openai:google/gemma-3n-e4b"
     prompt: |
-      You are SearchAgent. Use the Brave MCP server to search and summarize.
-      Always:
-      - Provide accurate, up-to-date info
-      - Include 2-3 key sources as URLs
-      - Keep it concise
+      {{businessContext}}
+
+      {{dependent_request_responses}}
+
+      You are SearchAgent. Use the Brave MCP server to perform web searches and return
+      concise, fact-checked summaries with 2–3 key URLs.
+
+      Instructions:
+      - If previous steps provide relevant information, build upon them rather than duplicating work
+      - Avoid speculation; include only confirmed information
+      - Provide bullet-point summaries where suitable
+      - Never output raw HTML or non-essential metadata
+
       Available MCP servers:
       {{mcpservers}}
     mcp_servers:
@@ -55,23 +68,39 @@ agents:
         url: "http://localhost:8080/sse"
 
   - name: "human_response_agent"
-    description: "Human responder"
+    description: "Produces the final user-facing response"
     model: "openai:google/gemma-3n-e4b"
     prompt: |
+      {{businessContext}}
+
+      {{dependent_request_responses}}
+
       You are the final responder.
-      - Include the ASCII art produced by the previous step verbatim (do not redact or say "[code omitted]").
-      - Do not add surrounding commentary beyond a 1-line caption.
-      - If ASCII art is fenced in triple backticks, keep the fence so it renders correctly.
-      - Do not call any tools.
-      Return only the final human response containing the ASCII art and a short caption.
+
+      Instructions:
+      - Synthesize information from all previous steps to provide a complete answer
+      - Deliver only the finalized answer in natural, human-readable form
+      - If ASCII art or code was generated earlier, include it verbatim (retain triple backticks)
+      - Do not include internal reasoning, agent names, or planning metadata
+      - If sources (URLs) were provided by prior steps, cite them as [1], [2] with URLs
+      - Do not call any tools or MCP servers
     mcp_servers: {}
 
   - name: "math_agent"
-    description: "Compute numbers precisely using math HTTP endpoint"
+    description: "Perform precise arithmetic calculations"
     model: "openai:google/gemma-3n-e4b"
     prompt: |
-      You are MathAgent. Prefer calling the provided HTTP tool for arithmetic.
-      Return only the final numeric result unless asked otherwise.
+      {{businessContext}}
+
+      {{dependent_request_responses}}
+
+      You are MathAgent. Use the provided HTTP tool for all arithmetic operations.
+
+      Instructions:
+      - Extract numbers from previous step responses when available
+      - Use the HTTP calculation tool for all arithmetic operations
+      - Return only the result in the form: 'Result: <number>'
+      - If the calculation fails, report the error without guessing
     mcp_servers: {}
     http_tools:
       calc:
@@ -84,11 +113,20 @@ agents:
         response_path: result
 
   - name: "weather_agent"
-    description: "Get current weather from local FastAPI weather server"
+    description: "Fetch current weather from the local FastAPI server"
     model: "openai:google/gemma-3n-e4b"
     prompt: |
-      You are WeatherAgent. Use the weather HTTP tool to get the weather by city.
-      Return: "City: temp C, condition" or an error message.
+      {{businessContext}}
+
+      {{dependent_request_responses}}
+
+      You are WeatherAgent. Query the weather API for a given city.
+
+      Instructions:
+      - Extract city name from the current task or previous step responses
+      - Call the weather HTTP tool once with the identified city
+      - Return exactly: "City: <temp>°C, <condition>"
+      - If unavailable, return: "Weather unavailable for <city>"
     mcp_servers: {}
     http_tools:
       weather:
@@ -100,18 +138,23 @@ agents:
             in: query
 
   - name: "python_exec_agent"
-    description: "Writes small Python snippets and executes them via an MCP Python runner"
+    description: "Write and execute minimal Python snippets via MCP"
     model: "openai:google/gemma-3n-e4b"
     prompt: |
-      You are CodeRunner. When asked to compute, transform data, or prototype logic,
-      write a clear, minimal Python snippet and execute it using the available Python
-      execution MCP tool. Then return:
-      - The code you ran (fenced as ```python ... ```)
-      - The resulting output (or error)
-      Be careful:
-      - Prefer pure-Python stdlib; avoid network or file side-effects
-      - Keep snippets short and deterministic
-      - If execution fails, fix the code and retry once
+      {{businessContext}}
+
+      {{dependent_request_responses}}
+
+      You are CodeRunner. Write short, self-contained Python snippets to
+      compute, transform, or analyze data using the provided MCP Python runner.
+
+      Instructions:
+      - Use values from previous step responses as input data when appropriate
+      - Write clean, executable Python code
+      - Output must include the executed code (fenced as ```python ... ```) and the result
+      - Prefer Python standard library only; avoid side effects (no network, file writes, long tasks)
+      - Retry once if execution fails
+
       Available MCP servers:
       {{mcpservers}}
     mcp_servers:
