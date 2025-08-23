@@ -172,7 +172,8 @@ async def run_direct_agent_with_files(
     user_input: str,
     app_cfg: AppConfig,
     file_ids: List[str],
-    file_info: List[Dict[str, Any]]
+    file_info: List[Dict[str, Any]],
+    config_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Run a direct agent with file attachments.
@@ -208,6 +209,7 @@ async def run_direct_agent_with_files(
             business_context=app_cfg.business_context or "",
             original_user_question=user_input,
             dependent_request_responses="",
+            config_path=config_path,
         )
 
         try:
@@ -419,7 +421,10 @@ async def extract_human_response(result: Dict[str, Any]) -> str:
 
 
 async def run_direct_agent_api(
-    agent_name: str, user_input: str, app_cfg: AppConfig
+    agent_name: str,
+    user_input: str,
+    app_cfg: AppConfig,
+    config_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Run a direct agent and return structured results for API use.
@@ -455,6 +460,7 @@ async def run_direct_agent_api(
             business_context=app_cfg.business_context or "",
             original_user_question=user_input,
             dependent_request_responses="",
+            config_path=config_path,
         )
 
         try:
@@ -516,7 +522,7 @@ async def run_direct_agent_api(
 
 
 async def run_supervised_api(
-    user_input: str, app_cfg: AppConfig
+    user_input: str, app_cfg: AppConfig, config_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Run the supervised multi-agent system and return structured results.
@@ -533,11 +539,12 @@ async def run_supervised_api(
         default_model,
         app_cfg.business_context or "",
         original_user_question=user_input,
+        config_path=config_path,
     )
 
     # Build workers
     agents_map, mcp_clients = await build_agents_map(
-        app_cfg, user_input=user_input
+        app_cfg, user_input=user_input, config_path=config_path
     )
 
     try:
@@ -608,7 +615,9 @@ async def query_endpoint(request: QueryRequest):
         # Execute the multi-agent system
         log.info(f"Processing query: {request.input[:100]}...")
         log.info(f"Raw output requested: {request.raw_output}")
-        result = await run_supervised_api(request.input, app_cfg)
+        result = await run_supervised_api(
+            request.input, app_cfg, request.config_path
+        )
 
         # Prepare metadata
         metadata = {
@@ -654,8 +663,8 @@ async def worker_upload_endpoint(
         False,
         description="If True, returns only raw agent response as plain text"
     ),
-    files: List[UploadFile] = File(
-        default=[], description="Optional files to upload and attach to the request"
+    files: Optional[List[UploadFile]] = File(
+        None, description="Optional files to upload and attach to the request"
     )
 ):
     """
@@ -799,9 +808,13 @@ Attached files:
             enhanced_input += "\n\nPlease analyze the attached files and incorporate their content into your response."
 
         # Execute the agent with enhanced input
-        log.info(f"Executing agent '{agent_name}' with {len(files)} attached files")
+        files_count = len(files) if files else 0
+        log.info(
+            f"Executing agent '{agent_name}' with {files_count} attached files"
+        )
         result = await run_direct_agent_with_files(
-            agent_name, enhanced_input, app_cfg, file_ids, file_info
+            agent_name, enhanced_input, app_cfg, file_ids, file_info,
+            config_path
         )
 
         # Prepare metadata
@@ -809,7 +822,7 @@ Attached files:
             "agent_name": agent_name,
             "model_used": app_cfg.models.get("default", "unknown"),
             "business_context": bool(app_cfg.business_context),
-            "files_uploaded": len(files),
+            "files_uploaded": files_count,
             "file_info": file_info
         }
 
@@ -883,7 +896,7 @@ async def worker_endpoint(request: WorkerRequest):
         # Execute the agent directly
         log.info(f"Executing agent '{request.agent_name}' with input: {request.input[:100]}...")
         result = await run_direct_agent_api(
-            request.agent_name, request.input, app_cfg
+            request.agent_name, request.input, app_cfg, request.config_path
         )
 
         # Prepare metadata

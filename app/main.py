@@ -108,7 +108,12 @@ def load_app_config(cfg_path: Path | None = None) -> AppConfig:
     return AppConfig(**data)
 
 
-async def build_agents_map(app_cfg: AppConfig, *, user_input: str = ""):
+async def build_agents_map(
+    app_cfg: AppConfig,
+    *,
+    user_input: str = "",
+    config_path: Optional[str] = None
+):
     """Build agents and return agent map and MCP clients for cleanup.
 
     Pass original user input to allow Jinja2 prompt rendering.
@@ -124,6 +129,7 @@ async def build_agents_map(app_cfg: AppConfig, *, user_input: str = ""):
             business_context=app_cfg.business_context or "",
             original_user_question=user_input or "",
             dependent_request_responses="",
+            config_path=config_path,
         )
         agents_map[a.name] = compiled
         if mcp_client:
@@ -159,6 +165,7 @@ async def run_direct_agent(
             business_context=app_cfg.business_context or "",
             original_user_question=user_input,
             dependent_request_responses="",
+            config_path=None,  # Direct agent calls don't have config path
         )
 
         try:
@@ -228,9 +235,12 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
         default_model,
         app_cfg.business_context or "",
         original_user_question=user_input,
+        config_path=None,  # CLI calls don't have config path
     )
     # Build workers
-    agents_map, mcp_clients = await build_agents_map(app_cfg, user_input=user_input)
+    agents_map, mcp_clients = await build_agents_map(
+        app_cfg, user_input=user_input, config_path=None
+    )
     try:
         result = await execute_plan(
             supervisor_compiled=supervisor,

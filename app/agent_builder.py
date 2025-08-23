@@ -1,7 +1,8 @@
 from __future__ import annotations
 import logging
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from pathlib import Path
 
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
@@ -14,6 +15,7 @@ from .python_tool_loader import (
 from .config import AgentConfig
 from .template_utils import render_prompt
 from .gemini_schema_filter import apply_gemini_schema_filtering
+from .prompt_loader import load_prompt_content, get_config_directory
 
 log = logging.getLogger("agent_builder")
 
@@ -104,6 +106,7 @@ async def build_react_agent(
     business_context: str = "",
     original_user_question: str = "",
     dependent_request_responses: str = "",
+    config_path: Optional[str] = None,
 ):
 
     model_id = agent_cfg.model or default_model
@@ -147,8 +150,28 @@ async def build_react_agent(
     tools = apply_gemini_schema_filtering(tools, model_id)
 
     summary = _format_mcp_summary(servers_raw)
+
+    # Load prompt content from either direct text or file
+    try:
+        config_dir = get_config_directory(
+            Path(config_path) if config_path else None
+        )
+        prompt_content = load_prompt_content(
+            prompt=agent_cfg.prompt,
+            prompt_file=agent_cfg.prompt_file,
+            config_dir=config_dir,
+        )
+    except Exception as e:
+        log.error(
+            "Failed to load prompt for agent %s: %s",
+            agent_cfg.name,
+            e,
+        )
+        raise
+
     # Render prompt with Jinja2 so templates can use variables like
-    # {{ mcpservers }}, {{ businessContext }}, {{ original_user_question }}, {{ agent_name }}, {{ dependent_request_responses }}
+    # {{ mcpservers }}, {{ businessContext }}, {{ original_user_question }},
+    # {{ agent_name }}, {{ dependent_request_responses }}
     ctx = {
         "mcpservers": summary,
         "businessContext": business_context or "",
@@ -157,15 +180,16 @@ async def build_react_agent(
         "dependent_request_responses": dependent_request_responses or "",
     }
     try:
-        prompt_filled = render_prompt(agent_cfg.prompt or "", ctx)
+        prompt_filled = render_prompt(prompt_content, ctx)
     except Exception as e:
         log.exception(
-            "Failed to render prompt for agent %s with Jinja2: %s. Falling back to raw prompt.",
+            "Failed to render prompt for agent %s with Jinja2: %s. "
+            "Falling back to raw prompt.",
             agent_cfg.name,
             e,
         )
         # Fallback to simple replacement for mcpservers
-        prompt_filled = (agent_cfg.prompt or "").replace("{{mcpservers}}", summary)
+        prompt_filled = prompt_content.replace("{{mcpservers}}", summary)
 
     agent = create_react_agent(
         model=model_instance,
