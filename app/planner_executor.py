@@ -284,6 +284,7 @@ async def execute_plan(
         # Log supervisor request
         _safe_write([
             "--- Supervisor Request ---",
+            f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
             f"System: {business_context}",
             f"User: {user_input}",
             "",
@@ -310,6 +311,7 @@ async def execute_plan(
         config = {"configurable": {"thread_id": "execute-plan-thread"}}
         _safe_write([
             "--- Supervisor Request ---",
+            f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
             f"System: {business_context}",
             f"User: {user_input}",
             "",
@@ -490,6 +492,7 @@ async def execute_plan(
                         f"--- Worker Request (step={step.id}, "
                         f"agent={step.agent}, attempt={attempts}) ---"
                     ),
+                    f"Model: {getattr(worker_compiled, '_model_id', 'unknown')}",
                     f"System: {system_context}",
                     f"User: {user_task}",
                     "",
@@ -533,6 +536,7 @@ async def execute_plan(
                         f"--- Worker Request (step={step.id}, "
                         f"agent={step.agent}, attempt={attempts}) ---"
                     ),
+                    f"Model: {getattr(worker_compiled, '_model_id', 'unknown')}",
                     f"System: {system_context}",
                     f"User: {user_task}",
                     "",

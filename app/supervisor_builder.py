@@ -40,6 +40,11 @@ def build_supervisor_compiled(
         version="v2",
         checkpointer=checkpointer,
     )
+    # Attach model identifier for downstream logging without changing APIs
+    try:
+        setattr(sup_agent, "_model_id", supervisor_model)
+    except Exception:
+        pass
     # Print/log the exact planning prompt used
     try:
         full_prompt = prompt_filled.strip()
