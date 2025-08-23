@@ -12,6 +12,8 @@ type hints, docstrings, and error handling following the latest patterns.
 import json
 import math
 import random
+import csv
+import io
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from pydantic import BaseModel, Field
@@ -99,6 +101,41 @@ def calculate_business_days(start_date: str, end_date: str) -> int:
         return business_days
     except ValueError:
         return -1  # Invalid date format
+
+
+@tool
+def count_csv_rows(csv_content: str, include_header: bool = True) -> int:
+    """Count the number of rows in CSV content. Empty lines are ignored.
+
+    Args:
+        csv_content: CSV content as a string.
+        include_header: Whether to include the first row (header) in the count. Defaults to True.
+
+    Returns:
+        Integer count of rows.
+    """
+    if not csv_content or not csv_content.strip():
+        return 0
+    try:
+        sample = csv_content[:2048]
+        try:
+            dialect = csv.Sniffer().sniff(sample)
+        except Exception:
+            dialect = csv.excel
+        reader = csv.reader(io.StringIO(csv_content), dialect)
+        count = 0
+        for row in reader:
+            if any(cell.strip() for cell in row):
+                count += 1
+        if not include_header and count > 0:
+            count -= 1
+        return count
+    except Exception:
+        # Fallback: line-based counting if parsing fails
+        lines = [ln for ln in csv_content.splitlines() if ln.strip()]
+        if not include_header and lines:
+            return max(len(lines) - 1, 0)
+        return len(lines)
 
 
 # =============================================================================
@@ -284,6 +321,7 @@ def get_all_function_tools():
         generate_random_data,
         format_currency,
         calculate_business_days,
+        count_csv_rows,
         analyze_data,
         TextProcessorTool()
     ]
@@ -314,6 +352,7 @@ TOOL_REGISTRY = {
     "generate_random_data": generate_random_data,
     "format_currency": format_currency,
     "calculate_business_days": calculate_business_days,
+    "count_csv_rows": count_csv_rows,
     "data_analyzer": analyze_data,
     "text_processor": TextProcessorTool()
 }

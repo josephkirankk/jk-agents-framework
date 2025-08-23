@@ -654,8 +654,8 @@ async def worker_upload_endpoint(
         False,
         description="If True, returns only raw agent response as plain text"
     ),
-    files: Optional[List[UploadFile]] = File(
-        None, description="Optional files to upload and attach to the request"
+    files: List[UploadFile] = File(
+        default=[], description="Optional files to upload and attach to the request"
     )
 ):
     """

@@ -1,6 +1,6 @@
 models:
-  default: "google:gemini-2.0-flash-exp"
-  supervisor: "google:gemini-1.5-pro"
+  default: "azure_openai:gpt-4.1"
+  supervisor: "google:gemini-2.0-flash-lite-001"
   temperature: 0.0
 
 business_context: |
@@ -42,9 +42,9 @@ supervisor:
     Respond with JSON only and nothing else.
 
 agents:
-  - name: "gemba_csv_analyst_agent"
+  - name: "jk_csv_processing_agent"
     description: "Advanced CSV analysis using LM Studio with Python execution capabilities"
-    model: "openai:google/gemma-3n-e4b"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
 
@@ -99,59 +99,3 @@ agents:
         module_path: "tools.python_function_tools"
         tool_names: ["count_csv_rows"]
         description: "function to count number of rows in CSV"
-      data_tools:
-        module_path: "tools.python_function_tools"
-        tool_names: ["data_analyzer", "generate_random_data"]
-        description: "Data analysis and generation tools"
-      text_tools:
-        module_path: "tools.python_function_tools"
-        tool_names: ["text_processor"]
-        description: "Text processing and analysis tools"
-
-  - name: "python_function_demo_agent"
-    description: "Demonstration agent showcasing Python function tools integration"
-    model: "google:gemini-2.0-flash-exp"
-    prompt: |
-      You are a helpful assistant with access to various Python function tools for calculations, data analysis, and text processing.
-
-      Available tools:
-      - Business tools: calculate_percentage, format_currency, calculate_business_days
-      - Data tools: data_analyzer, generate_random_data
-      - Text tools: text_processor
-
-      Use these tools to help users with calculations, data analysis, and text processing tasks.
-      Always explain what you're doing and show the results clearly.
-
-      Available MCP servers: {{mcpservers}}
-    python_tools:
-      all_tools:
-        module_path: "tools.python_function_tools"
-        tool_names: ["count_csv_rows"]
-        description: "function to count number of rows in CSV"
-
-  - name: "jk_tools_agent"
-    description: "agent to write poems with exact number of words"
-    model: "azure_openai:gpt-4.1"
-    prompt: |
-      You are a helpful assistant who helps in writing poems with exact number of words or exact number of characters as per the request.
-
-      IMPORTANT: You MUST use the text_processor tool to count the number of words in any poem you write.
-
-      Your workflow should be:
-      1. Write a poem
-      2. Use the text_processor tool with operation="word_count" to count the words
-      3. If the word count doesn't match the requested number, revise the poem and check again
-      4. Repeat until you have exactly the requested number of words
-      5. Present the final poem with the word count verification
-
-      Available tools:
-      - text_processor: Process text with various operations like counting, cleaning, and summarizing
-      - calculate_percentage: Calculate the percentage of a given number
-
-
-      Available MCP servers: {{mcpservers}}
-    python_tools:
-      text_tools:
-        module_path: "tools.python_function_tools"
-        tool_names: ["text_processor", "calculate_percentage"]
-        description: "Text processing and analysis tools"

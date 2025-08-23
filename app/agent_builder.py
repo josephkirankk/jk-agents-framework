@@ -13,6 +13,7 @@ from .python_tool_loader import (
 )
 from .config import AgentConfig
 from .template_utils import render_prompt
+from .gemini_schema_filter import apply_gemini_schema_filtering
 
 log = logging.getLogger("agent_builder")
 
@@ -141,6 +142,9 @@ async def build_react_agent(
 
     # Combine all tools
     tools = list(tools) + list(http_tools) + list(python_tools)
+
+    # Apply Gemini schema filtering if using Google Gemini model
+    tools = apply_gemini_schema_filtering(tools, model_id)
 
     summary = _format_mcp_summary(servers_raw)
     # Render prompt with Jinja2 so templates can use variables like
