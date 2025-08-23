@@ -654,7 +654,9 @@ async def worker_upload_endpoint(
         False,
         description="If True, returns only raw agent response as plain text"
     ),
-    files: List[UploadFile] = File(..., description="Files to upload and attach to the request")
+    files: Optional[List[UploadFile]] = File(
+        None, description="Optional files to upload and attach to the request"
+    )
 ):
     """
     Worker endpoint that accepts file uploads and executes a specific agent.
@@ -699,6 +701,10 @@ async def worker_upload_endpoint(
         file_info = []
 
         csv_data_sections = []
+
+        # Handle optional files parameter
+        if files is None:
+            files = []
 
         for file in files:
             # Read file content
