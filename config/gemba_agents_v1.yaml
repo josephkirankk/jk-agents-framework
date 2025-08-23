@@ -131,6 +131,7 @@ agents:
     model: "google:gemini-2.0-flash-exp"
     prompt: |
       You are a helpful assistant with helping users to provide answers to their queries. You have access to various Python function tools for text processing.
+      always use the text_processor tool to process the text.
 
       Available tools:
       - Text tools: text_processor

@@ -141,10 +141,74 @@ class DirectAgentLogger:
         log_lines.append("")
         self._safe_write(log_lines)
     
+    def _extract_tool_calls(self, messages: List[Any]) -> List[Dict[str, Any]]:
+        """Extract tool calls and results from messages."""
+        tool_calls = []
+
+        for msg in messages:
+            msg_type = getattr(msg, 'type', None)
+
+            # Check for AIMessage with tool_calls
+            if msg_type == 'ai' and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                for tool_call in msg.tool_calls:
+                    # Handle different tool call formats
+                    if hasattr(tool_call, 'name'):
+                        name = tool_call.name
+                    elif isinstance(tool_call, dict):
+                        name = tool_call.get('name', 'unknown')
+                    else:
+                        name = 'unknown'
+
+                    if hasattr(tool_call, 'id'):
+                        call_id = tool_call.id
+                    elif isinstance(tool_call, dict):
+                        call_id = tool_call.get('id', 'unknown')
+                    else:
+                        call_id = 'unknown'
+
+                    if hasattr(tool_call, 'args'):
+                        args = tool_call.args
+                    elif isinstance(tool_call, dict):
+                        args = tool_call.get('args', {})
+                    else:
+                        args = {}
+
+                    call_info = {
+                        "type": "tool_call",
+                        "name": name,
+                        "id": call_id,
+                        "args": args
+                    }
+                    tool_calls.append(call_info)
+
+            # Check for ToolMessage with results
+            elif msg_type == 'tool':
+                tool_id = getattr(msg, 'tool_call_id', 'unknown')
+                content = getattr(msg, 'content', '')
+                name = getattr(msg, 'name', 'unknown')
+
+                # Find matching tool call and add result
+                for call in tool_calls:
+                    if call.get("id") == tool_id:
+                        call["result"] = content
+                        if call["name"] == 'unknown' and name != 'unknown':
+                            call["name"] = name
+                        break
+                else:
+                    # Tool result without matching call
+                    tool_calls.append({
+                        "type": "tool_result",
+                        "name": name,
+                        "id": tool_id,
+                        "result": content
+                    })
+
+        return tool_calls
+
     def log_agent_response(self, response_text: str, raw_output: Dict[str, Any]):
         """
         Log the agent response details.
-        
+
         Args:
             response_text: The response text from the agent
             raw_output: Raw output from the agent execution
@@ -155,19 +219,65 @@ class DirectAgentLogger:
         if msgs:
             last_msg = msgs[-1]
             usage_info = self._extract_usage(last_msg)
-        
+
+        # Extract tool calls
+        tool_calls = self._extract_tool_calls(msgs) if msgs else []
+
         log_lines = [
             f"--- Direct Agent Response (agent={self.agent_name}) ---",
             response_text or "(empty)",
             "",
+        ]
+
+        # Add tool calls section if any were found
+        if tool_calls:
+            log_lines.extend([
+                "--- Tool Calls ---",
+            ])
+            for i, call in enumerate(tool_calls, 1):
+                if call["type"] == "tool_call":
+                    args_str = self._format_args_compact(call.get("args", {}))
+                    log_lines.append(f"{i}. {call['name']}({args_str})")
+                    if "result" in call:
+                        result_str = str(call["result"])[:100]
+                        if len(str(call["result"])) > 100:
+                            result_str += "..."
+                        log_lines.append(f"   → {result_str}")
+                elif call["type"] == "tool_result":
+                    result_str = str(call["result"])[:100]
+                    if len(str(call["result"])) > 100:
+                        result_str += "..."
+                    log_lines.append(f"{i}. Tool Result [{call['id']}]: {result_str}")
+            log_lines.append("")
+
+        log_lines.extend([
             f"--- Usage Information ---",
             f"Input tokens: {usage_info['input_tokens']}",
             f"Output tokens: {usage_info['output_tokens']}",
             f"Total tokens: {usage_info['total_tokens']}",
             "",
-        ]
-        
+        ])
+
         self._safe_write(log_lines)
+
+    def _format_args_compact(self, args: Dict[str, Any]) -> str:
+        """Format tool arguments in a compact way."""
+        if not args:
+            return ""
+
+        formatted_args = []
+        for key, value in args.items():
+            if isinstance(value, str):
+                # Truncate long strings
+                if len(value) > 50:
+                    value_str = f'"{value[:47]}..."'
+                else:
+                    value_str = f'"{value}"'
+            else:
+                value_str = str(value)
+            formatted_args.append(f"{key}={value_str}")
+
+        return ", ".join(formatted_args)
     
     def log_execution_summary(self, success: bool, error_message: str = ""):
         """

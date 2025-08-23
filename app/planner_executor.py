@@ -242,6 +242,89 @@ async def execute_plan(
             pass
         return usage
 
+    def _extract_tool_calls(messages: List[Any]) -> List[Dict[str, Any]]:
+        """Extract tool calls and results from messages."""
+        tool_calls = []
+
+        for msg in messages:
+            msg_type = getattr(msg, 'type', None)
+
+            # Check for AIMessage with tool_calls
+            if msg_type == 'ai' and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                for tool_call in msg.tool_calls:
+                    # Handle different tool call formats
+                    if hasattr(tool_call, 'name'):
+                        name = tool_call.name
+                    elif isinstance(tool_call, dict):
+                        name = tool_call.get('name', 'unknown')
+                    else:
+                        name = 'unknown'
+
+                    if hasattr(tool_call, 'id'):
+                        call_id = tool_call.id
+                    elif isinstance(tool_call, dict):
+                        call_id = tool_call.get('id', 'unknown')
+                    else:
+                        call_id = 'unknown'
+
+                    if hasattr(tool_call, 'args'):
+                        args = tool_call.args
+                    elif isinstance(tool_call, dict):
+                        args = tool_call.get('args', {})
+                    else:
+                        args = {}
+
+                    call_info = {
+                        "type": "tool_call",
+                        "name": name,
+                        "id": call_id,
+                        "args": args
+                    }
+                    tool_calls.append(call_info)
+
+            # Check for ToolMessage with results
+            elif msg_type == 'tool':
+                tool_id = getattr(msg, 'tool_call_id', 'unknown')
+                content = getattr(msg, 'content', '')
+                name = getattr(msg, 'name', 'unknown')
+
+                # Find matching tool call and add result
+                for call in tool_calls:
+                    if call.get("id") == tool_id:
+                        call["result"] = content
+                        if call["name"] == 'unknown' and name != 'unknown':
+                            call["name"] = name
+                        break
+                else:
+                    # Tool result without matching call
+                    tool_calls.append({
+                        "type": "tool_result",
+                        "name": name,
+                        "id": tool_id,
+                        "result": content
+                    })
+
+        return tool_calls
+
+    def _format_args_compact(args: Dict[str, Any]) -> str:
+        """Format tool arguments in a compact way."""
+        if not args:
+            return ""
+
+        formatted_args = []
+        for key, value in args.items():
+            if isinstance(value, str):
+                # Truncate long strings
+                if len(value) > 50:
+                    value_str = f'"{value[:47]}..."'
+                else:
+                    value_str = f'"{value}"'
+            else:
+                value_str = str(value)
+            formatted_args.append(f"{key}={value_str}")
+
+        return ", ".join(formatted_args)
+
     # Initialize log header
     _safe_write([
         "=== jk-agents run log ===",
@@ -632,15 +715,41 @@ async def execute_plan(
             # Use a longer summary to avoid truncating key facts
             summary = (wtext[:1200] + "...") if len(wtext) > 1200 else wtext
 
+            # Extract tool calls from worker messages
+            tool_calls = _extract_tool_calls(wmsgs) if wmsgs else []
+
             # Log worker response
-            _safe_write([
+            log_lines = [
                 (
                     f"--- Worker Response (step={step.id}, "
                     f"agent={step.agent}, attempt={attempts}) ---"
                 ),
                 wtext or "(empty)",
                 "",
-            ])
+            ]
+
+            # Add tool calls section if any were found
+            if tool_calls:
+                log_lines.extend([
+                    "--- Tool Calls ---",
+                ])
+                for i, call in enumerate(tool_calls, 1):
+                    if call["type"] == "tool_call":
+                        args_str = _format_args_compact(call.get("args", {}))
+                        log_lines.append(f"{i}. {call['name']}({args_str})")
+                        if "result" in call:
+                            result_str = str(call["result"])[:100]
+                            if len(str(call["result"])) > 100:
+                                result_str += "..."
+                            log_lines.append(f"   → {result_str}")
+                    elif call["type"] == "tool_result":
+                        result_str = str(call["result"])[:100]
+                        if len(str(call["result"])) > 100:
+                            result_str += "..."
+                        log_lines.append(f"{i}. Tool Result [{call['id']}]: {result_str}")
+                log_lines.append("")
+
+            _safe_write(log_lines)
             # Summarize the request we sent to the worker so we can include it
             # in subsequent steps' context without overwhelming them.
             request_text = user_task
