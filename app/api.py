@@ -49,6 +49,58 @@ app.add_middleware(
 _app_config: Optional[AppConfig] = None
 
 
+async def download_file_from_openai(file_id: str) -> bytes:
+    """
+    Download file content from OpenAI/Azure OpenAI using file ID.
+
+    Args:
+        file_id: The file ID from OpenAI
+
+    Returns:
+        The file content as bytes
+    """
+    import os
+    from openai import OpenAI
+
+    # Try to import Azure components, fall back to regular OpenAI if not available
+    try:
+        from openai import AzureOpenAI
+        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+        azure_available = True
+    except ImportError:
+        log.warning("Azure SDK not available, falling back to regular OpenAI")
+        azure_available = False
+
+    # Determine which client to use based on environment variables
+    if azure_available and os.getenv("AZURE_OPENAI_ENDPOINT"):
+        # Use Azure OpenAI
+        if os.getenv("AZURE_OPENAI_API_KEY"):
+            # API Key authentication
+            client = AzureOpenAI(
+                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                api_version="2024-10-21",
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+            )
+        else:
+            # Token-based authentication
+            token_provider = get_bearer_token_provider(
+                DefaultAzureCredential(),
+                "https://cognitiveservices.azure.com/.default"
+            )
+            client = AzureOpenAI(
+                azure_ad_token_provider=token_provider,
+                api_version="2024-10-21",
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+            )
+    else:
+        # Use regular OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    # Download the file content
+    file_response = client.files.content(file_id)
+    return file_response.read()
+
+
 async def upload_file_to_openai(file_content: bytes, filename: str, purpose: str = "vision") -> str:
     """
     Upload a file to OpenAI/Azure OpenAI and return the file ID.
@@ -161,9 +213,15 @@ async def run_direct_agent_with_files(
             "text": user_input
         })
 
-        # Add file references
+        # Add file references for non-CSV files (CSV data is already in user_input)
         for file_id, info in zip(file_ids, file_info):
-            if info.get("purpose") == "vision" and info.get("mime_type", "").startswith("image/"):
+            mime_type = info.get("mime_type", "")
+            filename = info.get("filename", "")
+
+            if info.get("purpose") == "local_processing":
+                # CSV files are already processed and included in user_input
+                continue
+            elif mime_type and mime_type.startswith("image/"):
                 # For images, use image_url type with file_id
                 message_content.append({
                     "type": "image_url",
@@ -173,7 +231,7 @@ async def run_direct_agent_with_files(
                 # For other files, reference them in text
                 message_content.append({
                     "type": "text",
-                    "text": f"Please analyze the attached file: {info['filename']} (File ID: {file_id})"
+                    "text": f"Please analyze the attached file: {filename} (File ID: {file_id})"
                 })
 
         # Create the message with multimodal content
@@ -542,47 +600,99 @@ async def worker_upload_endpoint(
         file_ids = []
         file_info = []
 
+        csv_data_sections = []
+
         for file in files:
             # Read file content
             file_content = await file.read()
 
             # Determine file purpose based on MIME type
             mime_type = file.content_type or mimetypes.guess_type(file.filename)[0]
-            # Azure OpenAI uses "assistants" for both images and documents
-            purpose = "assistants"
 
-            try:
-                # Upload file to OpenAI/Azure OpenAI
-                file_id = await upload_file_to_openai(file_content, file.filename, purpose)
-                file_ids.append(file_id)
-                file_info.append({
-                    "filename": file.filename,
-                    "file_id": file_id,
-                    "mime_type": mime_type,
-                    "purpose": purpose,
-                    "size": len(file_content)
-                })
-                log.info(f"Uploaded file {file.filename} with ID {file_id}")
-            except Exception as e:
-                log.error(f"Failed to upload file {file.filename}: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to upload file {file.filename}: {str(e)}"
-                )
+            # Handle CSV files specially - don't upload to Azure OpenAI, process directly
+            is_csv_file = (
+                file.filename.lower().endswith('.csv') or
+                mime_type in ['text/csv', 'application/csv', 'text/plain'] or
+                (mime_type == 'application/octet-stream' and file.filename.lower().endswith('.csv'))
+            )
 
-        # Enhance the input with file information
+            if is_csv_file:
+                try:
+                    csv_text = file_content.decode('utf-8')
+
+                    # Limit CSV content to prevent token overflow
+                    lines = csv_text.split('\n')
+                    if len(lines) > 100:
+                        csv_preview = '\n'.join(lines[:100]) + f"\n... (showing first 100 rows of {len(lines)} total rows)"
+                    else:
+                        csv_preview = csv_text
+
+                    csv_data_sections.append(f"""
+**CSV File: {file.filename}**
+```csv
+{csv_preview}
+```
+""")
+
+                    # Add to file info without uploading
+                    file_info.append({
+                        "filename": file.filename,
+                        "file_id": "local_csv_data",
+                        "mime_type": mime_type or "text/csv",
+                        "purpose": "local_processing",
+                        "size": len(file_content)
+                    })
+                    log.info(f"Processed CSV file {file.filename} locally ({len(lines)} rows)")
+
+                except Exception as e:
+                    log.error(f"Failed to process CSV file {file.filename}: {e}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to process CSV file {file.filename}: {str(e)}"
+                    )
+            else:
+                # For non-CSV files, upload to Azure OpenAI as before
+                purpose = "assistants"
+                try:
+                    # Upload file to OpenAI/Azure OpenAI
+                    file_id = await upload_file_to_openai(file_content, file.filename, purpose)
+                    file_ids.append(file_id)
+                    file_info.append({
+                        "filename": file.filename,
+                        "file_id": file_id,
+                        "mime_type": mime_type,
+                        "purpose": purpose,
+                        "size": len(file_content)
+                    })
+                    log.info(f"Uploaded file {file.filename} with ID {file_id}")
+                except Exception as e:
+                    log.error(f"Failed to upload file {file.filename}: {e}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to upload file {file.filename}: {str(e)}"
+                    )
+
+        # Enhance the input with file information and CSV data
         enhanced_input = input
         if file_info:
             file_descriptions = []
             for info in file_info:
-                file_descriptions.append(f"- {info['filename']} (ID: {info['file_id']}, Type: {info['mime_type']})")
+                if info.get('purpose') == 'local_processing':
+                    file_descriptions.append(f"- {info['filename']} (CSV data processed locally, Type: {info['mime_type']})")
+                else:
+                    file_descriptions.append(f"- {info['filename']} (ID: {info['file_id']}, Type: {info['mime_type']})")
 
             enhanced_input = f"""{input}
 
 Attached files:
-{chr(10).join(file_descriptions)}
+{chr(10).join(file_descriptions)}"""
 
-Please analyze the attached files and incorporate their content into your response."""
+            # Add CSV data if any were processed
+            if csv_data_sections:
+                csv_section = "\n\n**ATTACHED CSV DATA:**\n" + "\n".join(csv_data_sections)
+                enhanced_input += csv_section
+
+            enhanced_input += "\n\nPlease analyze the attached files and incorporate their content into your response."
 
         # Execute the agent with enhanced input
         log.info(f"Executing agent '{agent_name}' with {len(files)} attached files")

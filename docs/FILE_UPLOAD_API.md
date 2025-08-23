@@ -14,7 +14,7 @@ The file upload API enables you to:
 
 ### Images (Vision Models)
 - **PNG** (.png)
-- **JPEG** (.jpeg, .jpg) 
+- **JPEG** (.jpeg, .jpg)
 - **WEBP** (.webp)
 - **GIF** (.gif, non-animated)
 
@@ -22,8 +22,39 @@ The file upload API enables you to:
 - **PDF** (.pdf)
 - **Text files** (.txt, .md)
 - **JSON/JSONL** (.json, .jsonl)
-- **CSV** (.csv)
+- **CSV** (.csv) - **Special support with csv_analyst_agent**
 - **Other document formats**
+
+## Specialized Agents
+
+### CSV Analyst Agent (`csv_analyst_agent`)
+
+The CSV Analyst Agent provides intelligent analysis and enhancement of CSV files with automatic functionality detection:
+
+#### Automatic Feature Detection:
+- **Time Series Data**: Trend analysis, forecasting, seasonality detection
+- **Sales/Financial Data**: Revenue analysis, growth metrics, profitability insights
+- **Customer Data**: Segmentation, churn analysis, lifetime value calculations
+- **Inventory Data**: Stock optimization, reorder point calculations
+- **Performance Data**: KPI dashboards, benchmarking, anomaly detection
+- **Geographic Data**: Location-based insights, regional analysis
+- **Survey Data**: Sentiment analysis, correlation studies, response patterns
+
+#### What the Agent Does:
+1. **Structure Analysis**: Examines columns, data types, and basic statistics
+2. **Data Quality Assessment**: Identifies missing values, duplicates, and issues
+3. **Intelligent Enhancement**: Adds relevant functionality based on data patterns
+4. **Visualization**: Creates charts and graphs using matplotlib/seaborn
+5. **Actionable Insights**: Provides business recommendations and next steps
+
+#### Example Usage:
+```bash
+curl -X POST "http://localhost:8000/worker/upload" \
+  -F "agent_name=csv_analyst_agent" \
+  -F "input=Analyze this sales data and provide business insights with visualizations" \
+  -F "config_path=config/gemba-predictive-v1.yaml" \
+  -F "files=@sales_data.csv"
+```
 
 ## File Size Limits
 
@@ -56,9 +87,24 @@ Upload files and execute an agent with file attachments.
 #### Example Request (cURL)
 
 ```bash
+# Image Analysis with OCR Agent
+curl -X POST "http://localhost:8000/worker/upload" \
+  -F "agent_name=ocr_agent" \
+  -F "input=Analyze this image and tell me what you see" \
+  -F "config_path=config/gemba-predictive-v1.yaml" \
+  -F "files=@image.jpg"
+
+# CSV Analysis with CSV Analyst Agent
+curl -X POST "http://localhost:8000/worker/upload" \
+  -F "agent_name=csv_analyst_agent" \
+  -F "input=Analyze this sales data and provide intelligent insights" \
+  -F "config_path=config/gemba-predictive-v1.yaml" \
+  -F "files=@sales_data.csv"
+
+# Multiple Files Analysis
 curl -X POST "http://localhost:8000/worker/upload" \
   -F "agent_name=python_exec_agent" \
-  -F "input=Analyze this image and tell me what you see" \
+  -F "input=Analyze these files and provide insights" \
   -F "config_path=config/gemba-predictive-v1.yaml" \
   -F "files=@image.jpg" \
   -F "files=@document.pdf"

@@ -31,7 +31,7 @@ supervisor:
     }
 
 agents:
-  - name: "ocr_vision_agent"
+  - name: "ocr_agent"
     description: "perform OCR on images and extract text"
     model: "azure_openai:gpt-4.1"
     prompt: |
@@ -46,24 +46,11 @@ agents:
       - Report if image is unreadable or contains no text
 
       Available MCP servers: {{mcpservers}}
-    mcp_servers: {}
-
-  - name: "ocr_vision_agent"
-    description: "perform OCR on images and extract text"
-    model: "azure_openai:gpt-4.1"
-    prompt: |
-      {{dependent_request_responses}}
-
-      OCR Agent: Extract text from images using OCR capabilities.
-
-      Rules:
-      - Process images to extract readable text
-      - Return extracted text in structured format
-      - Handle multiple image formats (PNG, JPG, PDF, etc.)
-      - Report if image is unreadable or contains no text
-
-      Available MCP servers: {{mcpservers}}
-    mcp_servers: {}
+    mcp_servers:
+      brave:
+        description: "Brave search MCP server (SSE)"
+        transport: "sse"
+        url: "http://localhost:8080/sse"
 
   - name: "human_response_agent"
     description: "Produces the final user-facing response"
@@ -147,6 +134,72 @@ agents:
       Available MCP servers: {{mcpservers}}
 
       Remember: You must actually execute the code using the available tool, not just pretend to do it!
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  - name: "csv_analyst_agent"
+    description: "Intelligent CSV file analysis and enhancement with Python execution"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are an expert CSV Data Analyst with Python execution capabilities. When CSV files are attached, you MUST:
+
+      1. **ANALYZE THE CSV STRUCTURE**:
+         - Load and examine the CSV file using pandas
+         - Identify columns, data types, and basic statistics
+         - Detect missing values, duplicates, and data quality issues
+         - Understand the business context from column names and data
+
+      2. **INTELLIGENT FUNCTIONALITY ENHANCEMENT**:
+         Based on the data structure, automatically add relevant functionality:
+         - **Time Series Data**: Add trend analysis, forecasting, seasonality detection
+         - **Sales/Financial Data**: Add revenue analysis, growth metrics, profitability insights
+         - **Customer Data**: Add segmentation, churn analysis, lifetime value calculations
+         - **Inventory Data**: Add stock optimization, reorder point calculations
+         - **Performance Data**: Add KPI dashboards, benchmarking, anomaly detection
+         - **Geographic Data**: Add location-based insights, regional analysis
+         - **Survey Data**: Add sentiment analysis, correlation studies, response patterns
+
+      3. **EXECUTION REQUIREMENTS**:
+         - ALWAYS use the run_python_code tool to execute actual analysis
+         - Create visualizations using matplotlib/seaborn when appropriate
+         - Generate summary statistics and insights
+         - Provide actionable recommendations based on findings
+         - Export enhanced datasets or analysis results when beneficial
+
+      4. **INTELLIGENT FEATURE DETECTION**:
+         - Automatically detect data patterns (trends, cycles, outliers)
+         - Suggest relevant machine learning applications
+         - Identify key business metrics and KPIs
+         - Recommend data quality improvements
+
+      5. **OUTPUT FORMAT**:
+         - Executive Summary with key findings
+         - Detailed analysis with code execution results
+         - Visualizations and charts
+         - Actionable recommendations
+         - Enhanced dataset or new calculated fields
+
+      CRITICAL RULES:
+      - ALWAYS execute Python code using run_python_code tool
+      - Never just describe analysis - actually perform it
+      - Focus on business value and actionable insights
+      - Adapt analysis based on detected data patterns
+      - Provide both technical details and business interpretation
+
+      Available MCP servers: {{mcpservers}}
     mcp_servers:
       python_runner:
         description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
