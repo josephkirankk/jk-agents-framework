@@ -42,6 +42,22 @@ curl -X POST "http://localhost:8000/query" \
 
 ## API Endpoints
 
+### Endpoint Overview
+
+The API provides two main approaches for interacting with the multi-agent system:
+
+1. **`/query`** - **Supervised Multi-Agent Execution**
+   - Uses the supervisor to create a plan with multiple agents
+   - Automatically coordinates between different agents
+   - Best for complex tasks requiring multiple steps
+   - Returns the final human responder's synthesized answer
+
+2. **`/worker`** - **Direct Single Agent Execution**
+   - Executes a specific agent directly without planning
+   - Faster for simple, single-agent tasks
+   - Returns the raw agent response
+   - Useful for testing individual agents or simple queries
+
 ### Health Check
 
 **GET** `/health`
@@ -93,6 +109,46 @@ Main endpoint for processing user queries through the multi-agent system.
 }
 ```
 
+### Worker Endpoint
+
+**POST** `/worker`
+
+Direct worker endpoint that executes a specific agent without going through the supervisor planning process.
+
+**Request Body:**
+```json
+{
+  "agent_name": "weather_agent",
+  "input": "what is the temperature in mumbai",
+  "config_path": "config/your-config.yaml"  // optional
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "response": "Mumbai: 30°C, sunny",
+  "agent_name": "weather_agent",
+  "error": null,
+  "metadata": {
+    "agent_name": "weather_agent",
+    "model_used": "azure_openai:gpt-4.1",
+    "business_context": true
+  }
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "response": "",
+  "agent_name": "weather_agent",
+  "error": "Agent execution failed: specific error message"
+}
+```
+
 ### Legacy Endpoint
 
 **POST** `/plan_and_run`
@@ -141,6 +197,18 @@ response = requests.post(
 )
 result = response.json()
 print(f"Answer: {result['response']}")
+
+# Direct worker execution
+response = requests.post(
+    "http://localhost:8000/worker",
+    json={
+        "agent_name": "weather_agent",
+        "input": "what is the temperature in mumbai",
+        "config_path": "config/brave_math_weather_hybrid.yaml"
+    }
+)
+result = response.json()
+print(f"Agent Response: {result['response']}")
 ```
 
 ### JavaScript/Node.js Client
@@ -191,6 +259,24 @@ curl -X POST "http://localhost:8000/query" \
   -H "Content-Type: application/json" \
   -d '{
     "input": "get the temperature in mumbai and delhi, then add them together",
+    "config_path": "config/brave_math_weather_hybrid.yaml"
+  }'
+
+# Direct worker execution - Weather agent
+curl -X POST "http://localhost:8000/worker" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_name": "weather_agent",
+    "input": "what is the temperature in mumbai",
+    "config_path": "config/brave_math_weather_hybrid.yaml"
+  }'
+
+# Direct worker execution - Math agent
+curl -X POST "http://localhost:8000/worker" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_name": "math_agent",
+    "input": "calculate 15 + 27",
     "config_path": "config/brave_math_weather_hybrid.yaml"
   }'
 ```

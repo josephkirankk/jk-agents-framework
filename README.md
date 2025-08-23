@@ -66,7 +66,8 @@ The system now includes a FastAPI web server that provides HTTP endpoints for in
 ### API Endpoints
 
 - `GET /health` - Health check endpoint
-- `POST /query` - Main query processing endpoint
+- `POST /query` - Main query processing endpoint (supervised multi-agent execution)
+- `POST /worker` - Direct worker execution endpoint (single agent execution)
 - `POST /plan_and_run` - Legacy endpoint (redirects to /query)
 
 ### Example Usage
@@ -74,13 +75,25 @@ The system now includes a FastAPI web server that provides HTTP endpoints for in
 ```python
 import requests
 
-# Simple query
+# Multi-agent query (supervised execution)
 response = requests.post(
     "http://localhost:8000/query",
     json={"input": "what is the temperature in mumbai"}
 )
 result = response.json()
 print(f"Answer: {result['response']}")
+
+# Direct worker execution
+response = requests.post(
+    "http://localhost:8000/worker",
+    json={
+        "agent_name": "weather_agent",
+        "input": "what is the temperature in mumbai",
+        "config_path": "config/brave_math_weather_hybrid.yaml"
+    }
+)
+result = response.json()
+print(f"Agent Response: {result['response']}")
 ```
 
 For complete API documentation, see [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md).

@@ -13,11 +13,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .config import AppConfig
+from .config import AppConfig, AgentConfig
 from .main import load_app_config, build_agents_map
 from .supervisor_builder import build_supervisor_compiled
 from .planner_executor import execute_plan
 from .mcp_loader import close_mcp_client
+from .agent_builder import build_react_agent
 
 # Configure logging
 logging.basicConfig(
@@ -72,6 +73,32 @@ class HealthResponse(BaseModel):
     version: str = Field(..., description="API version")
 
 
+class WorkerRequest(BaseModel):
+    """Request model for worker endpoint."""
+    agent_name: str = Field(
+        ..., description="Name of the agent/worker to execute", min_length=1
+    )
+    input: str = Field(
+        ..., description="User question or prompt for the agent", min_length=1
+    )
+    config_path: Optional[str] = Field(
+        None, description="Optional path to config file"
+    )
+
+
+class WorkerResponse(BaseModel):
+    """Response model for worker endpoint."""
+    success: bool = Field(..., description="Whether the worker execution was successful")
+    response: str = Field(..., description="The agent's response")
+    agent_name: str = Field(..., description="Name of the agent that was executed")
+    error: Optional[str] = Field(
+        None, description="Error message if success is False"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Additional metadata about the execution"
+    )
+
+
 async def extract_human_response(result: Dict[str, Any]) -> str:
     """
     Extract the human responder's final answer from the execution result.
@@ -112,6 +139,72 @@ async def extract_human_response(result: Dict[str, Any]) -> str:
     except Exception as e:
         log.error(f"Error extracting human response: {e}")
         return f"Error extracting response: {str(e)}"
+
+
+async def run_direct_agent_api(
+    agent_name: str, user_input: str, app_cfg: AppConfig
+) -> Dict[str, Any]:
+    """
+    Run a direct agent and return structured results for API use.
+
+    This is a modified version of run_direct_agent that returns data
+    instead of printing.
+    """
+    from langchain_core.runnables import RunnableConfig
+
+    default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+
+    # Find agent config
+    target: Optional[AgentConfig] = next(
+        (a for a in app_cfg.agents if a.name == agent_name), None
+    )
+    if not target:
+        raise ValueError(f"Agent '{agent_name}' not found in config")
+
+    compiled, mcp_client = await build_react_agent(
+        target,
+        default_model,
+        business_context=app_cfg.business_context or "",
+        original_user_question=user_input,
+        dependent_request_responses="",
+    )
+
+    try:
+        system_context = (
+            "Business context:\n"
+            f"{app_cfg.business_context or ''}\n\n"
+            "Previous step results:\n(none)"
+        )
+        state = {
+            "messages": [
+                {"role": "system", "content": system_context},
+                {"role": "user", "content": user_input},
+            ]
+        }
+        config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
+
+        try:
+            out = await compiled.ainvoke(state, config=config)
+        except AttributeError:
+            out = compiled.invoke(state, config=config)
+
+        msgs = out.get("messages", [])
+        if msgs:
+            # LangGraph messages are objects with .content attribute
+            last_msg = msgs[-1]
+            text = getattr(last_msg, "content", "")
+        else:
+            text = ""
+
+        return {
+            "success": True,
+            "response": text,
+            "agent_name": agent_name,
+            "raw_output": out,
+        }
+
+    finally:
+        await close_mcp_client(mcp_client)
 
 
 async def run_supervised_api(
@@ -232,6 +325,76 @@ async def query_endpoint(request: QueryRequest):
         return QueryResponse(
             success=False,
             response="",
+            error=str(e)
+        )
+
+
+@app.post("/worker", response_model=WorkerResponse)
+async def worker_endpoint(request: WorkerRequest):
+    """
+    Direct worker endpoint that executes a specific agent without planning.
+
+    Args:
+        request: WorkerRequest containing agent name, input, and optional config
+
+    Returns:
+        WorkerResponse with the agent's direct response
+    """
+    try:
+        # Load configuration
+        if request.config_path:
+            try:
+                app_cfg = load_app_config(Path(request.config_path))
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to load config from {request.config_path}: {str(e)}"
+                )
+        else:
+            if _app_config is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="No default configuration available. Please provide config_path."
+                )
+            app_cfg = _app_config
+
+        # Validate agent exists
+        agent_names = [agent.name for agent in app_cfg.agents]
+        if request.agent_name not in agent_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Agent '{request.agent_name}' not found. Available agents: {', '.join(agent_names)}"
+            )
+
+        # Execute the agent directly
+        log.info(f"Executing agent '{request.agent_name}' with input: {request.input[:100]}...")
+        result = await run_direct_agent_api(
+            request.agent_name, request.input, app_cfg
+        )
+
+        # Prepare metadata
+        metadata = {
+            "agent_name": request.agent_name,
+            "model_used": app_cfg.models.get("default", "unknown"),
+            "business_context": bool(app_cfg.business_context)
+        }
+
+        return WorkerResponse(
+            success=True,
+            response=result["response"],
+            agent_name=request.agent_name,
+            metadata=metadata
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        log.error(f"Error executing worker '{request.agent_name}': {e}")
+        return WorkerResponse(
+            success=False,
+            response="",
+            agent_name=request.agent_name,
             error=str(e)
         )
 

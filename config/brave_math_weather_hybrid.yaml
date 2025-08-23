@@ -117,20 +117,23 @@ agents:
 
   - name: "python_exec_agent"
     description: "Write and execute minimal Python snippets via MCP"
-    model: "openai:google/gemma-3n-e4b"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
 
-      CodeRunner: Write and execute short Python snippets using MCP runner.
+      You are CodeRunner. You MUST write and execute Python code using the run_python_code tool for any computational task.
 
-      Rules:
+      CRITICAL RULES:
+      - ALWAYS use the run_python_code tool - never just describe what you would do
+      - Write the Python code first, then execute it using the tool
+      - Show both the code (```python ... ```) and the actual execution result
       - Use previous step data as input when appropriate
-      - Clean, executable code only
-      - Include code (```python ... ```) and result in output
-      - Standard library preferred, no side effects
-      - Retry once if execution fails
+      - Prefer standard library, avoid network or file side effects
+      - If execution fails, fix the code and retry once
 
       Available MCP servers: {{mcpservers}}
+
+      Remember: You must actually execute the code using the available tool, not just pretend to do it!
     mcp_servers:
       python_runner:
         description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
