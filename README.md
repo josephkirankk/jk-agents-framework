@@ -42,17 +42,75 @@ system with:
 - deno cache --node-modules-dir=auto jsr:@pydantic/mcp-run-python
 
 
-## Azure OpenAI setup
+## Multi-Provider OpenAI Setup
 
-This repo supports both OpenAI and Azure OpenAI. If these environment variables are present, models like `openai:gpt-4o-mini` are auto-switched to `azure_openai:gpt-4o-mini` and used with Azure OpenAI SDK:
+This repo supports **multiple OpenAI providers simultaneously**:
 
-- AZURE_OPENAI_API_KEY
-- AZURE_OPENAI_ENDPOINT (e.g., https://your-resource-name.openai.azure.com)
-- Optional per-deployment: AZURE_OPENAI_API_VERSION (defaults to SDK)
+- **Regular OpenAI API** - Official OpenAI models
+- **Azure OpenAI** - Enterprise OpenAI models via Azure
+- **LM Studio** - Local models running on your machine
+- **Other OpenAI-compatible services** - Ollama, LocalAI, etc.
 
-Windows PowerShell example:
+### Quick Setup
 
+1. **Copy and configure environment**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and endpoints
+   ```
+
+2. **Test your configuration**:
+   ```bash
+   python scripts/test_multi_provider.py
+   ```
+
+3. **Use multiple providers in your YAML config**:
+   ```yaml
+   models:
+     default: "azure_openai:gpt-4o-mini"      # Uses Azure OpenAI
+     supervisor: "azure_openai:gpt-4o"        # Uses Azure OpenAI
+     local_dev: "openai:google/gemma-3n-e4b"  # Uses LM Studio
+     local_test: "openai:llama-3.2-3b"        # Uses LM Studio
+   ```
+
+### Model Naming Convention
+
+- `openai:model-name` - Uses OpenAI API or local server (if OPENAI_BASE_URL is set)
+- `azure_openai:deployment-name` - Uses Azure OpenAI
+
+### Example Configurations
+
+**Azure OpenAI + LM Studio** (Recommended):
+```env
+# Azure OpenAI for production
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_API_KEY=your-azure-key
+AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
+
+# LM Studio for local development
+OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+OPENAI_API_KEY=lm-studio
 ```
+
+**All three providers**:
+```env
+OPENAI_API_KEY=sk-your-openai-key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_API_KEY=your-azure-key
+OPENAI_BASE_URL=http://127.0.0.1:1234/v1  # Overrides regular OpenAI for openai: models
+```
+
+### Documentation
+
+- 📖 **Complete Guide**: [docs/MULTI_PROVIDER_SETUP.md](docs/MULTI_PROVIDER_SETUP.md)
+- 🧪 **Test Script**: `python scripts/test_multi_provider.py`
+- 📝 **Example Config**: [config/multi_provider_example.yaml](config/multi_provider_example.yaml)
+
+### Legacy Azure-Only Setup
+
+For backward compatibility, the old Azure-only setup still works:
+
+```bash
 $env:AZURE_OPENAI_API_KEY="<your-key>"
 $env:AZURE_OPENAI_ENDPOINT="https://<your-resource>.openai.azure.com"
 python -m app.main "Research ACME quarterly results and summarize with sources."

@@ -1,0 +1,144 @@
+# ============================================================================
+# MULTI-PROVIDER CONFIGURATION EXAMPLE
+# ============================================================================
+# This example demonstrates how to use multiple OpenAI providers simultaneously:
+# - Azure OpenAI for production models
+# - LM Studio for local/experimental models  
+# - Regular OpenAI API as fallback
+#
+# REQUIRED .env CONFIGURATION:
+# OPENAI_API_KEY=sk-your-openai-api-key
+# AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+# AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
+# AZURE_OPENAI_API_KEY=your-azure-key
+# AZURE_OPENAI_API_VERSION=2024-02-15-preview
+# OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+# ============================================================================
+
+models:
+  # Azure OpenAI for production workloads (reliable, enterprise-grade)
+  default: "azure_openai:gpt-4o-mini"
+  supervisor: "azure_openai:gpt-4o"
+  
+  # LM Studio for local development and testing (fast, private)
+  local_dev: "openai:google/gemma-3n-e4b"
+  local_test: "openai:llama-3.2-3b"
+  experimental: "openai:microsoft/phi-3.5-mini"
+  
+  # Temperature setting
+  temperature: 0.1
+
+business_context: |
+  You are a multi-provider AI system that intelligently selects the best model for each task:
+  - Use Azure OpenAI models for production tasks requiring high reliability
+  - Use local LM Studio models for development, testing, and privacy-sensitive tasks
+  - Optimize for both performance and cost-effectiveness
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4o"  # Use Azure's most capable model for planning
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+    
+    You are a supervisor that creates execution plans using available agents.
+    Available agents:
+    {{agents}}
+    
+    For each user request, analyze the task complexity and choose appropriate models:
+    - Complex reasoning, production tasks: Use Azure OpenAI agents
+    - Simple tasks, development/testing: Use local LM Studio agents
+    - Balance cost, speed, and quality based on requirements
+    
+    Create a JSON plan with steps that can run in parallel where possible.
+    Each step should specify the most appropriate agent for the task.
+    
+    Return only JSON, with top-level object:
+    {
+      "goal": "<short restatement of user goal>",
+      "plan": [
+        {"id":"s1", "agent":"A", "task":"...", "depends_on":[], "verify":"...", "timeout_seconds":60, "retry":2},
+        ...
+      ]
+    }
+    
+    Respond with JSON only and nothing else.
+
+agents:
+  # Production-grade agents using Azure OpenAI
+  - name: "production_web_agent"
+    description: "High-reliability web search and analysis using Azure OpenAI"
+    model: "azure_openai:gpt-4o-mini"
+    prompt: |
+      You are a production-grade WebAgent powered by Azure OpenAI.
+      Available MCP servers: {{mcpservers}}
+      
+      Provide accurate, well-researched responses with proper source citations.
+      Focus on reliability and comprehensive analysis.
+    mcp_servers:
+      websearch:
+        description: "Brave search MCP server"
+        transport: "streamable_http"
+        url: "http://localhost:8000/mcp"
+        env: {}
+
+  - name: "production_analysis_agent"
+    description: "Deep analysis and reasoning using Azure OpenAI's most capable model"
+    model: "azure_openai:gpt-4o"
+    prompt: |
+      You are an expert analysis agent powered by Azure OpenAI GPT-4o.
+      Provide thorough, well-reasoned analysis with detailed explanations.
+      Focus on accuracy, depth, and professional-quality insights.
+    mcp_servers: {}
+
+  # Development and testing agents using local LM Studio
+  - name: "dev_assistant_agent"
+    description: "Fast local development assistant for quick tasks"
+    model: "openai:google/gemma-3n-e4b"
+    prompt: |
+      You are a development assistant running locally via LM Studio.
+      Provide quick, helpful responses for development and testing tasks.
+      Focus on speed and practical solutions.
+    mcp_servers: {}
+
+  - name: "local_math_agent"
+    description: "Local mathematical computation agent"
+    model: "openai:llama-3.2-3b"
+    prompt: |
+      You are a math agent running locally for privacy and speed.
+      Available MCP servers: {{mcpservers}}
+      Perform calculations and provide precise numerical results.
+    mcp_servers:
+      math:
+        description: "Local math computation via stdio"
+        transport: "stdio"
+        command: "python"
+        args: ["examples/mcp_servers/math_server.py"]
+        env: {}
+
+  # Experimental agent for testing new models
+  - name: "experimental_agent"
+    description: "Testing new local models and experimental features"
+    model: "openai:microsoft/phi-3.5-mini"
+    prompt: |
+      You are an experimental agent for testing new capabilities.
+      Provide innovative solutions and explore creative approaches.
+      This is a safe environment for experimentation.
+    mcp_servers: {}
+
+  # Hybrid agent that can switch between providers based on task complexity
+  - name: "adaptive_agent"
+    description: "Intelligent agent that adapts model choice based on task complexity"
+    model: "azure_openai:gpt-4o-mini"  # Default to Azure for reliability
+    prompt: |
+      You are an adaptive agent that can handle various task complexities.
+      For this specific task, you're using Azure OpenAI for optimal performance.
+      
+      Analyze the task and provide appropriate responses:
+      - Simple queries: Quick, direct answers
+      - Complex analysis: Detailed, thorough responses
+      - Always maintain high quality standards
+    mcp_servers: {}
