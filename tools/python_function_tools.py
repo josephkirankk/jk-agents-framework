@@ -183,7 +183,7 @@ class TextProcessorInput(BaseModel):
     operation: str = Field(
         description=(
             "Operation to perform: 'word_count', 'char_count', "
-            "'summary', or 'clean'"
+            "'summary','char_count_of_a', or 'clean'"
         )
     )
 
@@ -224,6 +224,16 @@ class TextProcessorTool(BaseTool):
                     p for p in text.split("\n\n") if p.strip()
                 ])
             }
+        
+        elif operation == "char_count_of_a":
+            return {
+                "total_chars": len(text),
+                "chars_no_spaces": len(text.replace(" ", "")),
+                "lines": len(text.split("\n")),
+                "paragraphs": len([p for p in text.split("\n\n") if p.strip()]),
+                "count_of_a": text.count("a")
+            }
+
 
         elif operation == "clean":
             # Basic text cleaning

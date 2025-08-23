@@ -128,7 +128,7 @@ agents:
 
   - name: "jk_tools_agent"
     description: "agent to write poems with exact number of words"
-    model: "google:gemini-2.0-flash-lite-001"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are a helpful assistant who helps in writing poems with exact number of words or exact number of characters as per the request.
 
@@ -141,9 +141,14 @@ agents:
       4. Repeat until you have exactly the requested number of words
       5. Present the final poem with the word count verification
 
+      Available tools:
+      - text_processor: Process text with various operations like counting, cleaning, and summarizing
+      - calculate_percentage: Calculate the percentage of a given number
+
+
       Available MCP servers: {{mcpservers}}
     python_tools:
       text_tools:
         module_path: "tools.python_function_tools"
-        tool_names: ["text_processor"]
+        tool_names: ["text_processor", "calculate_percentage"]
         description: "Text processing and analysis tools"
