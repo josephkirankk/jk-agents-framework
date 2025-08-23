@@ -6,6 +6,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from .config import SupervisorConfig, AgentConfig
 from .template_utils import render_prompt
+from .agent_builder import create_model_instance
 
 log = logging.getLogger("supervisor_builder")
 
@@ -42,9 +43,11 @@ def build_supervisor_compiled(
         prompt_filled = prompt_filled.replace("{{business_context}}", business_context)
 
     supervisor_model = supervisor_cfg.model or default_model
+    # Create the appropriate model instance (handles google: prefix)
+    supervisor_model_instance = create_model_instance(supervisor_model)
 
     sup_agent = create_react_agent(
-        model=supervisor_model,
+        model=supervisor_model_instance,
         tools=[],
         prompt=prompt_filled.strip(),
         name="supervisor",

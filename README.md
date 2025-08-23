@@ -56,7 +56,7 @@ curl -X POST "http://localhost:8000/query" \
 3. Run the FastAPI app:
    ```bash
    export OPENAI_API_KEY=...
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   uvicorn app.api:app --reload --host 0.0.0.0 --port 8000
    ```
 4. Invoke planner & executor:
    ```bash

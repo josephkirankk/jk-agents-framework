@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
-from typing import Dict
+import os
+from typing import Dict, Any
 
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
@@ -10,6 +11,69 @@ from .config import AgentConfig
 from .template_utils import render_prompt
 
 log = logging.getLogger("agent_builder")
+
+
+def create_model_instance(model_id: str) -> Any:
+    """
+    Create a model instance based on the model ID prefix.
+
+    Args:
+        model_id: Model ID string like "google:gemini-2.0-flash-exp",
+                 "openai:gpt-4o", "anthropic:claude-sonnet-4", etc.
+
+    Returns:
+        Either the original model_id string (for LangGraph built-in support)
+        or a model instance (for custom providers like Google Gemini)
+    """
+    if not isinstance(model_id, str):
+        return model_id
+
+    # Handle Google Gemini models
+    if model_id.startswith("google:"):
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+
+            # Extract the model name after the prefix
+            model_name = model_id.split("google:", 1)[1]
+
+            # Get API key from environment
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                log.warning(
+                    "GOOGLE_API_KEY not found in environment. "
+                    "Google Gemini model %s may not work properly.",
+                    model_id
+                )
+                # Return the original string and let LangGraph handle the error
+                return model_id
+
+            # Create and return the Google Gemini model instance
+            model_instance = ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=api_key,
+                temperature=0.0,  # Default temperature, can be overridden
+            )
+
+            log.info("Created Google Gemini model instance: %s", model_name)
+            return model_instance
+
+        except ImportError:
+            log.error(
+                "langchain-google-genai not installed. "
+                "Cannot create Google Gemini model %s",
+                model_id
+            )
+            return model_id
+        except Exception as e:
+            log.error(
+                "Failed to create Google Gemini model %s: %s",
+                model_id, e
+            )
+            return model_id
+
+    # For all other model types (openai:, azure_openai:, anthropic:, etc.)
+    # return the original string - LangGraph handles these natively
+    return model_id
 
 
 def _format_mcp_summary(servers_cfg: Dict[str, Dict]) -> str:
@@ -38,6 +102,9 @@ async def build_react_agent(
 ):
 
     model_id = agent_cfg.model or default_model
+    # Create the appropriate model instance (handles google: prefix)
+    model_instance = create_model_instance(model_id)
+
     servers_raw = {
         k: v.dict(exclude_none=True)
         for k, v in agent_cfg.mcp_servers.items()
@@ -78,7 +145,7 @@ async def build_react_agent(
         prompt_filled = (agent_cfg.prompt or "").replace("{{mcpservers}}", summary)
 
     agent = create_react_agent(
-        model=model_id,
+        model=model_instance,
         tools=tools,
         prompt=prompt_filled,
         name=agent_cfg.name,
