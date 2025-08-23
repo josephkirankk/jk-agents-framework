@@ -6,10 +6,12 @@ Provides HTTP endpoints to interact with the multi-agent system.
 from __future__ import annotations
 
 import logging
+import base64
+import mimetypes
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -45,6 +47,168 @@ app.add_middleware(
 
 # Global configuration - will be loaded on startup
 _app_config: Optional[AppConfig] = None
+
+
+async def upload_file_to_openai(file_content: bytes, filename: str, purpose: str = "vision") -> str:
+    """
+    Upload a file to OpenAI/Azure OpenAI and return the file ID.
+
+    Args:
+        file_content: The file content as bytes
+        filename: The original filename
+        purpose: The purpose for the file (vision, assistants, etc.)
+
+    Returns:
+        The file ID from OpenAI
+    """
+    import os
+    from openai import OpenAI
+
+    # Try to import Azure components, fall back to regular OpenAI if not available
+    try:
+        from openai import AzureOpenAI
+        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+        azure_available = True
+    except ImportError:
+        log.warning("Azure SDK not available, falling back to regular OpenAI")
+        azure_available = False
+
+    # Determine which client to use based on environment variables
+    if azure_available and os.getenv("AZURE_OPENAI_ENDPOINT"):
+        # Use Azure OpenAI
+        if os.getenv("AZURE_OPENAI_API_KEY"):
+            # API Key authentication
+            client = AzureOpenAI(
+                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                api_version="2024-10-21",
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+            )
+        else:
+            # Token-based authentication
+            token_provider = get_bearer_token_provider(
+                DefaultAzureCredential(),
+                "https://cognitiveservices.azure.com/.default"
+            )
+            client = AzureOpenAI(
+                azure_ad_token_provider=token_provider,
+                api_version="2024-10-21",
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+            )
+    else:
+        # Use regular OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    # Create a temporary file to upload
+    import io
+
+    # Use BytesIO to avoid file system issues on Windows
+    file_like = io.BytesIO(file_content)
+    file_like.name = filename  # Set name attribute for OpenAI API
+
+    # Upload the file directly from memory
+    file_response = client.files.create(
+        file=file_like,
+        purpose=purpose
+    )
+    return file_response.id
+
+
+async def run_direct_agent_with_files(
+    agent_name: str,
+    user_input: str,
+    app_cfg: AppConfig,
+    file_ids: List[str],
+    file_info: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Run a direct agent with file attachments.
+
+    This is a modified version of run_direct_agent_api that handles file attachments
+    by constructing multimodal messages with file references.
+    """
+    from langchain_core.runnables import RunnableConfig
+
+    default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+
+    # Find agent config
+    target: Optional[AgentConfig] = next(
+        (a for a in app_cfg.agents if a.name == agent_name), None
+    )
+    if not target:
+        raise ValueError(f"Agent '{agent_name}' not found in config")
+
+    compiled, mcp_client = await build_react_agent(
+        target,
+        default_model,
+        business_context=app_cfg.business_context or "",
+        original_user_question=user_input,
+        dependent_request_responses="",
+    )
+
+    try:
+        system_context = (
+            "Business context:\n"
+            f"{app_cfg.business_context or ''}\n\n"
+            "Previous step results:\n(none)"
+        )
+
+        # Create multimodal message content
+        message_content = []
+
+        # Add text content
+        message_content.append({
+            "type": "text",
+            "text": user_input
+        })
+
+        # Add file references
+        for file_id, info in zip(file_ids, file_info):
+            if info.get("purpose") == "vision" and info.get("mime_type", "").startswith("image/"):
+                # For images, use image_url type with file_id
+                message_content.append({
+                    "type": "image_url",
+                    "image_url": {"file_id": file_id}
+                })
+            else:
+                # For other files, reference them in text
+                message_content.append({
+                    "type": "text",
+                    "text": f"Please analyze the attached file: {info['filename']} (File ID: {file_id})"
+                })
+
+        # Create the message with multimodal content
+        # human_message = HumanMessage(content=message_content)  # For future use
+
+        state = {
+            "messages": [
+                {"role": "system", "content": system_context},
+                {"role": "user", "content": message_content},
+            ]
+        }
+        config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
+
+        try:
+            out = await compiled.ainvoke(state, config=config)
+        except AttributeError:
+            out = compiled.invoke(state, config=config)
+
+        msgs = out.get("messages", [])
+        if msgs:
+            # LangGraph messages are objects with .content attribute
+            last_msg = msgs[-1]
+            text = getattr(last_msg, "content", "")
+        else:
+            text = ""
+
+        return {
+            "success": True,
+            "response": text,
+            "agent_name": agent_name,
+            "raw_output": out,
+        }
+
+    finally:
+        await close_mcp_client(mcp_client)
 
 
 class QueryRequest(BaseModel):
@@ -327,6 +491,132 @@ async def query_endpoint(request: QueryRequest):
             response="",
             error=str(e)
         )
+
+
+@app.post("/worker/upload")
+async def worker_upload_endpoint(
+    agent_name: str = Form(..., description="Name of the agent to execute"),
+    input: str = Form(..., description="User question or prompt for the agent"),
+    config_path: Optional[str] = Form(None, description="Optional path to config file"),
+    files: List[UploadFile] = File(..., description="Files to upload and attach to the request")
+):
+    """
+    Worker endpoint that accepts file uploads and executes a specific agent.
+
+    Args:
+        agent_name: Name of the agent to execute
+        input: User question or prompt for the agent
+        config_path: Optional path to config file
+        files: List of files to upload and attach to the request
+
+    Returns:
+        WorkerResponse with the agent's response including file analysis
+    """
+    try:
+        # Load configuration
+        if config_path:
+            try:
+                app_cfg = load_app_config(Path(config_path))
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to load config from {config_path}: {str(e)}"
+                )
+        else:
+            if _app_config is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="No default configuration available. Please provide config_path."
+                )
+            app_cfg = _app_config
+
+        # Validate agent exists
+        agent_names = [agent.name for agent in app_cfg.agents]
+        if agent_name not in agent_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Agent '{agent_name}' not found. Available agents: {', '.join(agent_names)}"
+            )
+
+        # Process uploaded files
+        file_ids = []
+        file_info = []
+
+        for file in files:
+            # Read file content
+            file_content = await file.read()
+
+            # Determine file purpose based on MIME type
+            mime_type = file.content_type or mimetypes.guess_type(file.filename)[0]
+            # Azure OpenAI uses "assistants" for both images and documents
+            purpose = "assistants"
+
+            try:
+                # Upload file to OpenAI/Azure OpenAI
+                file_id = await upload_file_to_openai(file_content, file.filename, purpose)
+                file_ids.append(file_id)
+                file_info.append({
+                    "filename": file.filename,
+                    "file_id": file_id,
+                    "mime_type": mime_type,
+                    "purpose": purpose,
+                    "size": len(file_content)
+                })
+                log.info(f"Uploaded file {file.filename} with ID {file_id}")
+            except Exception as e:
+                log.error(f"Failed to upload file {file.filename}: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to upload file {file.filename}: {str(e)}"
+                )
+
+        # Enhance the input with file information
+        enhanced_input = input
+        if file_info:
+            file_descriptions = []
+            for info in file_info:
+                file_descriptions.append(f"- {info['filename']} (ID: {info['file_id']}, Type: {info['mime_type']})")
+
+            enhanced_input = f"""{input}
+
+Attached files:
+{chr(10).join(file_descriptions)}
+
+Please analyze the attached files and incorporate their content into your response."""
+
+        # Execute the agent with enhanced input
+        log.info(f"Executing agent '{agent_name}' with {len(files)} attached files")
+        result = await run_direct_agent_with_files(
+            agent_name, enhanced_input, app_cfg, file_ids, file_info
+        )
+
+        # Prepare metadata
+        metadata = {
+            "agent_name": agent_name,
+            "model_used": app_cfg.models.get("default", "unknown"),
+            "business_context": bool(app_cfg.business_context),
+            "files_uploaded": len(files),
+            "file_info": file_info
+        }
+
+        return {
+            "success": True,
+            "response": result["response"],
+            "agent_name": agent_name,
+            "metadata": metadata
+        }
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        log.error(f"Error executing worker '{agent_name}' with files: {e}")
+        return {
+            "success": False,
+            "response": "",
+            "agent_name": agent_name,
+            "error": str(e)
+        }
 
 
 @app.post("/worker", response_model=WorkerResponse)
