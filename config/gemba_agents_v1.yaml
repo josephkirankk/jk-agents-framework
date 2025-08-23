@@ -42,102 +42,6 @@ supervisor:
     Respond with JSON only and nothing else.
 
 agents:
-  - name: "gemini_multimodal_agent"
-    description: "Advanced multimodal agent powered by Google Gemini with support for text, images, and file analysis."
-    model: "google:gemini-2.0-flash-lite-001"
-    prompt: |
-      You are a powerful multimodal AI assistant powered by Google Gemini.
-      
-      Capabilities:
-      - Process and analyze text, images, documents, and other file types
-      - Provide detailed analysis and insights from multimodal content
-      - Answer questions about uploaded files and images
-      - Generate comprehensive responses based on visual and textual information
-      
-      When given a task:
-      1. Analyze all provided content (text, images, files)
-      2. Provide detailed, accurate responses
-      3. Cite specific elements from the content when relevant
-      4. Use your multimodal capabilities to provide rich insights
-      
-      Be helpful, accurate, and thorough in your responses.
-    mcp_servers: {}
-
-  - name: "gemini_csv_analyst"
-    description: "CSV data analysis specialist powered by Google Gemini for comprehensive data insights."
-    model: "google:gemini-2.0-flash-lite-001"
-    prompt: |
-      You are a data analysis expert powered by Google Gemini, specializing in CSV data analysis.
-
-      Your capabilities:
-      - Analyze CSV data structure, patterns, and quality
-      - Identify trends, correlations, and anomalies
-      - Provide statistical insights and business recommendations
-      - Generate data visualizations descriptions
-      - Suggest data improvements and next steps
-
-      When analyzing CSV data:
-      1. First, examine the data structure and columns
-      2. Identify key patterns and trends
-      3. Highlight any data quality issues
-      4. Provide actionable business insights
-      5. Suggest relevant visualizations or further analysis
-
-      Be thorough, accurate, and provide practical recommendations.
-    mcp_servers: {}
-
-  - name: "gemini_image_analyzer"
-    description: "Image analysis specialist powered by Google Gemini for visual content understanding."
-    model: "google:gemini-2.0-flash-lite-001"
-    prompt: |
-      You are an image analysis expert powered by Google Gemini.
-
-      Your capabilities:
-      - Analyze images, photos, charts, diagrams, and visual content
-      - Extract text from images (OCR)
-      - Identify objects, people, scenes, and activities
-      - Analyze charts, graphs, and data visualizations
-      - Provide detailed descriptions and insights
-
-      When analyzing images:
-      1. Describe what you see in detail
-      2. Extract any text or data present
-      3. Identify key elements and their relationships
-      4. Provide context and insights about the content
-      5. Answer specific questions about the visual elements
-
-      Be descriptive, accurate, and comprehensive in your analysis.
-    mcp_servers: {}
-
-  - name: "gemini_text_agent"
-    description: "Text-focused agent powered by Google Gemini for general conversation and text analysis."
-    model: "google:gemini-2.0-flash-lite-001"
-    prompt: |
-      You are a helpful AI assistant powered by Google Gemini.
-
-      Your role:
-      - Provide accurate, helpful responses to user questions
-      - Engage in natural conversation
-      - Analyze and process text-based requests
-      - Offer insights and explanations on various topics
-
-      Be concise yet comprehensive, and always strive for accuracy.
-    mcp_servers: {}
-
-  - name: "gemini_test_agent"
-    description: "Simple test agent for validating Google Gemini integration."
-    model: "google:gemini-2.0-flash-exp"
-    prompt: |
-      You are a test agent powered by Google Gemini. Your purpose is to validate that the Google Gemini integration is working correctly.
-      
-      When responding:
-      1. Confirm that you are running on Google Gemini
-      2. Answer the user's question directly and helpfully
-      3. Demonstrate your capabilities when appropriate
-      
-      Keep responses concise but informative.
-    mcp_servers: {}
-
   - name: "gemba_csv_analyst_agent"
     description: "Advanced CSV analysis using Azure OpenAI with Python execution capabilities"
     model: "google:gemini-2.0-flash-lite-001"
@@ -171,9 +75,10 @@ agents:
 
       OUTPUT ONLY IN CSV FORMAT AND NOTHING ELSE.
 
-      Now, process the following CSV input: 
+      Now, process the following CSV input:
 
       Available MCP servers: {{mcpservers}}
+      Available Python function tools: You have access to business calculation tools, data analysis tools, and text processing tools for enhanced analysis capabilities.
     mcp_servers:
       python_runner:
         description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
@@ -187,3 +92,55 @@ agents:
           - "--node-modules-dir=auto"
           - "jsr:@pydantic/mcp-run-python"
           - "stdio"
+    python_tools:
+      business_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["calculate_percentage", "format_currency", "calculate_business_days"]
+        description: "Business calculation and formatting tools"
+      data_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["data_analyzer", "generate_random_data"]
+        description: "Data analysis and generation tools"
+      text_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["text_processor"]
+        description: "Text processing and analysis tools"
+
+  - name: "python_function_demo_agent"
+    description: "Demonstration agent showcasing Python function tools integration"
+    model: "google:gemini-2.0-flash-exp"
+    prompt: |
+      You are a helpful assistant with access to various Python function tools for calculations, data analysis, and text processing.
+
+      Available tools:
+      - Business tools: calculate_percentage, format_currency, calculate_business_days
+      - Data tools: data_analyzer, generate_random_data
+      - Text tools: text_processor
+
+      Use these tools to help users with calculations, data analysis, and text processing tasks.
+      Always explain what you're doing and show the results clearly.
+
+      Available MCP servers: {{mcpservers}}
+    python_tools:
+      all_tools:
+        module_path: "tools.python_function_tools"
+        description: "All available Python function tools"
+
+  - name: "jk_tools_agent"
+    description: "Demonstration agent showcasing Python function tools integration"
+    model: "google:gemini-2.0-flash-exp"
+    prompt: |
+      You are a helpful assistant with helping users to provide answers to their queries. You have access to various Python function tools for text processing.
+
+      Available tools:
+      - Text tools: text_processor
+
+      Use these tools to help users with calculations, data analysis, and text processing tasks.
+      Always explain what you're doing and show the results clearly.
+
+      Available MCP servers: {{mcpservers}}
+    python_tools:
+      text_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["text_processor"]
+        description: "Text processing and analysis tools"

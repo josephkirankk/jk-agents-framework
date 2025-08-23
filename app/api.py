@@ -22,6 +22,7 @@ from .supervisor_builder import build_supervisor_compiled
 from .planner_executor import execute_plan
 from .mcp_loader import close_mcp_client
 from .agent_builder import build_react_agent
+from .direct_agent_logger import create_direct_agent_logger
 
 # Configure logging
 logging.basicConfig(
@@ -181,93 +182,124 @@ async def run_direct_agent_with_files(
     """
     from langchain_core.runnables import RunnableConfig
 
-    default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
-
-    # Find agent config
-    target: Optional[AgentConfig] = next(
-        (a for a in app_cfg.agents if a.name == agent_name), None
+    # Initialize logger
+    logger = create_direct_agent_logger(
+        agent_name=agent_name,
+        user_input=user_input,
+        business_context=app_cfg.business_context or ""
     )
-    if not target:
-        raise ValueError(f"Agent '{agent_name}' not found in config")
 
-    compiled, mcp_client = await build_react_agent(
-        target,
-        default_model,
-        business_context=app_cfg.business_context or "",
-        original_user_question=user_input,
-        dependent_request_responses="",
-    )
+    success = False
+    error_message = ""
 
     try:
-        system_context = (
-            "Business context:\n"
-            f"{app_cfg.business_context or ''}\n\n"
-            "Previous step results:\n(none)"
+        default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+
+        # Find agent config
+        target: Optional[AgentConfig] = next(
+            (a for a in app_cfg.agents if a.name == agent_name), None
+        )
+        if not target:
+            raise ValueError(f"Agent '{agent_name}' not found in config")
+
+        compiled, mcp_client = await build_react_agent(
+            target,
+            default_model,
+            business_context=app_cfg.business_context or "",
+            original_user_question=user_input,
+            dependent_request_responses="",
         )
 
-        # Create multimodal message content
-        message_content = []
-
-        # Add text content
-        message_content.append({
-            "type": "text",
-            "text": user_input
-        })
-
-        # Add file references for non-CSV files (CSV data is already in user_input)
-        for file_id, info in zip(file_ids, file_info):
-            mime_type = info.get("mime_type", "")
-            filename = info.get("filename", "")
-
-            if info.get("purpose") == "local_processing":
-                # CSV files are already processed and included in user_input
-                continue
-            elif mime_type and mime_type.startswith("image/"):
-                # For images, use image_url type with file_id
-                message_content.append({
-                    "type": "image_url",
-                    "image_url": {"file_id": file_id}
-                })
-            else:
-                # For other files, reference them in text
-                message_content.append({
-                    "type": "text",
-                    "text": f"Please analyze the attached file: {filename} (File ID: {file_id})"
-                })
-
-        # Create the message with multimodal content
-        # human_message = HumanMessage(content=message_content)  # For future use
-
-        state = {
-            "messages": [
-                {"role": "system", "content": system_context},
-                {"role": "user", "content": message_content},
-            ]
-        }
-        config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
-
         try:
-            out = await compiled.ainvoke(state, config=config)
-        except AttributeError:
-            out = compiled.invoke(state, config=config)
+            system_context = (
+                "Business context:\n"
+                f"{app_cfg.business_context or ''}\n\n"
+                "Previous step results:\n(none)"
+            )
 
-        msgs = out.get("messages", [])
-        if msgs:
-            # LangGraph messages are objects with .content attribute
-            last_msg = msgs[-1]
-            text = getattr(last_msg, "content", "")
-        else:
-            text = ""
+            # Create multimodal message content
+            message_content = []
 
-        return {
-            "success": True,
-            "response": text,
-            "agent_name": agent_name,
-            "raw_output": out,
-        }
+            # Add text content
+            message_content.append({
+                "type": "text",
+                "text": user_input
+            })
 
+            # Add file references for non-CSV files (CSV data is already in user_input)
+            for file_id, info in zip(file_ids, file_info):
+                mime_type = info.get("mime_type", "")
+                filename = info.get("filename", "")
+
+                if info.get("purpose") == "local_processing":
+                    # CSV files are already processed and included in user_input
+                    continue
+                elif mime_type and mime_type.startswith("image/"):
+                    # For images, use image_url type with file_id
+                    message_content.append({
+                        "type": "image_url",
+                        "image_url": {"file_id": file_id}
+                    })
+                else:
+                    # For other files, reference them in text
+                    message_content.append({
+                        "type": "text",
+                        "text": f"Please analyze the attached file: {filename} (File ID: {file_id})"
+                    })
+
+            # Log the request with file information
+            logger.log_agent_request(
+                compiled_agent=compiled,
+                system_context=system_context,
+                user_task=user_input,
+                file_info=file_info
+            )
+
+            # Create the message with multimodal content
+            # human_message = HumanMessage(content=message_content)  # For future use
+
+            state = {
+                "messages": [
+                    {"role": "system", "content": system_context},
+                    {"role": "user", "content": message_content},
+                ]
+            }
+            config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
+
+            try:
+                out = await compiled.ainvoke(state, config=config)
+            except AttributeError:
+                out = compiled.invoke(state, config=config)
+
+            msgs = out.get("messages", [])
+            if msgs:
+                # LangGraph messages are objects with .content attribute
+                last_msg = msgs[-1]
+                text = getattr(last_msg, "content", "")
+            else:
+                text = ""
+
+            # Log the response
+            logger.log_agent_response(response_text=text, raw_output=out)
+            success = True
+
+            return {
+                "success": True,
+                "response": text,
+                "agent_name": agent_name,
+                "raw_output": out,
+                "log_file": logger.get_log_file_path(),
+            }
+
+        finally:
+            await close_mcp_client(mcp_client)
+
+    except Exception as e:
+        error_message = str(e)
+        raise
     finally:
-        await close_mcp_client(mcp_client)
+        # Log execution summary
+        logger.log_execution_summary(success=success, error_message=error_message)
 
 
 class QueryRequest(BaseModel):
@@ -397,59 +429,90 @@ async def run_direct_agent_api(
     """
     from langchain_core.runnables import RunnableConfig
 
-    default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
-
-    # Find agent config
-    target: Optional[AgentConfig] = next(
-        (a for a in app_cfg.agents if a.name == agent_name), None
+    # Initialize logger
+    logger = create_direct_agent_logger(
+        agent_name=agent_name,
+        user_input=user_input,
+        business_context=app_cfg.business_context or ""
     )
-    if not target:
-        raise ValueError(f"Agent '{agent_name}' not found in config")
 
-    compiled, mcp_client = await build_react_agent(
-        target,
-        default_model,
-        business_context=app_cfg.business_context or "",
-        original_user_question=user_input,
-        dependent_request_responses="",
-    )
+    success = False
+    error_message = ""
 
     try:
-        system_context = (
-            "Business context:\n"
-            f"{app_cfg.business_context or ''}\n\n"
-            "Previous step results:\n(none)"
+        default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+
+        # Find agent config
+        target: Optional[AgentConfig] = next(
+            (a for a in app_cfg.agents if a.name == agent_name), None
         )
-        state = {
-            "messages": [
-                {"role": "system", "content": system_context},
-                {"role": "user", "content": user_input},
-            ]
-        }
-        config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
+        if not target:
+            raise ValueError(f"Agent '{agent_name}' not found in config")
+
+        compiled, mcp_client = await build_react_agent(
+            target,
+            default_model,
+            business_context=app_cfg.business_context or "",
+            original_user_question=user_input,
+            dependent_request_responses="",
+        )
 
         try:
-            out = await compiled.ainvoke(state, config=config)
-        except AttributeError:
-            out = compiled.invoke(state, config=config)
+            system_context = (
+                "Business context:\n"
+                f"{app_cfg.business_context or ''}\n\n"
+                "Previous step results:\n(none)"
+            )
 
-        msgs = out.get("messages", [])
-        if msgs:
-            # LangGraph messages are objects with .content attribute
-            last_msg = msgs[-1]
-            text = getattr(last_msg, "content", "")
-        else:
-            text = ""
+            # Log the request
+            logger.log_agent_request(
+                compiled_agent=compiled,
+                system_context=system_context,
+                user_task=user_input
+            )
 
-        return {
-            "success": True,
-            "response": text,
-            "agent_name": agent_name,
-            "raw_output": out,
-        }
+            state = {
+                "messages": [
+                    {"role": "system", "content": system_context},
+                    {"role": "user", "content": user_input},
+                ]
+            }
+            config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
 
+            try:
+                out = await compiled.ainvoke(state, config=config)
+            except AttributeError:
+                out = compiled.invoke(state, config=config)
+
+            msgs = out.get("messages", [])
+            if msgs:
+                # LangGraph messages are objects with .content attribute
+                last_msg = msgs[-1]
+                text = getattr(last_msg, "content", "")
+            else:
+                text = ""
+
+            # Log the response
+            logger.log_agent_response(response_text=text, raw_output=out)
+            success = True
+
+            return {
+                "success": True,
+                "response": text,
+                "agent_name": agent_name,
+                "raw_output": out,
+                "log_file": logger.get_log_file_path(),
+            }
+
+        finally:
+            await close_mcp_client(mcp_client)
+
+    except Exception as e:
+        error_message = str(e)
+        raise
     finally:
-        await close_mcp_client(mcp_client)
+        # Log execution summary
+        logger.log_execution_summary(success=success, error_message=error_message)
 
 
 async def run_supervised_api(

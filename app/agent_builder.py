@@ -7,6 +7,10 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from .mcp_loader import load_mcp_tools, build_http_tools
+from .python_tool_loader import (
+    load_python_function_tools,
+    validate_python_tools
+)
 from .config import AgentConfig
 from .template_utils import render_prompt
 
@@ -111,6 +115,7 @@ async def build_react_agent(
     }
 
     mcp_client, tools = await load_mcp_tools(servers_raw)
+
     # Merge in HTTP tools (non-MCP) if configured
     try:
         http_tools = build_http_tools(agent_cfg.http_tools)
@@ -121,7 +126,21 @@ async def build_react_agent(
             e,
         )
         http_tools = []
-    tools = list(tools) + list(http_tools)
+
+    # Merge in Python function tools if configured
+    try:
+        python_tools = load_python_function_tools(agent_cfg.python_tools)
+        python_tools = validate_python_tools(python_tools)
+    except Exception as e:
+        log.exception(
+            "Failed building Python function tools for agent %s: %s",
+            agent_cfg.name,
+            e,
+        )
+        python_tools = []
+
+    # Combine all tools
+    tools = list(tools) + list(http_tools) + list(python_tools)
 
     summary = _format_mcp_summary(servers_raw)
     # Render prompt with Jinja2 so templates can use variables like
