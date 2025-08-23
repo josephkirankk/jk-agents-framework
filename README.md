@@ -9,7 +9,22 @@ system with:
 - FastAPI wrapper exposing /invoke and /plan_and_run endpoints
 
 ## Run
--  .venv\Scripts\python.exe -m app.main --config config\brave_math_weather.yaml "print the current population of india in ASCII art"
+
+### CLI Mode
+```bash
+.venv\Scripts\python.exe -m app.main --config config\brave_math_weather_hybrid.yaml "what is the temperature in mumbai and add it with the temperature in delhi"
+```
+
+### API Mode
+```bash
+# Start the FastAPI server
+python -m uvicorn app.api:app --host 0.0.0.0 --port 8000 --reload
+
+# Test with curl
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "what is the temperature in mumbai", "config_path": "config/brave_math_weather_hybrid.yaml"}'
+```
 
 ## Quickstart
 1. Create virtualenv and install:
@@ -33,8 +48,42 @@ system with:
    ```
 4. Invoke planner & executor:
    ```bash
-   curl -X POST "http://localhost:8000/plan_and_run" -H "Content-Type: application/json" -d '{"input":"Get Mumbai weather and compare to Delhi"}'
+   curl -X POST "http://localhost:8000/query" -H "Content-Type: application/json" -d '{"input":"Get Mumbai weather and compare to Delhi", "config_path": "config/brave_math_weather_hybrid.yaml"}'
    ```
+
+## FastAPI Web Interface
+
+The system now includes a FastAPI web server that provides HTTP endpoints for interacting with the multi-agent system.
+
+### Key Features
+
+- **RESTful API**: Clean HTTP endpoints for query processing
+- **Configuration Support**: Use default config or specify custom config per request
+- **Error Handling**: Comprehensive error responses with detailed messages
+- **Health Monitoring**: Health check endpoint for system status
+- **CORS Support**: Cross-origin requests enabled for web applications
+
+### API Endpoints
+
+- `GET /health` - Health check endpoint
+- `POST /query` - Main query processing endpoint
+- `POST /plan_and_run` - Legacy endpoint (redirects to /query)
+
+### Example Usage
+
+```python
+import requests
+
+# Simple query
+response = requests.post(
+    "http://localhost:8000/query",
+    json={"input": "what is the temperature in mumbai"}
+)
+result = response.json()
+print(f"Answer: {result['response']}")
+```
+
+For complete API documentation, see [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md).
 
 
 ## MCP servers

@@ -6,3 +6,4 @@ type: "always_apply"
 - use the local virtual env whenever you run the code.
 - always write maintainable, extensible and performant code.
 - Think step by step and double check everything before final answer or fix
+- do a detailed nalysis of the system and incrementally plan , fix and verify each step. do not break anything.
