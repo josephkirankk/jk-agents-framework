@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, List
 
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from .config import AppConfig, AgentConfig
@@ -275,6 +276,11 @@ class QueryRequest(BaseModel):
     config_path: Optional[str] = Field(
         None, description="Optional path to config file"
     )
+    raw_output: bool = Field(
+        False,
+        description="If True, returns only the raw agent response content "
+                    "as plain text with no JSON wrapping or metadata"
+    )
 
 
 class QueryResponse(BaseModel):
@@ -286,6 +292,10 @@ class QueryResponse(BaseModel):
     )
     metadata: Optional[Dict[str, Any]] = Field(
         None, description="Additional metadata about the execution"
+    )
+    raw_data: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Raw unprocessed execution result when raw_output=True"
     )
 
 
@@ -306,18 +316,31 @@ class WorkerRequest(BaseModel):
     config_path: Optional[str] = Field(
         None, description="Optional path to config file"
     )
+    raw_output: bool = Field(
+        False,
+        description="If True, returns only the raw agent response content "
+                    "as plain text with no JSON wrapping or metadata"
+    )
 
 
 class WorkerResponse(BaseModel):
     """Response model for worker endpoint."""
-    success: bool = Field(..., description="Whether the worker execution was successful")
+    success: bool = Field(
+        ..., description="Whether the worker execution was successful"
+    )
     response: str = Field(..., description="The agent's response")
-    agent_name: str = Field(..., description="Name of the agent that was executed")
+    agent_name: str = Field(
+        ..., description="Name of the agent that was executed"
+    )
     error: Optional[str] = Field(
         None, description="Error message if success is False"
     )
     metadata: Optional[Dict[str, Any]] = Field(
         None, description="Additional metadata about the execution"
+    )
+    raw_data: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Raw unprocessed execution result when raw_output=True"
     )
 
 
@@ -521,24 +544,32 @@ async def query_endpoint(request: QueryRequest):
         
         # Execute the multi-agent system
         log.info(f"Processing query: {request.input[:100]}...")
+        log.info(f"Raw output requested: {request.raw_output}")
         result = await run_supervised_api(request.input, app_cfg)
-        
-        # Extract human response
-        human_response = await extract_human_response(result)
-        
+
         # Prepare metadata
         metadata = {
             "total_steps": len(result.get("steps", {})),
             "execution_time": result.get("execution_time"),
             "model_used": app_cfg.models.get("default", "unknown")
         }
-        
-        return QueryResponse(
-            success=True,
-            response=human_response,
-            metadata=metadata
-        )
-        
+
+        if request.raw_output:
+            # Return raw text content only - no JSON wrapping
+            log.info("Returning raw text content without JSON wrapping")
+            human_response = await extract_human_response(result)
+            # Return plain text response directly
+            return PlainTextResponse(
+                content=human_response, media_type="text/plain"
+            )
+        else:
+            # Extract human response for formatted output
+            human_response = await extract_human_response(result)
+            return QueryResponse(
+                success=True,
+                response=human_response,
+                metadata=metadata
+            )
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
@@ -556,6 +587,10 @@ async def worker_upload_endpoint(
     agent_name: str = Form(..., description="Name of the agent to execute"),
     input: str = Form(..., description="User question or prompt for the agent"),
     config_path: Optional[str] = Form(None, description="Optional path to config file"),
+    raw_output: bool = Form(
+        False,
+        description="If True, returns only raw agent response as plain text"
+    ),
     files: List[UploadFile] = File(..., description="Files to upload and attach to the request")
 ):
     """
@@ -709,12 +744,22 @@ Attached files:
             "file_info": file_info
         }
 
-        return {
-            "success": True,
-            "response": result["response"],
-            "agent_name": agent_name,
-            "metadata": metadata
-        }
+        if raw_output:
+            # Return raw text content only - no JSON wrapping
+            log.info("Returning raw text content without JSON wrapping")
+            # For direct agents, return the response text directly
+            agent_response_text = result.get("response", "")
+            return PlainTextResponse(
+                content=agent_response_text, media_type="text/plain"
+            )
+        else:
+            # Return formatted response
+            return {
+                "success": True,
+                "response": result["response"],
+                "agent_name": agent_name,
+                "metadata": metadata
+            }
 
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -779,12 +824,24 @@ async def worker_endpoint(request: WorkerRequest):
             "business_context": bool(app_cfg.business_context)
         }
 
-        return WorkerResponse(
-            success=True,
-            response=result["response"],
-            agent_name=request.agent_name,
-            metadata=metadata
-        )
+        if request.raw_output:
+            # Return raw text content only - no JSON wrapping
+            log.info("Returning raw text content without JSON wrapping")
+            # For direct agents, return the response text directly
+            agent_response_text = result.get("response", "")
+            return PlainTextResponse(
+                content=agent_response_text, media_type="text/plain"
+            )
+        else:
+            # Return formatted response
+            return WorkerResponse(
+                success=True,
+                response=result["response"],
+                agent_name=request.agent_name,
+                error=None,
+                metadata=metadata,
+                raw_data=None
+            )
 
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -795,7 +852,9 @@ async def worker_endpoint(request: WorkerRequest):
             success=False,
             response="",
             agent_name=request.agent_name,
-            error=str(e)
+            error=str(e),
+            metadata=None,
+            raw_data=None
         )
 
 

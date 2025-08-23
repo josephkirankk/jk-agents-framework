@@ -8,6 +8,18 @@ system with:
 - Executor that runs steps in topological order with retries, timeouts, and verification
 - FastAPI wrapper exposing /invoke and /plan_and_run endpoints
 
+## Features
+
+- **Multi-Agent Orchestration**: Supervisor creates execution plans, workers execute tasks
+- **MCP Integration**: Convert MCP servers into LangChain tools automatically
+- **Flexible Configuration**: YAML-based agent and model configuration
+- **Multi-Provider Support**: Anthropic Claude, Azure OpenAI, OpenAI API, and local models
+- **Claude Sonnet 4 Integration**: Advanced reasoning, creative problem-solving, and analysis
+- **FastAPI Interface**: HTTP endpoints for web integration
+- **Retry Logic**: Automatic retries with exponential backoff
+- **Parallel Execution**: Run independent tasks concurrently
+- **Verification**: Built-in result verification and quality checks
+
 ## Run
 
 ### CLI Mode
@@ -139,12 +151,16 @@ This repo supports **multiple OpenAI providers simultaneously**:
 
 - `openai:model-name` - Uses OpenAI API or local server (if OPENAI_BASE_URL is set)
 - `azure_openai:deployment-name` - Uses Azure OpenAI
+- `anthropic:model-name` - Uses Anthropic Claude API (e.g., `anthropic:claude-sonnet-4-20250514`)
 
 ### Example Configurations
 
-**Azure OpenAI + LM Studio** (Recommended):
+**Multi-Provider Setup** (Recommended):
 ```env
-# Azure OpenAI for production
+# Anthropic Claude for advanced reasoning
+ANTHROPIC_API_KEY=sk-ant-api03-your-api-key-here
+
+# Azure OpenAI for production reliability
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
 AZURE_OPENAI_API_KEY=your-azure-key
 AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
