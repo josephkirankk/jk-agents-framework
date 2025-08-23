@@ -1,0 +1,84 @@
+{
+  "internal_logging": {
+    "enabled": {
+      "value": true,
+      "description": "Enable/disable internal LLM logging",
+      "env_var": "INTERNAL_LOGGING_ENABLED"
+    },
+    "log_level": {
+      "value": "info",
+      "description": "Logging level (disabled, error, info, debug)",
+      "env_var": "INTERNAL_LOGGING_LEVEL"
+    },
+    "log_directory": {
+      "value": "logs",
+      "description": "Directory for storing internal log files",
+      "env_var": "INTERNAL_LOGGING_DIR"
+    },
+    "max_file_size_mb": {
+      "value": 100,
+      "description": "Maximum size of each log file in MB",
+      "env_var": "INTERNAL_LOGGING_MAX_FILE_SIZE_MB"
+    },
+    "max_files": {
+      "value": 10,
+      "description": "Maximum number of log files to keep",
+      "env_var": "INTERNAL_LOGGING_MAX_FILES"
+    },
+    "compress_old_files": {
+      "value": true,
+      "description": "Compress old log files with gzip",
+      "env_var": "INTERNAL_LOGGING_COMPRESS"
+    },
+    "include_request_headers": {
+      "value": true,
+      "description": "Include HTTP request headers in logs",
+      "env_var": "INTERNAL_LOGGING_INCLUDE_REQUEST_HEADERS"
+    },
+    "include_response_headers": {
+      "value": true,
+      "description": "Include HTTP response headers in logs",
+      "env_var": "INTERNAL_LOGGING_INCLUDE_RESPONSE_HEADERS"
+    },
+    "include_payload_content": {
+      "value": true,
+      "description": "Include request/response payload content in logs",
+      "env_var": "INTERNAL_LOGGING_INCLUDE_PAYLOAD"
+    },
+    "mask_sensitive_data": {
+      "value": true,
+      "description": "Mask sensitive data in logs (API keys, tokens, etc.)",
+      "env_var": "INTERNAL_LOGGING_MASK_SENSITIVE"
+    },
+    "sensitive_keys": {
+      "value": [
+        "api-key",
+        "authorization",
+        "ocp-apim-subscription-key",
+        "x-api-key",
+        "bearer",
+        "token",
+        "key",
+        "secret",
+        "password"
+      ],
+      "description": "List of sensitive keys to mask in logs",
+      "env_var": "INTERNAL_LOGGING_SENSITIVE_KEYS"
+    },
+    "correlation_id_header": {
+      "value": "X-Correlation-ID",
+      "description": "HTTP header name for correlation ID",
+      "env_var": "INTERNAL_LOGGING_CORRELATION_HEADER"
+    },
+    "enable_performance_metrics": {
+      "value": true,
+      "description": "Enable performance metrics collection",
+      "env_var": "INTERNAL_LOGGING_PERFORMANCE_METRICS"
+    },
+    "enable_error_tracking": {
+      "value": true,
+      "description": "Enable detailed error tracking and logging",
+      "env_var": "INTERNAL_LOGGING_ERROR_TRACKING"
+    }
+  }
+}

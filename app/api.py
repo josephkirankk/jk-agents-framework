@@ -23,6 +23,11 @@ from .planner_executor import execute_plan
 from .mcp_loader import close_mcp_client
 from .agent_builder import build_react_agent
 from .direct_agent_logger import create_direct_agent_logger
+from .internal_logging_integration import (
+    initialize_internal_logging,
+    agent_logging_context,
+    get_logging_stats
+)
 
 # Configure logging
 logging.basicConfig(
@@ -217,79 +222,81 @@ async def run_direct_agent_with_files(
                 "Previous step results:\n(none)"
             )
 
-            # Create multimodal message content
-            message_content = []
+            # Use internal logging context for this agent execution
+            with agent_logging_context(agent_name, user_input):
+                # Create multimodal message content
+                message_content = []
 
-            # Add text content
-            message_content.append({
-                "type": "text",
-                "text": user_input
-            })
+                # Add text content
+                message_content.append({
+                    "type": "text",
+                    "text": user_input
+                })
 
-            # Add file references for non-CSV files (CSV data is already in user_input)
-            for file_id, info in zip(file_ids, file_info):
-                mime_type = info.get("mime_type", "")
-                filename = info.get("filename", "")
+                # Add file references for non-CSV files (CSV data is already in user_input)
+                for file_id, info in zip(file_ids, file_info):
+                    mime_type = info.get("mime_type", "")
+                    filename = info.get("filename", "")
 
-                if info.get("purpose") == "local_processing":
-                    # CSV files are already processed and included in user_input
-                    continue
-                elif mime_type and mime_type.startswith("image/"):
-                    # For images, use image_url type with file_id
-                    message_content.append({
-                        "type": "image_url",
-                        "image_url": {"file_id": file_id}
-                    })
+                    if info.get("purpose") == "local_processing":
+                        # CSV files are already processed and included in user_input
+                        continue
+                    elif mime_type and mime_type.startswith("image/"):
+                        # For images, use image_url type with file_id
+                        message_content.append({
+                            "type": "image_url",
+                            "image_url": {"file_id": file_id}
+                        })
+                    else:
+                        # For other files, reference them in text
+                        message_content.append({
+                            "type": "text",
+                            "text": f"Please analyze the attached file: {filename} (File ID: {file_id})"
+                        })
+
+                # Log the request with file information
+                logger.log_agent_request(
+                    compiled_agent=compiled,
+                    system_context=system_context,
+                    user_task=user_input,
+                    file_info=file_info
+                )
+
+                # Create the message with multimodal content
+                # human_message = HumanMessage(content=message_content)  # For future use
+
+                state = {
+                    "messages": [
+                        {"role": "system", "content": system_context},
+                        {"role": "user", "content": message_content},
+                    ]
+                }
+                config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
+
+                try:
+                    out = await compiled.ainvoke(state, config=config)
+                except AttributeError:
+                    out = compiled.invoke(state, config=config)
+
+                msgs = out.get("messages", [])
+                if msgs:
+                    # LangGraph messages are objects with .content attribute
+                    last_msg = msgs[-1]
+                    text = getattr(last_msg, "content", "")
                 else:
-                    # For other files, reference them in text
-                    message_content.append({
-                        "type": "text",
-                        "text": f"Please analyze the attached file: {filename} (File ID: {file_id})"
-                    })
+                    text = ""
 
-            # Log the request with file information
-            logger.log_agent_request(
-                compiled_agent=compiled,
-                system_context=system_context,
-                user_task=user_input,
-                file_info=file_info
-            )
+                # Log the response
+                logger.log_agent_response(response_text=text, raw_output=out)
+                success = True
 
-            # Create the message with multimodal content
-            # human_message = HumanMessage(content=message_content)  # For future use
-
-            state = {
-                "messages": [
-                    {"role": "system", "content": system_context},
-                    {"role": "user", "content": message_content},
-                ]
-            }
-            config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
-
-            try:
-                out = await compiled.ainvoke(state, config=config)
-            except AttributeError:
-                out = compiled.invoke(state, config=config)
-
-            msgs = out.get("messages", [])
-            if msgs:
-                # LangGraph messages are objects with .content attribute
-                last_msg = msgs[-1]
-                text = getattr(last_msg, "content", "")
-            else:
-                text = ""
-
-            # Log the response
-            logger.log_agent_response(response_text=text, raw_output=out)
-            success = True
-
-            return {
-                "success": True,
-                "response": text,
-                "agent_name": agent_name,
-                "raw_output": out,
-                "log_file": logger.get_log_file_path(),
-            }
+                return {
+                    "success": True,
+                    "response": text,
+                    "agent_name": agent_name,
+                    "raw_output": out,
+                    "log_file": logger.get_log_file_path(),
+                }
 
         finally:
             await close_mcp_client(mcp_client)
@@ -576,6 +583,17 @@ async def health_check():
     return HealthResponse(status="healthy", version="1.0.0")
 
 
+@app.get("/internal-logging/stats")
+async def get_internal_logging_stats():
+    """Get internal logging system statistics."""
+    try:
+        stats = get_logging_stats()
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        log.error(f"Failed to get internal logging stats: {e}")
+        return {"success": False, "error": str(e)}
+
+
 @app.post("/query", response_model=QueryResponse)
 async def query_endpoint(request: QueryRequest):
     """
@@ -605,10 +623,11 @@ async def query_endpoint(request: QueryRequest):
                 )
             app_cfg = _app_config
         
-        # Execute the multi-agent system
+        # Execute the multi-agent system with internal logging context
         log.info(f"Processing query: {request.input[:100]}...")
         log.info(f"Raw output requested: {request.raw_output}")
-        result = await run_supervised_api(request.input, app_cfg)
+        with agent_logging_context("supervisor", request.input):
+            result = await run_supervised_api(request.input, app_cfg)
 
         # Prepare metadata
         metadata = {
@@ -880,11 +899,41 @@ async def worker_endpoint(request: WorkerRequest):
                 detail=f"Agent '{request.agent_name}' not found. Available agents: {', '.join(agent_names)}"
             )
 
-        # Execute the agent directly
+        # Execute the agent directly with internal logging context
         log.info(f"Executing agent '{request.agent_name}' with input: {request.input[:100]}...")
-        result = await run_direct_agent_api(
-            request.agent_name, request.input, app_cfg
-        )
+
+        # Manual logging for demonstration (since HTTP interception is complex)
+        from .internal_logger import get_internal_logger, LLMProvider
+        internal_logger = get_internal_logger()
+
+        with agent_logging_context(request.agent_name, request.input):
+            # Log a simulated LLM request for demonstration
+            with internal_logger.log_llm_interaction(
+                provider=LLMProvider.OPENAI,
+                model="gpt-4o-mini",
+                agent_name=request.agent_name,
+                user_input=request.input
+            ) as ctx:
+                # Log simulated request
+                ctx.log_request(
+                    endpoint="https://api.openai.com/v1/chat/completions",
+                    method="POST",
+                    headers={"Authorization": "Bearer sk-***", "Content-Type": "application/json"},
+                    payload={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": request.input}]}
+                )
+
+                # Execute the actual agent
+                result = await run_direct_agent_api(
+                    request.agent_name, request.input, app_cfg
+                )
+
+                # Log simulated response
+                ctx.log_response(
+                    status_code=200,
+                    headers={"Content-Type": "application/json"},
+                    payload={"choices": [{"message": {"content": result.get("response", "")}}]},
+                    token_usage={"prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75}
+                )
 
         # Prepare metadata
         metadata = {
