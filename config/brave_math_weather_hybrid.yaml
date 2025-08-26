@@ -1,6 +1,6 @@
 models:
   default: "azure_openai:gpt-4.1"
-  supervisor: "openai:google/gemma-3n-e4b"
+  supervisor: "azure_openai:gpt-4.1"
   temperature: 0.0
 
 business_context: |

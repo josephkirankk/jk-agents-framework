@@ -679,11 +679,16 @@ async def query_endpoint(request: QueryRequest):
     except BaseExceptionGroup as e:
         # Handle Python 3.11+ TaskGroup exceptions
         log.error(f"TaskGroup error processing query: {e}")
+        log.error(f"TaskGroup error type: {type(e)}")
+        log.error(f"TaskGroup error args: {e.args}")
+
         # Extract underlying exceptions for better error messages
         underlying_errors = []
         if hasattr(e, 'exceptions'):
-            for exc in e.exceptions:
-                underlying_errors.append(str(exc))
+            log.error(f"TaskGroup has {len(e.exceptions)} underlying exceptions:")
+            for i, exc in enumerate(e.exceptions):
+                log.error(f"  Exception {i}: {type(exc).__name__}: {str(exc)}")
+                underlying_errors.append(f"{type(exc).__name__}: {str(exc)}")
 
         if underlying_errors:
             error_msg = "Execution failed: " + "; ".join(underlying_errors)
