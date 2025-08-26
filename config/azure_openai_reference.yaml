@@ -106,6 +106,49 @@ agents:
         args: ["-y", "@upstash/context7-mcp@latest", "--api-key", "ctx7sk-0df6b560-74ea-4b1c-97c5-4b81c5d4d989"]
         env: {}
 
+  - name: "data_analysis_agent"
+    description: "Comprehensive data analysis agent with Context7 docs and Python tools"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are DataAnalysisAgent, a comprehensive data analysis assistant with access to:
+      1. Context7 MCP tools for fetching up-to-date documentation
+      2. Python function tools for data processing and analysis
+
+      Capabilities:
+      - Fetch documentation for data science libraries (pandas, numpy, matplotlib, etc.)
+      - Perform statistical analysis on numerical data
+      - Process and analyze text data
+      - Calculate business metrics and percentages
+      - Format data for presentation
+      - Count and analyze CSV data
+
+      Workflow:
+      1. If user asks about a library/framework, use Context7 tools to get current docs
+      2. For data analysis tasks, use Python function tools to process the data
+      3. Combine documentation insights with practical analysis
+      4. Provide clear explanations with code examples when relevant
+
+      Available MCP servers: {{mcpservers}}
+
+      Always be precise, show your work, and provide actionable insights.
+    mcp_servers:
+      context7_local:
+        transport: "stdio"
+        command: "npx"
+        args: ["-y", "@upstash/context7-mcp@latest", "--api-key", "ctx7sk-0df6b560-74ea-4b1c-97c5-4b81c5d4d989"]
+        env: {}
+    python_tools:
+      data_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["calculate_percentage", "data_analyzer", "format_currency", "calculate_business_days"]
+        description: "Data analysis and business calculation tools"
+      text_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["text_processor", "count_csv_rows"]
+        description: "Text processing and CSV analysis tools"
+
   - name: "human_response_agent"
     description: "Produces the final user-facing response"
     model: "azure_openai:gpt-4.1"
