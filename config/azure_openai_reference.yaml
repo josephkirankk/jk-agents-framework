@@ -101,14 +101,9 @@ agents:
       Available MCP servers: {{mcpservers}}
     mcp_servers:
       context7_local:
-        description: "Context7 MCP server running locally via stdio"
         transport: "stdio"
         command: "npx"
-        args:
-          - "-y"
-          - "@upstash/context7-mcp"
-          - "--api-key"
-          - "ctx7sk-0df6b560-74ea-4b1c-97c5-4b81c5d4d989"
+        args: ["-y", "@upstash/context7-mcp@latest", "--api-key", "ctx7sk-0df6b560-74ea-4b1c-97c5-4b81c5d4d989"]
         env: {}
 
   - name: "human_response_agent"
