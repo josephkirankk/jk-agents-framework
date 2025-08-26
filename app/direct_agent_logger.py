@@ -142,8 +142,9 @@ class DirectAgentLogger:
         self._safe_write(log_lines)
     
     def _extract_tool_calls(self, messages: List[Any]) -> List[Dict[str, Any]]:
-        """Extract tool calls and results from messages."""
+        """Extract tool calls and results from messages, with deduplication."""
         tool_calls = []
+        seen_calls = set()  # Track (name, args_hash) to detect duplicates
 
         for msg in messages:
             msg_type = getattr(msg, 'type', None)
@@ -173,12 +174,20 @@ class DirectAgentLogger:
                     else:
                         args = {}
 
+                    # Create a hash of the arguments for deduplication
+                    import json
+                    args_str = json.dumps(args, sort_keys=True) if args else ""
+                    call_signature = (name, args_str)
+
                     call_info = {
                         "type": "tool_call",
                         "name": name,
                         "id": call_id,
-                        "args": args
+                        "args": args,
+                        "is_duplicate": call_signature in seen_calls
                     }
+
+                    seen_calls.add(call_signature)
                     tool_calls.append(call_info)
 
             # Check for ToolMessage with results
@@ -237,7 +246,8 @@ class DirectAgentLogger:
             for i, call in enumerate(tool_calls, 1):
                 if call["type"] == "tool_call":
                     args_str = self._format_args_compact(call.get("args", {}))
-                    log_lines.append(f"{i}. {call['name']}({args_str})")
+                    duplicate_marker = " (DUPLICATE)" if call.get("is_duplicate", False) else ""
+                    log_lines.append(f"{i}. {call['name']}({args_str}){duplicate_marker}")
                     if "result" in call:
                         result_str = str(call["result"])[:100]
                         if len(str(call["result"])) > 100:

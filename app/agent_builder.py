@@ -191,8 +191,27 @@ async def build_react_agent(
         # Fallback to simple replacement for mcpservers
         prompt_filled = prompt_content.replace("{{mcpservers}}", summary)
 
+    # Create actual model instance and bind tools with parallel_tool_calls=False
+    try:
+        # Import the init_chat_model function from LangChain
+        from langchain.chat_models import init_chat_model
+
+        # Create the actual model instance using LangChain's init_chat_model
+        actual_model = init_chat_model(model_instance)
+
+        # Bind tools with parallel_tool_calls=False to prevent duplicate calls
+        if tools:
+            model_with_tools = actual_model.bind_tools(tools, parallel_tool_calls=False)
+            log.info("Disabled parallel tool calls for agent %s", agent_cfg.name)
+        else:
+            model_with_tools = actual_model
+
+    except Exception as e:
+        log.warning("Failed to create model instance or bind tools with parallel_tool_calls=False: %s. Using default.", e)
+        model_with_tools = model_instance
+
     agent = create_react_agent(
-        model=model_instance,
+        model=model_with_tools,
         tools=tools,
         prompt=prompt_filled,
         name=agent_cfg.name,

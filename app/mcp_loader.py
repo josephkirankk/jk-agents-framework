@@ -21,7 +21,7 @@ class TimeoutTool(BaseTool):
         self,
         inner: BaseTool,
         timeout: float = 15.0,
-        retries: int = 2,
+        retries: int = 0,
         **kwargs,
     ):
         tool_name = getattr(
@@ -115,7 +115,7 @@ class TimeoutTool(BaseTool):
 async def load_mcp_tools(
     servers_cfg: Dict[str, Any],
     tool_timeout: float = 15.0,
-    tool_retries: int = 2,
+    tool_retries: int = 0,
 ) -> Tuple[Optional[MultiServerMCPClient], List[BaseTool]]:
     if not servers_cfg:
         return None, []
