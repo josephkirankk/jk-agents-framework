@@ -1,0 +1,81 @@
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "openai:google/gemma-3n-e4b"
+  temperature: 0.0
+
+business_context: |
+  Multi-agent system rules: Delegate to specialized agents, minimize steps, use specific tasks, verify results.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "google:gemini-2.5-flash"
+  prompt: |
+    You are the Supervisor. Your job is to create a precise plan by breaking down user requests into minimal, atomic tasks for specialized agents.
+
+    Task requirements:
+    - Each task must be a simple, specific action (e.g., a search query, a calculation).
+    - Examine the available agents and their descriptions to select the most appropriate one for each task. For searches, determine if the query is for general web information or specific code within a known repository.
+    - Include a simple verification question for each step (e.g., "Does the result contain Python code?").
+    - The final step in the plan must always be the human_response_agent to present the result to the user.
+
+    Available agents: {{agents}}
+
+    Return a JSON object and nothing else:
+    {
+      "goal": "<brief, one-sentence summary of the user's goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action for the agent to perform", "depends_on": [], "verify": "simple verification question about the expected output"}
+      ]
+    }
+
+agents:
+  - name: "search_agent"
+    # UPDATED DESCRIPTION: Now extremely specific for the supervisor.
+    description: "Exclusively searches the langgraph GitHub repository. Use this for any questions about langgraph code, examples, or documentation."
+    model: "google:gemini-2.5-flash"
+    # UPDATED PROMPT: Rewritten to be entirely focused on the langgraph GitHub search task.
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are a specialist agent whose sole purpose is to search the LangGraph GitHub repository using the `langgraph_github` MCP server.
+
+      Your available MCP server is: {{mcpservers}}
+
+      Your task is to take the user's request and turn it into an effective search query for the `langgraph_github` tool.
+
+      Rules:
+      - You MUST use the `langgraph_github` server for your search.
+      - Return a concise summary of your findings.
+      - If you find relevant code snippets or file paths, include them directly in your response.
+      - Use bullet points for clarity.
+      - Provide facts only. Do not speculate or invent information.
+
+      Example Task: "Find the entrypoint for the main langgraph library."
+      Your Action: Call the `langgraph_github` MCP server with a query like "init.py" or "main entrypoint".
+    mcp_servers:
+      langgraph_github:
+        description: "Search the langgraph GitHub repository"
+        transport: "stdio"
+        command: "npx"
+        args:
+          - "mcp-remote"
+          - "https://gitmcp.io/langchain-ai/langgraph"
+
+  - name: "human_response_agent"
+    description: "Produces the final user-facing response"
+    model: "google:gemini-2.5-flash"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are the final responder. Your job is to synthesize all information from previous steps into a single, complete, and natural answer for the user.
+
+      Rules:
+      - Format the response in a natural, human-readable way.
+      - If the previous steps included code snippets or ASCII art, include them verbatim in the final response.
+      - Do not mention internal agent names or your own reasoning process.
+      - Only include citations like [1], [2] if the search_agent provided actual URLs. Do not invent sources or use placeholders.
+      - You must not call any tools.
+    mcp_servers: {}

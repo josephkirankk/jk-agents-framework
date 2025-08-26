@@ -7,12 +7,44 @@ from datetime import datetime
 import time
 from pathlib import Path
 import re
+from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field, ValidationError
 from .utils import extract_json_block
 from langchain.chat_models import init_chat_model
 
 log = logging.getLogger("planner_executor")
 logging.getLogger("planner_executor").setLevel(logging.INFO)
+
+
+@asynccontextmanager
+async def safe_langgraph_execution():
+    """
+    Async context manager for safe LangGraph execution.
+
+    This helps prevent TaskGroup exceptions from propagating unhandled
+    by providing a controlled execution environment.
+    """
+    try:
+        yield
+    except BaseExceptionGroup as e:
+        # Handle TaskGroup exceptions by extracting underlying errors
+        log.error("TaskGroup exception caught in safe execution context: %s",
+                  e)
+        underlying_exceptions = []
+        if hasattr(e, 'exceptions'):
+            for exc in e.exceptions:
+                underlying_exceptions.append(str(exc))
+
+        if underlying_exceptions:
+            error_msg = "Execution failed: " + "; ".join(underlying_exceptions)
+        else:
+            error_msg = f"Execution failed with TaskGroup error: {str(e)}"
+
+        raise RuntimeError(error_msg) from e
+    except Exception as e:
+        # Re-raise other exceptions normally
+        log.error("Exception in safe execution context: %s", e)
+        raise
 
 
 class PlanStep(BaseModel):
@@ -582,36 +614,39 @@ async def execute_plan(
                     f"User: {user_task}",
                     "",
                 ])
-                if step_timeout:
-                    log.info(
-                        "Worker %s attempt %d: ainvoke start (timeout=%ss)",
-                        step.id,
-                        attempts,
-                        step_timeout,
-                    )
-                    t1 = time.perf_counter()
-                    worker_out = await asyncio.wait_for(
-                        worker_compiled.ainvoke(
+
+                # Enhanced error handling using safe context manager
+                async with safe_langgraph_execution():
+                    if step_timeout:
+                        log.info(
+                            "Worker %s attempt %d: ainvoke start (timeout=%ss)",
+                            step.id,
+                            attempts,
+                            step_timeout,
+                        )
+                        t1 = time.perf_counter()
+                        worker_out = await asyncio.wait_for(
+                            worker_compiled.ainvoke(
+                                worker_state, config=worker_config
+                            ),
+                            timeout=step_timeout,
+                        )
+                    else:
+                        log.info(
+                            "Worker %s attempt %d: ainvoke start (no timeout)",
+                            step.id,
+                            attempts,
+                        )
+                        t1 = time.perf_counter()
+                        worker_out = await worker_compiled.ainvoke(
                             worker_state, config=worker_config
-                        ),
-                        timeout=step_timeout,
-                    )
-                else:
+                        )
                     log.info(
-                        "Worker %s attempt %d: ainvoke start (no timeout)",
+                        "Worker %s attempt %d: ainvoke done in %.2fs",
                         step.id,
                         attempts,
+                        time.perf_counter() - t1,
                     )
-                    t1 = time.perf_counter()
-                    worker_out = await worker_compiled.ainvoke(
-                        worker_state, config=worker_config
-                    )
-                log.info(
-                    "Worker %s attempt %d: ainvoke done in %.2fs",
-                    step.id,
-                    attempts,
-                    time.perf_counter() - t1,
-                )
             except AttributeError:
                 worker_config = {
                     "configurable": {"thread_id": f"step-{step.id}"}
@@ -627,46 +662,48 @@ async def execute_plan(
                     f"User: {user_task}",
                     "",
                 ])
-                if step_timeout:
-                    log.info(
-                        (
-                            "Worker %s attempt %d: "
-                            "invoke(sync) start (timeout=%ss)"
-                        ),
-                        step.id,
-                        attempts,
-                        step_timeout,
-                    )
-                    t1 = time.perf_counter()
-                    worker_out = await asyncio.wait_for(
-                        asyncio.to_thread(
+                # Enhanced error handling for sync path using safe context mgr
+                async with safe_langgraph_execution():
+                    if step_timeout:
+                        log.info(
+                            (
+                                "Worker %s attempt %d: "
+                                "invoke(sync) start (timeout=%ss)"
+                            ),
+                            step.id,
+                            attempts,
+                            step_timeout,
+                        )
+                        t1 = time.perf_counter()
+                        worker_out = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                worker_compiled.invoke,
+                                worker_state,
+                                config=worker_config,
+                            ),
+                            timeout=step_timeout,
+                        )
+                    else:
+                        log.info(
+                            (
+                                "Worker %s attempt %d: "
+                                "invoke(sync) start (no timeout)"
+                            ),
+                            step.id,
+                            attempts,
+                        )
+                        t1 = time.perf_counter()
+                        worker_out = await asyncio.to_thread(
                             worker_compiled.invoke,
                             worker_state,
                             config=worker_config,
-                        ),
-                        timeout=step_timeout,
-                    )
-                else:
+                        )
                     log.info(
-                        (
-                            "Worker %s attempt %d: "
-                            "invoke(sync) start (no timeout)"
-                        ),
+                        "Worker %s attempt %d: invoke(sync) done in %.2fs",
                         step.id,
                         attempts,
+                        time.perf_counter() - t1,
                     )
-                    t1 = time.perf_counter()
-                    worker_out = await asyncio.to_thread(
-                        worker_compiled.invoke,
-                        worker_state,
-                        config=worker_config,
-                    )
-                log.info(
-                    "Worker %s attempt %d: invoke(sync) done in %.2fs",
-                    step.id,
-                    attempts,
-                    time.perf_counter() - t1,
-                )
             except asyncio.TimeoutError:
                 last_err = "timeout"
                 log.warning(

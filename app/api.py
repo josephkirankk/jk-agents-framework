@@ -676,6 +676,25 @@ async def query_endpoint(request: QueryRequest):
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
+    except BaseExceptionGroup as e:
+        # Handle Python 3.11+ TaskGroup exceptions
+        log.error(f"TaskGroup error processing query: {e}")
+        # Extract underlying exceptions for better error messages
+        underlying_errors = []
+        if hasattr(e, 'exceptions'):
+            for exc in e.exceptions:
+                underlying_errors.append(str(exc))
+
+        if underlying_errors:
+            error_msg = "Execution failed: " + "; ".join(underlying_errors)
+        else:
+            error_msg = f"Execution failed with TaskGroup error: {str(e)}"
+
+        return QueryResponse(
+            success=False,
+            response="",
+            error=error_msg
+        )
     except Exception as e:
         log.error(f"Error processing query: {e}")
         return QueryResponse(
@@ -877,6 +896,29 @@ Attached files:
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
+    except BaseExceptionGroup as e:
+        # Handle Python 3.11+ TaskGroup exceptions
+        log.error("TaskGroup error executing worker '%s' with files: %s",
+                  agent_name, e)
+        # Extract underlying exceptions for better error messages
+        underlying_errors = []
+        if hasattr(e, 'exceptions'):
+            for exc in e.exceptions:
+                underlying_errors.append(str(exc))
+
+        if underlying_errors:
+            error_msg = ("Worker execution failed: " +
+                         "; ".join(underlying_errors))
+        else:
+            error_msg = ("Worker execution failed with TaskGroup error: " +
+                         str(e))
+
+        return {
+            "success": False,
+            "response": "",
+            "agent_name": agent_name,
+            "error": error_msg
+        }
     except Exception as e:
         log.error(f"Error executing worker '{agent_name}' with files: {e}")
         return {
@@ -975,6 +1017,30 @@ async def worker_endpoint(request: WorkerRequest):
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
+    except BaseExceptionGroup as e:
+        # Handle Python 3.11+ TaskGroup exceptions
+        log.error(f"TaskGroup error executing worker '{request.agent_name}': {e}")
+        # Extract underlying exceptions for better error messages
+        underlying_errors = []
+        if hasattr(e, 'exceptions'):
+            for exc in e.exceptions:
+                underlying_errors.append(str(exc))
+
+        if underlying_errors:
+            error_msg = ("Worker execution failed: " +
+                         "; ".join(underlying_errors))
+        else:
+            error_msg = ("Worker execution failed with TaskGroup error: " +
+                         str(e))
+
+        return WorkerResponse(
+            success=False,
+            response="",
+            agent_name=request.agent_name,
+            error=error_msg,
+            metadata=None,
+            raw_data=None
+        )
     except Exception as e:
         log.error(f"Error executing worker '{request.agent_name}': {e}")
         return WorkerResponse(
