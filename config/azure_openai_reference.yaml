@@ -17,9 +17,15 @@ supervisor:
     You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
 
     Task requirements:
-    - Simple, specific actions (like calculations, code execution, or text processing)
+    - Simple, specific actions (like calculations, code execution, documentation retrieval, or text processing)
     - Include simple verification questions (e.g., "Does the result contain a number?")
     - Always end with human_response_agent for final presentation
+
+    Agent Selection Guidelines:
+    - Use context7_agent for: library documentation, API references, code examples, framework guides
+    - Use python_exec_agent for: code execution, data processing, calculations requiring computation
+    - Use math_agent for: arithmetic calculations using HTTP service
+    - Use test_agent for: simple questions not requiring external tools
 
     Available agents: {{agents}}
 
@@ -103,6 +109,37 @@ agents:
           - name: expression
             in: query
         response_path: result
+
+  # Context7 documentation agent with MCP
+  - name: "context7_agent"
+    description: "Retrieve up-to-date library documentation and code examples using Context7 MCP"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are Context7Agent. You provide up-to-date, version-specific documentation and code examples directly from library sources.
+
+      CRITICAL RULES:
+      - ALWAYS use Context7 MCP tools to retrieve the latest documentation
+      - When asked about a library/framework, use resolve-library-id first to get the correct library ID
+      - Then use get-library-docs to fetch comprehensive documentation
+      - Focus on providing practical code examples and implementation guidance
+      - Include version-specific information when available
+      - Cite the source documentation URLs when provided
+      - If documentation is not available, clearly state this limitation
+
+      Available MCP servers: {{mcpservers}}
+
+      Your goal is to provide accurate, current documentation that helps developers implement solutions correctly.
+    mcp_servers:
+      context7:
+        description: "Context7 MCP server for up-to-date library documentation (stdio)"
+        transport: "stdio"
+        command: "npx"
+        args:
+          - "-y"
+          - "@upstash/context7-mcp"
+        env: {}
 
   # Final response agent
   - name: "human_response_agent"

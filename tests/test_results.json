@@ -1,0 +1,29 @@
+{
+  "timestamp": 1756193757.7676482,
+  "total_suites": 3,
+  "passed_suites": 0,
+  "total_duration": 3.1096532344818115,
+  "results": {
+    "Basic MCP Tests": {
+      "success": false,
+      "duration": 0.9986858367919922,
+      "returncode": 1,
+      "has_stdout": false,
+      "has_stderr": true
+    },
+    "Agent Integration Tests": {
+      "success": false,
+      "duration": 1.1100223064422607,
+      "returncode": 1,
+      "has_stdout": false,
+      "has_stderr": true
+    },
+    "Performance Tests": {
+      "success": false,
+      "duration": 1.0009450912475586,
+      "returncode": 1,
+      "has_stdout": false,
+      "has_stderr": true
+    }
+  }
+}
