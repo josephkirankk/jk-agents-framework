@@ -9,4 +9,5 @@ SUPER IMPORTANT :
 - do a detailed nalysis of the system and incrementally plan , fix and verify each step. do not break anything.
 - use the local virtual env (.venv) whenever you run the code.
 - Ensure you take carer of encoding issues issues when writeing code as this is windows machine.
-- chkec the internet when you are unable to solev the problem.
+- check the internet when you are unable to solev the problem.
+- always create documenatation in the docs folder

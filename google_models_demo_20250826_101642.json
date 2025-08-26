@@ -1,0 +1,298 @@
+{
+  "google_genai_sdk": [
+    {
+      "name": "models/gemini-2.5-flash",
+      "display_name": "Gemini 2.5 Flash",
+      "description": "Fast and efficient model for general text and multimodal tasks",
+      "version": "001",
+      "input_token_limit": 1048576,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent",
+        "countTokens"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/gemini-2.5-pro",
+      "display_name": "Gemini 2.5 Pro",
+      "description": "Advanced model for coding and complex reasoning tasks",
+      "version": "001",
+      "input_token_limit": 2097152,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent",
+        "countTokens"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/gemini-2.0-flash",
+      "display_name": "Gemini 2.0 Flash",
+      "description": "Previous generation fast model",
+      "version": "001",
+      "input_token_limit": 1048576,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/gemini-2.0-pro",
+      "display_name": "Gemini 2.0 Pro",
+      "description": "Previous generation advanced model",
+      "version": "001",
+      "input_token_limit": 2097152,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/imagen-3.0-generate-002",
+      "display_name": "Imagen 3.0",
+      "description": "Advanced image generation model",
+      "version": "002",
+      "input_token_limit": 4096,
+      "output_token_limit": "N/A",
+      "supported_actions": [
+        "generateImages"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/veo-2.0-generate-001",
+      "display_name": "Veo 2.0",
+      "description": "Video generation model",
+      "version": "001",
+      "input_token_limit": 4096,
+      "output_token_limit": "N/A",
+      "supported_actions": [
+        "generateVideos"
+      ],
+      "sdk": "google-genai"
+    }
+  ],
+  "google_genai_sdk_async": [
+    {
+      "name": "models/gemini-2.5-flash",
+      "display_name": "Gemini 2.5 Flash",
+      "description": "Fast and efficient model for general text and multimodal tasks",
+      "version": "001",
+      "input_token_limit": 1048576,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent",
+        "countTokens"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/gemini-2.5-pro",
+      "display_name": "Gemini 2.5 Pro",
+      "description": "Advanced model for coding and complex reasoning tasks",
+      "version": "001",
+      "input_token_limit": 2097152,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent",
+        "countTokens"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/gemini-2.0-flash",
+      "display_name": "Gemini 2.0 Flash",
+      "description": "Previous generation fast model",
+      "version": "001",
+      "input_token_limit": 1048576,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/gemini-2.0-pro",
+      "display_name": "Gemini 2.0 Pro",
+      "description": "Previous generation advanced model",
+      "version": "001",
+      "input_token_limit": 2097152,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/imagen-3.0-generate-002",
+      "display_name": "Imagen 3.0",
+      "description": "Advanced image generation model",
+      "version": "002",
+      "input_token_limit": 4096,
+      "output_token_limit": "N/A",
+      "supported_actions": [
+        "generateImages"
+      ],
+      "sdk": "google-genai"
+    },
+    {
+      "name": "models/veo-2.0-generate-001",
+      "display_name": "Veo 2.0",
+      "description": "Video generation model",
+      "version": "001",
+      "input_token_limit": 4096,
+      "output_token_limit": "N/A",
+      "supported_actions": [
+        "generateVideos"
+      ],
+      "sdk": "google-genai"
+    }
+  ],
+  "langchain_google_genai": [
+    {
+      "name": "models/gemini-2.5-flash",
+      "display_name": "Gemini 2.5 Flash",
+      "description": "Fast and efficient model for general text and multimodal tasks",
+      "version": "001",
+      "input_token_limit": 1048576,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent",
+        "countTokens"
+      ],
+      "sdk": "langchain-google-genai"
+    },
+    {
+      "name": "models/gemini-2.5-pro",
+      "display_name": "Gemini 2.5 Pro",
+      "description": "Advanced model for coding and complex reasoning tasks",
+      "version": "001",
+      "input_token_limit": 2097152,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent",
+        "countTokens"
+      ],
+      "sdk": "langchain-google-genai"
+    },
+    {
+      "name": "models/gemini-2.0-flash",
+      "display_name": "Gemini 2.0 Flash",
+      "description": "Previous generation fast model",
+      "version": "001",
+      "input_token_limit": 1048576,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent"
+      ],
+      "sdk": "langchain-google-genai"
+    },
+    {
+      "name": "models/gemini-2.0-pro",
+      "display_name": "Gemini 2.0 Pro",
+      "description": "Previous generation advanced model",
+      "version": "001",
+      "input_token_limit": 2097152,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent"
+      ],
+      "sdk": "langchain-google-genai"
+    }
+  ],
+  "direct_api": [
+    {
+      "name": "models/gemini-2.5-flash",
+      "display_name": "Gemini 2.5 Flash",
+      "description": "Fast and efficient model for general text and multimodal tasks",
+      "version": "001",
+      "input_token_limit": 1048576,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent",
+        "countTokens"
+      ],
+      "sdk": "direct-api"
+    },
+    {
+      "name": "models/gemini-2.5-pro",
+      "display_name": "Gemini 2.5 Pro",
+      "description": "Advanced model for coding and complex reasoning tasks",
+      "version": "001",
+      "input_token_limit": 2097152,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent",
+        "countTokens"
+      ],
+      "sdk": "direct-api"
+    },
+    {
+      "name": "models/gemini-2.0-flash",
+      "display_name": "Gemini 2.0 Flash",
+      "description": "Previous generation fast model",
+      "version": "001",
+      "input_token_limit": 1048576,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent"
+      ],
+      "sdk": "direct-api"
+    },
+    {
+      "name": "models/gemini-2.0-pro",
+      "display_name": "Gemini 2.0 Pro",
+      "description": "Previous generation advanced model",
+      "version": "001",
+      "input_token_limit": 2097152,
+      "output_token_limit": 8192,
+      "supported_actions": [
+        "generateContent",
+        "embedContent"
+      ],
+      "sdk": "direct-api"
+    },
+    {
+      "name": "models/imagen-3.0-generate-002",
+      "display_name": "Imagen 3.0",
+      "description": "Advanced image generation model",
+      "version": "002",
+      "input_token_limit": 4096,
+      "output_token_limit": "N/A",
+      "supported_actions": [
+        "generateImages"
+      ],
+      "sdk": "direct-api"
+    },
+    {
+      "name": "models/veo-2.0-generate-001",
+      "display_name": "Veo 2.0",
+      "description": "Video generation model",
+      "version": "001",
+      "input_token_limit": 4096,
+      "output_token_limit": "N/A",
+      "supported_actions": [
+        "generateVideos"
+      ],
+      "sdk": "direct-api"
+    }
+  ]
+}
