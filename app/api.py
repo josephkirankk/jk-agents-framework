@@ -583,6 +583,37 @@ async def health_check():
     return HealthResponse(status="healthy", version="1.0.0")
 
 
+@app.post("/query/form")
+async def query_form_endpoint(
+    input: str = Form(..., description="User question or prompt",
+                      min_length=1),
+    config_path: Optional[str] = Form(None,
+                                      description="Optional path to config file"),
+    raw_output: bool = Form(False,
+                            description="If True, returns only raw response")
+):
+    """
+    Query endpoint that accepts form data instead of JSON.
+
+    Args:
+        input: User question or prompt
+        config_path: Optional path to config file
+        raw_output: If True, returns only raw response as plain text
+
+    Returns:
+        QueryResponse with the human responder's final answer
+    """
+    # Convert form data to QueryRequest object
+    request = QueryRequest(
+        input=input,
+        config_path=config_path,
+        raw_output=raw_output
+    )
+
+    # Use the existing query logic
+    return await query_endpoint(request)
+
+
 @app.post("/query", response_model=QueryResponse)
 async def query_endpoint(request: QueryRequest):
     """
@@ -888,10 +919,26 @@ async def worker_endpoint(request: WorkerRequest):
         # Validate agent exists
         agent_names = [agent.name for agent in app_cfg.agents]
         if request.agent_name not in agent_names:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Agent '{request.agent_name}' not found. Available agents: {', '.join(agent_names)}"
-            )
+            # Check if agent exists in other config files
+            config_suggestions = []
+            config_dir = Path("config")
+            if config_dir.exists():
+                for config_file in config_dir.glob("*.yaml"):
+                    try:
+                        other_cfg = load_app_config(config_file)
+                        other_agent_names = [a.name for a in other_cfg.agents]
+                        if request.agent_name in other_agent_names:
+                            config_suggestions.append(str(config_file))
+                    except Exception:
+                        continue
+
+            error_msg = (f"Agent '{request.agent_name}' not found in current config. "
+                         f"Available agents: {', '.join(agent_names)}")
+            if config_suggestions:
+                error_msg += (f". However, '{request.agent_name}' was found in: "
+                              f"{', '.join(config_suggestions)}")
+
+            raise HTTPException(status_code=400, detail=error_msg)
 
         # Execute the agent directly
         log.info(f"Executing agent '{request.agent_name}' with input: {request.input[:100]}...")
