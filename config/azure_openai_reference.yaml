@@ -4,8 +4,7 @@ models:
   temperature: 0.0
 
 business_context: |
-  Reference configuration for Azure OpenAI GPT-4.1 with comprehensive agent testing.
-  This configuration includes MCP Python execution, local tools, and various agent types.
+  Local stdio-only MCP setup with Context7 and Python runner.
 
 persistence:
   type: "memory"
@@ -15,54 +14,30 @@ supervisor:
   model: "azure_openai:gpt-4.1"
   prompt: |
     You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
-
-    Task requirements:
-    - Simple, specific actions (like calculations, code execution, or text processing)
-    - Include simple verification questions (e.g., "Does the result contain a number?")
-    - Always end with human_response_agent for final presentation
-
-    Available agents: {{agents}}
-
     Return JSON ONLY:
     {
       "goal": "<brief user goal>",
       "plan": [
-        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple verification question"}
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple check"}
       ]
     }
 
 agents:
-  # Test agent without external dependencies
   - name: "test_agent"
     description: "Simple test agent for basic validation"
     model: "azure_openai:gpt-4.1"
     prompt: |
-      You are a helpful test agent. Answer the user's question directly without using any external tools.
-      Be concise and accurate in your responses.
-      For mathematical questions, show your work step by step.
+      You are a helpful test agent. Be concise and accurate.
     mcp_servers: {}
 
-  # Python execution agent with MCP
   - name: "python_exec_agent"
-    description: "Execute Python code using MCP server"
+    description: "Execute Python code using MCP (stdio)"
     model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
-
-      You are CodeRunner. You MUST write and execute Python code using the run_python_code tool for any computational task.
-
-      CRITICAL RULES:
-      - ALWAYS use the run_python_code tool - never just describe what you would do
-      - Write the Python code first, then execute it using the tool
-      - Show both the code (```python ... ```) and the actual execution result
-      - Use previous step data as input when appropriate
-      - Prefer standard library, avoid network or file side effects
-      - If execution fails, fix the code and retry once
-      - ALWAYS include the complete code in your response, not just [code omitted]
-
+      You are CodeRunner. Write and execute Python using the MCP tool.
+      Show full code and execution result. If it fails, fix once and retry.
       Available MCP servers: {{mcpservers}}
-
-      Remember: You must actually execute the code using the available tool, not just pretend to do it!
     mcp_servers:
       python_runner:
         description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
@@ -76,8 +51,8 @@ agents:
           - "--node-modules-dir=auto"
           - "jsr:@pydantic/mcp-run-python"
           - "stdio"
+        env: {}
 
-  # Math agent with local HTTP tool
   - name: "math_agent"
     description: "Perform precise arithmetic calculations using local HTTP service"
     model: "azure_openai:gpt-4.1"
@@ -89,9 +64,9 @@ agents:
       Rules:
       - Extract numerical values from previous responses when available
       - Use calc tool with single expression format (e.g., "34 + 30" or "5 * 8")
-      - For comparisons, use expressions like "34 - 30" to find the difference
+      - For comparisons, use expressions like "34 - 30"
       - Return format: "Result: <number> (calculated from expression: <expression>)"
-      - If HTTP tool fails, perform calculation manually and note the method used
+      - If HTTP tool fails, do it manually and say so
       - Report errors without guessing
     mcp_servers: {}
     http_tools:
@@ -104,23 +79,42 @@ agents:
             in: query
         response_path: result
 
-  # Final response agent
+  - name: "context7_docs_agent"
+    description: "Resolve library IDs and fetch docs via Context7 MCP; answer concisely with one short example."
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are Context7DocsAgent. Use the Context7 MCP tools to resolve a library and fetch its docs, then answer the user's question clearly.
+
+      Workflow:
+      1) If the user mentions a package (e.g., 'langchain', 'langgraph'), call `resolve-library-id` with the name.
+      2) Call `get-library-docs` with the resolved ID (or canonical vendor/name).
+      3) Extract only sections relevant to the question; provide one short, correct code example.
+      4) If multiple results match, briefly state your assumption. If the tools fail, say so and suggest next steps.
+
+      Output rules:
+      - Be precise (KISS), no speculative APIs.
+      - Mention version-specific notes if present.
+      - One short code block unless asked for more.
+
+      Available MCP servers: {{mcpservers}}
+    mcp_servers:
+      context7_local:
+        description: "Context7 MCP server running locally via stdio"
+        transport: "stdio"
+        command: "npx"
+        args:
+          - "-y"
+          - "@upstash/context7-mcp"
+          - "--api-key"
+          - "ctx7sk-0df6b560-74ea-4b1c-97c5-4b81c5d4d989"
+        env: {}
+
   - name: "human_response_agent"
     description: "Produces the final user-facing response"
     model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
-
-      Final responder: Synthesize all previous steps into a complete, natural answer.
-
-      Rules:
-      - Natural, human-readable format only
-      - Include ALL code blocks and results verbatim from previous steps - never omit or summarize code
-      - If code was executed, show both the code AND the execution result
-      - No internal reasoning or agent names
-      - Only include citations [1], [2] if actual URLs were provided in previous steps
-      - Do not add placeholder citations without real sources
-      - Do not call tools
-      - Present the final answer clearly and concisely
-      - NEVER use [code omitted] or similar placeholders - always show the full code
+      Present a clear, natural answer. Include any code and results verbatim when provided.
     mcp_servers: {}
