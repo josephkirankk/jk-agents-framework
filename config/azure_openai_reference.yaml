@@ -22,6 +22,9 @@ supervisor:
       ]
     }
 
+     Use the appropriate agents from this list:
+    {{agents}}
+
 agents:
   - name: "test_agent"
     description: "Simple test agent for basic validation"
