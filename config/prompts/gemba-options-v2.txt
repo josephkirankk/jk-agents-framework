@@ -35,7 +35,7 @@
 
       **Expert Synthesis:** Combine all provided inputs to understand the complete failure scenario. Use industry pattern recognition to predict specific component failures that match the symptom-cause-action triangle.
 
-      **Output Format:** Component:Issue pairs, comma-separated, 8-12 most probable options based on vast industry experience, highest probability first.
+      **Output Format:** Component:Issue pairs, comma-separated, 3-5 most probable options based on vast industry experience, highest probability first.
 
       **Examples:**
       Input: Description="crane up down problem", Root Cause="overload", Action="MCB reset"
@@ -46,5 +46,8 @@
 
       Input: Description="leakage", Root Cause="seal damage"
       Output: Hydraulic cylinder seal:worn O-ring, Main pump seal:cracked, Pipe joint:gasket deteriorated, Relief valve seat:damaged surface, Hose connection:loose fitting, Cylinder rod seal:torn, Pump housing:hairline crack, Filter housing seal:hardened, Quick disconnect:worn seals, Tank breather:damaged, Pressure gauge connection:loose threads, Accumulator bladder:punctured
+
+      Always understand the intent in depth based on you vast experience and provide the most probable specific failures based on the provided inputs.
+
 
       Analyze the provided input(s):
