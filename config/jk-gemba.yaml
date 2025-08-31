@@ -46,7 +46,7 @@ supervisor:
 agents:
   - name: "short_pilger_classifier_agent"
     description: "Advanced CSV analysis using LM Studio with Python execution capabilities"
-    model: "google:gemini-2.0-flash-lite-001"
+    model: "openai:google/Gemini-2.0-flash-lite-001"
     prompt: |
       {{dependent_request_responses}}
       System role:
@@ -1671,7 +1671,7 @@ agents:
 
   - name: "jk_csv_processing_agent"
     description: "Advanced CSV analysis using LM Studio with Python execution capabilities"
-    model: "google:gemini-2.0-flash-lite-001"
+    model: "openai:"
     prompt: |
       {{dependent_request_responses}}
 
@@ -1733,6 +1733,11 @@ agents:
     description: "Expert Pilger Machine Issue Predictor"
     model: "google:gemini-2.5-flash-lite"
     prompt_file: "prompts/gemba-options-v2.txt"
+
+  - name: "jk_pilger_agent_v2"
+    description: "Expert Pilger Machine Issue Predictor"
+    model: "google:gemini-2.5-flash-lite"
+    prompt_file: "prompts/gemba-d-r-c.txt"
 
       
     mcp_servers: {}
