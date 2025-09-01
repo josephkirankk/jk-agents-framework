@@ -1737,7 +1737,7 @@ agents:
   - name: "jk_pilger_agent_v2"
     description: "Expert Pilger Machine Issue Predictor"
     model: "google:gemini-2.5-flash-lite"
-    prompt_file: "prompts/gemba-d-r-c.txt"
+    prompt_file: "prompts/gemba-d-r-c_v2.txt"
 
       
     mcp_servers: {}
