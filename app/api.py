@@ -577,6 +577,46 @@ async def startup_event():
         _app_config = None
 
 
+@app.get("/", response_model=Dict[str, Any])
+async def root():
+    """
+    Default root endpoint that returns API status and basic information.
+
+    Returns:
+        Dict containing API status, version, available endpoints, and
+        service health
+    """
+    import datetime
+
+    # Check if configuration is loaded
+    config_status = "loaded" if _app_config is not None else "not_loaded"
+
+    # Get available agent names if config is loaded
+    available_agents = []
+    if _app_config:
+        available_agents = [agent.name for agent in _app_config.agents]
+
+    return {
+        "status": "success",
+        "message": "JK-Agents API is running and live",
+        "service": "jk-agents",
+        "version": "1.0.0",
+        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "config_status": config_status,
+        "available_agents": available_agents,
+        "endpoints": {
+            "health": "/health - Health check endpoint",
+            "query": "/query - Main multi-agent query endpoint",
+            "query_form": "/query/form - Form-based query endpoint",
+            "worker": "/worker - Direct agent execution endpoint",
+            "worker_upload": "/worker/upload - Agent execution with files",
+            "docs": "/docs - Interactive API documentation",
+            "redoc": "/redoc - Alternative API documentation"
+        },
+        "documentation": "/docs"
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint."""

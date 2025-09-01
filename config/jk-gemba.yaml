@@ -46,7 +46,7 @@ supervisor:
 agents:
   - name: "short_pilger_classifier_agent"
     description: "Advanced CSV analysis using LM Studio with Python execution capabilities"
-    model: "openai:google/Gemini-2.0-flash-lite-001"
+    model: "google:gemini-2.5-flash-lite"
     prompt: |
       {{dependent_request_responses}}
       System role:
