@@ -1,0 +1,106 @@
+# Enhanced Mermaid Guidelines (2025)
+
+## Core Syntax Rules
+- *Diagram declaration*: Every diagram starts with type declaration (flowchart, erDiagram, classDiagram, etc.)
+- *Comments*: Use %% comment (NEVER // or #)
+- *Line endings*: Each statement ends with newline
+- *Reserved words*: Avoid end (use End), graph, node
+
+## Node/Entity Naming
+mermaid
+✅ Correct:
+- SingleWord
+- "Multi Word Node"
+- A, B, C (single chars)
+
+❌ Wrong:
+- Multi Word (unquoted spaces)
+- Node<tag> (angle brackets)
+- Node(param) (parentheses)
+- end (reserved word)
+
+
+## Edge Syntax & Labels
+mermaid
+Flowcharts/Graphs:
+A -->|label| B    ✅ Correct
+A ---|label| B    ❌ Wrong (use pipes for labels)
+
+ER Diagrams:
+USER ||--o{ ORDER : "has"    ✅ Correct
+
+Class Diagrams:
+User --> Order : |has|    ✅ Correct
+
+Sequence Diagrams:
+A->>B: message    ✅ Correct
+B-->>A: reply     ✅ Correct (NEVER use <--)
+
+
+## New Features (v11.3+)
+### Advanced Node Shapes
+mermaid
+A@{ shape: rect }         %% Rectangle
+B@{ shape: diamond }      %% Diamond
+C@{ shape: cylinder }     %% Database
+D@{ shape: hexagon }      %% Hexagon
+E@{ shape: circle }       %% Circle
+
+
+### Configuration with Frontmatter
+yaml
+---
+config:
+  layout: elk          # or dagre (default)
+  look: handDrawn     # or classic
+  theme: forest       # or default, dark, neutral
+---
+
+
+## Quick Reference
+### Flowchart Directions
+- TD/TB: Top-down
+- LR: Left-right  
+- BT: Bottom-top
+- RL: Right-left
+
+### Common Shapes
+mermaid
+A[Rectangle]
+B(Round edges)  
+C([Stadium])
+D{Diamond}
+E((Circle))
+F[(Database)]
+G>Asymmetric]
+H{{Hexagon}}
+
+
+### Relationship Types
+mermaid
+A --> B     %% Arrow
+A --- B     %% Line
+A -.-> B    %% Dotted arrow
+A ==> B     %% Thick arrow
+A <--> B    %% Bidirectional
+
+
+## Error Prevention
+- *Label syntax*: Use |label| in flowcharts, NOT : label
+- *Reverse arrows*: Use B-->>A: instead of A<--B:
+- *Special chars*: Avoid (), <>, {}, & in node names
+- *First letters*: Don't start edges with o or x (A---oB creates circle edge)
+
+## Validation
+- Test in [Mermaid Live Editor](https://mermaid.live)
+- Check for unmatched quotes/brackets
+- Verify node names are quoted if they contain spaces
+- Ensure proper indentation in YAML frontmatter
+
+## Best Practices
+- Keep labels short and clear
+- Use semantic node names
+- Apply consistent formatting
+- Break complex diagrams into smaller ones
+- Use appropriate shapes for semantic meaning
+- Leverage new layout algorithms (ELK) for complex diagrams
