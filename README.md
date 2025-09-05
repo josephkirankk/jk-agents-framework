@@ -80,6 +80,8 @@ The system now includes a FastAPI web server that provides HTTP endpoints for in
 - `GET /health` - Health check endpoint
 - `POST /query` - Main query processing endpoint (supervised multi-agent execution)
 - `POST /worker` - Direct worker execution endpoint (single agent execution)
+- `POST /worker/upload` - Worker execution with file upload support
+- `POST /submit-selection` - Submit defect analysis selections (saves to JSON files)
 - `POST /plan_and_run` - Legacy endpoint (redirects to /query)
 
 ### Example Usage

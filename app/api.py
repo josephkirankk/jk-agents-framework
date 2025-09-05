@@ -8,13 +8,16 @@ from __future__ import annotations
 import logging
 import base64
 import mimetypes
+import json
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .config import AppConfig, AgentConfig
 from .main import load_app_config, build_agents_map
@@ -378,6 +381,105 @@ class WorkerResponse(BaseModel):
     )
 
 
+# Submit Selection API Models
+class RootCause(BaseModel):
+    """Root cause model for submit selection."""
+    root_cause_code: str = Field(..., description="Unique identifier for the root cause")
+    root_cause_text: str = Field(..., description="Human-readable description of the root cause")
+    is_primary: bool = Field(..., description="Boolean indicating if this is the primary/recommended root cause")
+
+
+class CorrectiveAction(BaseModel):
+    """Corrective action model for submit selection."""
+    action_code: str = Field(..., description="Unique identifier for the corrective action")
+    action_text: str = Field(..., description="Human-readable description of the corrective action")
+    is_primary: bool = Field(..., description="Boolean indicating if this is the primary/recommended corrective action")
+
+
+class SelectedPair(BaseModel):
+    """Selected pair model containing root cause and corrective action."""
+    root_cause: RootCause = Field(..., description="Root cause object")
+    corrective_action: CorrectiveAction = Field(..., description="Corrective action object")
+    pair_id: str = Field(..., description="Unique identifier for the pair")
+
+
+class SelectedDefect(BaseModel):
+    """Selected defect model for submit selection."""
+    defect_code: str = Field(..., description="Unique identifier code for the defect")
+    defect_text: str = Field(..., description="Human-readable description of the defect")
+    confidence_score: float = Field(..., description="AI confidence score (0.0 to 1.0) for the defect identification", ge=0.0, le=1.0)
+    mapping_status: str = Field(..., description="Status of defect mapping")
+    curator_action: str = Field(..., description="Recommended curator action")
+
+
+class AnalysisMetadata(BaseModel):
+    """Analysis metadata model for submit selection."""
+    agent_name: str = Field(..., description="Name of the AI agent used for analysis")
+    config_path: str = Field(..., description="Path to the configuration file used")
+    submission_source: str = Field(..., description="Source component identifier")
+    total_pairs_selected: int = Field(..., description="Total number of pairs selected by the user", ge=0)
+
+
+class SubmitSelectionRequest(BaseModel):
+    """Request model for submit selection endpoint."""
+    timestamp: str = Field(..., description="ISO 8601 formatted timestamp when the submission was made")
+    original_input: str = Field(..., description="The original user input text that was analyzed")
+    remarks: Optional[str] = Field(None, description="Optional user comments or additional context about the selection", max_length=500)
+    selected_defect: SelectedDefect = Field(..., description="Object containing the defect selected by the user")
+    selected_pairs: List[SelectedPair] = Field(..., description="Array of root cause and corrective action pairs selected by the user", min_items=1)
+    analysis_metadata: AnalysisMetadata = Field(..., description="Metadata about the analysis session")
+
+    @field_validator('remarks')
+    @classmethod
+    def validate_remarks(cls, v):
+        if v is not None:
+            return v.strip()
+        return v
+
+    @field_validator('selected_pairs')
+    @classmethod
+    def validate_selected_pairs(cls, v):
+        if not v:
+            raise ValueError("At least one pair must be selected")
+
+        # Check for unique pair_ids
+        pair_ids = [pair.pair_id for pair in v]
+        if len(pair_ids) != len(set(pair_ids)):
+            raise ValueError("pair_id must be unique within the selected_pairs array")
+
+        # Check that at least one primary pair exists
+        has_primary = any(pair.root_cause.is_primary and pair.corrective_action.is_primary for pair in v)
+        if not has_primary:
+            raise ValueError("At least one pair should have both is_primary: true for root_cause and corrective_action")
+
+        return v
+
+    @model_validator(mode='after')
+    def validate_total_pairs_selected(self):
+        actual_count = len(self.selected_pairs)
+        if self.analysis_metadata.total_pairs_selected != actual_count:
+            raise ValueError(f"total_pairs_selected ({self.analysis_metadata.total_pairs_selected}) must match actual array length ({actual_count})")
+        return self
+
+
+class SubmitSelectionResponse(BaseModel):
+    """Success response model for submit selection endpoint."""
+    status: str = Field(..., description="Response status")
+    message: str = Field(..., description="Success message")
+    submission_id: str = Field(..., description="Unique identifier for the submission")
+    timestamp: str = Field(..., description="ISO 8601 formatted timestamp")
+    processed_pairs: int = Field(..., description="Number of pairs processed")
+
+
+class ErrorResponse(BaseModel):
+    """Error response model for submit selection endpoint."""
+    status: str = Field(..., description="Response status")
+    error_code: str = Field(..., description="Error code identifier")
+    message: str = Field(..., description="Error message")
+    timestamp: Optional[str] = Field(None, description="ISO 8601 formatted timestamp")
+    details: Optional[Dict[str, str]] = Field(None, description="Additional error details")
+
+
 async def extract_human_response(result: Dict[str, Any]) -> str:
     """
     Extract the human responder's final answer from the execution result.
@@ -610,6 +712,7 @@ async def root():
             "query_form": "/query/form - Form-based query endpoint",
             "worker": "/worker - Direct agent execution endpoint",
             "worker_upload": "/worker/upload - Agent execution with files",
+            "submit_selection": "/submit-selection - Submit defect analysis selections",
             "docs": "/docs - Interactive API documentation",
             "redoc": "/redoc - Alternative API documentation"
         },
@@ -1095,6 +1198,113 @@ async def worker_endpoint(request: WorkerRequest):
             error=str(e),
             metadata=None,
             raw_data=None
+        )
+
+
+@app.post("/submit-selection", response_model=SubmitSelectionResponse)
+async def submit_selection_endpoint(request: SubmitSelectionRequest):
+    """
+    Submit Selection API endpoint that receives user selections from the Enhanced Defect Analysis Page.
+
+    Args:
+        request: SubmitSelectionRequest containing user selections and metadata
+
+    Returns:
+        SubmitSelectionResponse with submission confirmation
+    """
+    try:
+        # Validate timestamp format
+        try:
+            datetime.fromisoformat(request.timestamp.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "status": "error",
+                    "error_code": "INVALID_REQUEST",
+                    "message": "Invalid timestamp format. Must be ISO 8601 format.",
+                    "details": {
+                        "field": "timestamp",
+                        "issue": "Invalid ISO 8601 format"
+                    }
+                }
+            )
+
+        # Generate submission ID and timestamp
+        submission_timestamp = datetime.utcnow()
+        submission_id = f"submit_{submission_timestamp.strftime('%Y%m%d%H%M%S')}"
+
+        # Create user_responses directory if it doesn't exist
+        user_responses_dir = Path("user_responses")
+        user_responses_dir.mkdir(exist_ok=True)
+
+        # Generate filename with timestamp
+        filename = f"submit_{submission_timestamp.strftime('%Y%m%d%H%M%S')}.json"
+        file_path = user_responses_dir / filename
+
+        # Prepare data for saving
+        submission_data = request.dict()
+        submission_data["submission_metadata"] = {
+            "submission_id": submission_id,
+            "submission_timestamp": submission_timestamp.isoformat() + "Z",
+            "filename": filename
+        }
+
+        # Save to JSON file
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(submission_data, f, indent=2, ensure_ascii=False)
+            log.info(f"Saved submission to {file_path}")
+        except Exception as e:
+            log.error(f"Failed to save submission to file: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "status": "error",
+                    "error_code": "INTERNAL_ERROR",
+                    "message": "Failed to save submission data",
+                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                }
+            )
+
+        # Return success response
+        return SubmitSelectionResponse(
+            status="success",
+            message="Selection submitted successfully",
+            submission_id=submission_id,
+            timestamp=submission_timestamp.isoformat() + "Z",
+            processed_pairs=len(request.selected_pairs)
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except ValueError as e:
+        # Handle validation errors
+        log.error(f"Validation error in submit-selection: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "status": "error",
+                "error_code": "INVALID_REQUEST",
+                "message": str(e),
+                "details": {
+                    "field": "validation",
+                    "issue": str(e)
+                }
+            }
+        )
+    except Exception as e:
+        # Handle unexpected errors
+        log.error(f"Unexpected error in submit-selection: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "error_code": "INTERNAL_ERROR",
+                "message": "Internal server error occurred",
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
         )
 
 
