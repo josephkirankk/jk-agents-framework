@@ -1,0 +1,60 @@
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+business_context: |
+  A restaurants agent to search the restaurant information. 
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple check"}
+      ]
+    }
+
+     Use the appropriate agents from this list:
+    {{agents}}
+
+agents:
+  - name: "restaurants_agent"
+    description: "A restaurants agent to get the restaurant information"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      
+      You are a helpful agent who has the capability to find restaurants across US in PBNA. Be concise and accurate.
+      Important points to consider :
+        - always send the min and max score. if the request does not have min or max score, send 0 as min and 100 as max.
+        - Use only mcp afh search tool to search.
+
+      You have access to the following mcp servers :
+      {{mcpservers}}
+
+    mcp_servers:
+      restaurant_search:
+        description: "MCP server for searching Restaurants."
+        transport: "sse"
+        url: "http://localhost:8082/test/sse"
+        headers:
+          Authorization: "Bearer eyJraWQiOiItNWFjdnExYlhuVU5PTlRueUs2RlJSTElfNDBOXzA0bW1xbWh4SFlWWW1nIiwiYWxnIjoiUlMyNTYifQ.eyJ2ZXIiOjEsImp0aSI6IkFULmhtcUxhWU9HQWdTenQ5R1h6ZHNqSDlKZFg0c2daeGwwT2p2TjdoNDRqeTgub2FyM2kxczgzaHFoWXprVVcwaDciLCJpc3MiOiJodHRwczovL3NlY3VyZS5pdGUucGVwc2ljby5jb20vb2F1dGgyL2RlZmF1bHQiLCJhdWQiOiJhcGk6Ly9kZWZhdWx0IiwiaWF0IjoxNzU3MzEyNDY0LCJleHAiOjE3NTczMTYwNjQsImNpZCI6IjBvYTI0bDBlNWN2bnBDZzREMGg4IiwidWlkIjoiMDB1MXhib3VzZHpmWmpLdnQwaDgiLCJzY3AiOlsib2ZmbGluZV9hY2Nlc3MiLCJvcGVuaWQiLCJwcm9maWxlIiwid3NwLXNjb3BlIiwiZW1haWwiXSwiYXV0aF90aW1lIjoxNzU3MzEyNDU4LCJzdWIiOiI5MTEwMDM1M0BwZXBzaWNvLmNvbSIsIkdQSUQiOiI5MTEwMDM1MyIsIkZpcnN0TmFtZSI6IlRlc3QgOTExMDAzNTMiLCJwZXBhcHBtaWViYWNocm9sZXMiOltdLCJwZXBhcHBjb25zdW1lcnJvbGVzIjpbXSwicGVwUmVnaXN0ZXJlZCI6InRydWUiLCJwZXBhcHBwYXJ0bmVycm9sZXMiOltdLCJsb2NhbGUiOiJVUyIsInBlcGFwcHdzcHJvbGVzIjpbInBlcGwuZDJjLnB0ci1wcm9ncmFtIiwiY2VwLmQyYy5teC1wcm9ncmFtYWRtaW4iXSwiZ3BpZCI6IjkxMTAwMzUzIiwiZGlzcGxheW5hbWUiOiJUZXN0IFVzZXIyIiwicGVwYXBwbWllYmFjaHdhcmVob3VzZSI6W10sIkxhc3ROYW1lIjoiVGVzdCA5MTEwMDM1MyIsImVtYWlsIjoiOTExMDAzNTNAcGVwc2ljby5jb20ifQ.X6yWBU3jP1dtkJMTeGeiMREhUIh0gFuRCQgTLw5G6EFpcJI2FeoabbtXEBp12Dh1bZrbHnqgtTebIfWGjlMy_7rbCI-OU5fbvSUVCLR7RG2M5LxtsoIa-jPzEBdLoDacrxJofxWLq-l-BlNvvYP1p_5IwHRhaVvYP9Bb6R3n60s6HqFtXnewCXjimedP24JVopTV7WDtCAWmP6fsLjOpTZzU70xAzPFC5jMsJzsuHCVXZNOgFn6VbyWdq-Ca8za_O2Xs23FfSM_MSxtoxQTJcfeE5MhdwgRaBcbr0ViHiENPm6_QSssjfwa8g9tTIZPmKkei7kR4vUgUU7wugdQm6Q"
+        env: {}
+
+
+  - name: "human_response_agent"
+    description: "Produces the final user-facing response"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      Present a clear, natural answer to the user query. never share the internal workings of the agent system.
+      Be to the point.
+    mcp_servers: {}
