@@ -1,5 +1,0 @@
-{
-  "agent_name": "python_function_demo_agent",
-  "input": "Use the count_csv_rows tool to count rows in this CSV data: name,age\nJohn,25\nJane,30",
-  "config_path": "config/gemba_agents_v1.yaml"
-}
