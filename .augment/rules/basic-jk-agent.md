@@ -11,3 +11,5 @@ SUPER IMPORTANT :
 - Ensure you take carer of encoding issues issues when writeing code as this is windows machine.
 - check the internet when you are unable to solev the problem.
 - always create documenatation in the docs folder
+- Ensure whatever you code is written should work in mac and windows.
+- check the current system (Windows or macos) and adjust the terminal commands correctly.

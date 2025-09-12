@@ -61,7 +61,16 @@ class TimeoutTool(BaseTool):
                 elif args:
                     payload = args[0]
                 else:
-                    payload = None
+                    # For functions with empty parameter schemas, use empty dict instead of None
+                    try:
+                        inner_schema = getattr(self._inner, "args_schema", None)
+                        if inner_schema is not None:
+                            payload = {}
+                        else:
+                            # Always use empty dict instead of None
+                            payload = {}
+                    except Exception:
+                        payload = {}
                 # If the inner tool expects structured args (args_schema), but
                 # got a string, coerce to a dict so inner BaseTool doesn't
                 # fail.
@@ -91,7 +100,16 @@ class TimeoutTool(BaseTool):
                 elif args:
                     payload = args[0]
                 else:
-                    payload = None
+                    # For functions with empty parameter schemas, use empty dict instead of None
+                    try:
+                        inner_schema = getattr(self._inner, "args_schema", None)
+                        if inner_schema is not None:
+                            payload = {}
+                        else:
+                            # Always use empty dict instead of None
+                            payload = {}
+                    except Exception:
+                        payload = {}
                 try:
                     inner_schema = getattr(self._inner, "args_schema", None)
                 except Exception:
