@@ -7,12 +7,45 @@ from datetime import datetime
 import time
 from pathlib import Path
 import re
+from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field, ValidationError
 from .utils import extract_json_block
 from langchain.chat_models import init_chat_model
+from .thread_manager import get_or_create_thread_id, create_supervisor_thread_id, create_step_thread_id
 
 log = logging.getLogger("planner_executor")
 logging.getLogger("planner_executor").setLevel(logging.INFO)
+
+
+@asynccontextmanager
+async def safe_langgraph_execution():
+    """
+    Async context manager for safe LangGraph execution.
+
+    This helps prevent TaskGroup exceptions from propagating unhandled
+    by providing a controlled execution environment.
+    """
+    try:
+        yield
+    except BaseExceptionGroup as e:
+        # Handle TaskGroup exceptions by extracting underlying errors
+        log.error("TaskGroup exception caught in safe execution context: %s",
+                  e)
+        underlying_exceptions = []
+        if hasattr(e, 'exceptions'):
+            for exc in e.exceptions:
+                underlying_exceptions.append(str(exc))
+
+        if underlying_exceptions:
+            error_msg = "Execution failed: " + "; ".join(underlying_exceptions)
+        else:
+            error_msg = f"Execution failed with TaskGroup error: {str(e)}"
+
+        raise RuntimeError(error_msg) from e
+    except Exception as e:
+        # Re-raise other exceptions normally
+        log.error("Exception in safe execution context: %s", e)
+        raise
 
 
 class PlanStep(BaseModel):
@@ -162,7 +195,12 @@ async def execute_plan(
     default_verifier_timeout_seconds: Optional[int] = 45,
     agents_configs: Optional[List] = None,
     default_model: str = "openai:gpt-4o-mini",
+    thread_id: Optional[str] = None,
 ) -> Dict[str, Any]:
+    # Get or create base thread ID for this execution
+    base_thread_id = get_or_create_thread_id(thread_id)
+    supervisor_thread_id = create_supervisor_thread_id(base_thread_id)
+
     # Prepare log file with timestamped name at repo root
     log_file_path: Optional[Path] = None
     try:
@@ -242,6 +280,97 @@ async def execute_plan(
             pass
         return usage
 
+    def _extract_tool_calls(messages: List[Any]) -> List[Dict[str, Any]]:
+        """Extract tool calls and results from messages, with deduplication."""
+        tool_calls = []
+        seen_calls = set()  # Track (name, args_hash) to detect duplicates
+
+        for msg in messages:
+            msg_type = getattr(msg, 'type', None)
+
+            # Check for AIMessage with tool_calls
+            if msg_type == 'ai' and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                for tool_call in msg.tool_calls:
+                    # Handle different tool call formats
+                    if hasattr(tool_call, 'name'):
+                        name = tool_call.name
+                    elif isinstance(tool_call, dict):
+                        name = tool_call.get('name', 'unknown')
+                    else:
+                        name = 'unknown'
+
+                    if hasattr(tool_call, 'id'):
+                        call_id = tool_call.id
+                    elif isinstance(tool_call, dict):
+                        call_id = tool_call.get('id', 'unknown')
+                    else:
+                        call_id = 'unknown'
+
+                    if hasattr(tool_call, 'args'):
+                        args = tool_call.args
+                    elif isinstance(tool_call, dict):
+                        args = tool_call.get('args', {})
+                    else:
+                        args = {}
+
+                    # Create a hash of the arguments for deduplication
+                    args_str = json.dumps(args, sort_keys=True) if args else ""
+                    call_signature = (name, args_str)
+
+                    call_info = {
+                        "type": "tool_call",
+                        "name": name,
+                        "id": call_id,
+                        "args": args,
+                        "is_duplicate": call_signature in seen_calls
+                    }
+
+                    seen_calls.add(call_signature)
+                    tool_calls.append(call_info)
+
+            # Check for ToolMessage with results
+            elif msg_type == 'tool':
+                tool_id = getattr(msg, 'tool_call_id', 'unknown')
+                content = getattr(msg, 'content', '')
+                name = getattr(msg, 'name', 'unknown')
+
+                # Find matching tool call and add result
+                for call in tool_calls:
+                    if call.get("id") == tool_id:
+                        call["result"] = content
+                        if call["name"] == 'unknown' and name != 'unknown':
+                            call["name"] = name
+                        break
+                else:
+                    # Tool result without matching call
+                    tool_calls.append({
+                        "type": "tool_result",
+                        "name": name,
+                        "id": tool_id,
+                        "result": content
+                    })
+
+        return tool_calls
+
+    def _format_args_compact(args: Dict[str, Any]) -> str:
+        """Format tool arguments in a compact way."""
+        if not args:
+            return ""
+
+        formatted_args = []
+        for key, value in args.items():
+            if isinstance(value, str):
+                # Truncate long strings
+                if len(value) > 50:
+                    value_str = f'"{value[:47]}..."'
+                else:
+                    value_str = f'"{value}"'
+            else:
+                value_str = str(value)
+            formatted_args.append(f"{key}={value_str}")
+
+        return ", ".join(formatted_args)
+
     # Initialize log header
     _safe_write([
         "=== jk-agents run log ===",
@@ -280,7 +409,7 @@ async def execute_plan(
     except Exception as e:
         log.warning("Failed to print supervisor invocation messages: %s", e)
     try:
-        config = {"configurable": {"thread_id": "execute-plan-thread"}}
+        config = {"configurable": {"thread_id": supervisor_thread_id}}
         # Log supervisor request
         _safe_write([
             "--- Supervisor Request ---",
@@ -309,7 +438,7 @@ async def execute_plan(
             time.perf_counter() - t0,
         )
     except AttributeError:
-        config = {"configurable": {"thread_id": "execute-plan-thread"}}
+        config = {"configurable": {"thread_id": supervisor_thread_id}}
         _safe_write([
             "--- Supervisor Request ---",
             f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
@@ -476,8 +605,9 @@ async def execute_plan(
             )
 
             try:
+                step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
-                    "configurable": {"thread_id": f"step-{step.id}"}
+                    "configurable": {"thread_id": step_thread_id}
                 }
                 # Log worker request
                 _safe_write([
@@ -491,39 +621,43 @@ async def execute_plan(
                     f"User: {user_task}",
                     "",
                 ])
-                if step_timeout:
-                    log.info(
-                        "Worker %s attempt %d: ainvoke start (timeout=%ss)",
-                        step.id,
-                        attempts,
-                        step_timeout,
-                    )
-                    t1 = time.perf_counter()
-                    worker_out = await asyncio.wait_for(
-                        worker_compiled.ainvoke(
+
+                # Enhanced error handling using safe context manager
+                async with safe_langgraph_execution():
+                    if step_timeout:
+                        log.info(
+                            "Worker %s attempt %d: ainvoke start (timeout=%ss)",
+                            step.id,
+                            attempts,
+                            step_timeout,
+                        )
+                        t1 = time.perf_counter()
+                        worker_out = await asyncio.wait_for(
+                            worker_compiled.ainvoke(
+                                worker_state, config=worker_config
+                            ),
+                            timeout=step_timeout,
+                        )
+                    else:
+                        log.info(
+                            "Worker %s attempt %d: ainvoke start (no timeout)",
+                            step.id,
+                            attempts,
+                        )
+                        t1 = time.perf_counter()
+                        worker_out = await worker_compiled.ainvoke(
                             worker_state, config=worker_config
-                        ),
-                        timeout=step_timeout,
-                    )
-                else:
+                        )
                     log.info(
-                        "Worker %s attempt %d: ainvoke start (no timeout)",
+                        "Worker %s attempt %d: ainvoke done in %.2fs",
                         step.id,
                         attempts,
+                        time.perf_counter() - t1,
                     )
-                    t1 = time.perf_counter()
-                    worker_out = await worker_compiled.ainvoke(
-                        worker_state, config=worker_config
-                    )
-                log.info(
-                    "Worker %s attempt %d: ainvoke done in %.2fs",
-                    step.id,
-                    attempts,
-                    time.perf_counter() - t1,
-                )
             except AttributeError:
+                step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
-                    "configurable": {"thread_id": f"step-{step.id}"}
+                    "configurable": {"thread_id": step_thread_id}
                 }
                 _safe_write([
                     (
@@ -536,46 +670,48 @@ async def execute_plan(
                     f"User: {user_task}",
                     "",
                 ])
-                if step_timeout:
-                    log.info(
-                        (
-                            "Worker %s attempt %d: "
-                            "invoke(sync) start (timeout=%ss)"
-                        ),
-                        step.id,
-                        attempts,
-                        step_timeout,
-                    )
-                    t1 = time.perf_counter()
-                    worker_out = await asyncio.wait_for(
-                        asyncio.to_thread(
+                # Enhanced error handling for sync path using safe context mgr
+                async with safe_langgraph_execution():
+                    if step_timeout:
+                        log.info(
+                            (
+                                "Worker %s attempt %d: "
+                                "invoke(sync) start (timeout=%ss)"
+                            ),
+                            step.id,
+                            attempts,
+                            step_timeout,
+                        )
+                        t1 = time.perf_counter()
+                        worker_out = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                worker_compiled.invoke,
+                                worker_state,
+                                config=worker_config,
+                            ),
+                            timeout=step_timeout,
+                        )
+                    else:
+                        log.info(
+                            (
+                                "Worker %s attempt %d: "
+                                "invoke(sync) start (no timeout)"
+                            ),
+                            step.id,
+                            attempts,
+                        )
+                        t1 = time.perf_counter()
+                        worker_out = await asyncio.to_thread(
                             worker_compiled.invoke,
                             worker_state,
                             config=worker_config,
-                        ),
-                        timeout=step_timeout,
-                    )
-                else:
+                        )
                     log.info(
-                        (
-                            "Worker %s attempt %d: "
-                            "invoke(sync) start (no timeout)"
-                        ),
+                        "Worker %s attempt %d: invoke(sync) done in %.2fs",
                         step.id,
                         attempts,
+                        time.perf_counter() - t1,
                     )
-                    t1 = time.perf_counter()
-                    worker_out = await asyncio.to_thread(
-                        worker_compiled.invoke,
-                        worker_state,
-                        config=worker_config,
-                    )
-                log.info(
-                    "Worker %s attempt %d: invoke(sync) done in %.2fs",
-                    step.id,
-                    attempts,
-                    time.perf_counter() - t1,
-                )
             except asyncio.TimeoutError:
                 last_err = "timeout"
                 log.warning(
@@ -632,15 +768,42 @@ async def execute_plan(
             # Use a longer summary to avoid truncating key facts
             summary = (wtext[:1200] + "...") if len(wtext) > 1200 else wtext
 
+            # Extract tool calls from worker messages
+            tool_calls = _extract_tool_calls(wmsgs) if wmsgs else []
+
             # Log worker response
-            _safe_write([
+            log_lines = [
                 (
                     f"--- Worker Response (step={step.id}, "
                     f"agent={step.agent}, attempt={attempts}) ---"
                 ),
                 wtext or "(empty)",
                 "",
-            ])
+            ]
+
+            # Add tool calls section if any were found
+            if tool_calls:
+                log_lines.extend([
+                    "--- Tool Calls ---",
+                ])
+                for i, call in enumerate(tool_calls, 1):
+                    if call["type"] == "tool_call":
+                        args_str = _format_args_compact(call.get("args", {}))
+                        duplicate_marker = " (DUPLICATE)" if call.get("is_duplicate", False) else ""
+                        log_lines.append(f"{i}. {call['name']}({args_str}){duplicate_marker}")
+                        if "result" in call:
+                            result_str = str(call["result"])[:100]
+                            if len(str(call["result"])) > 100:
+                                result_str += "..."
+                            log_lines.append(f"   → {result_str}")
+                    elif call["type"] == "tool_result":
+                        result_str = str(call["result"])[:100]
+                        if len(str(call["result"])) > 100:
+                            result_str += "..."
+                        log_lines.append(f"{i}. Tool Result [{call['id']}]: {result_str}")
+                log_lines.append("")
+
+            _safe_write(log_lines)
             # Summarize the request we sent to the worker so we can include it
             # in subsequent steps' context without overwhelming them.
             request_text = user_task

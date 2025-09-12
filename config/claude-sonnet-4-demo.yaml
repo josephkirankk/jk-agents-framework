@@ -1,0 +1,43 @@
+models:
+  default: "anthropic:claude-sonnet-4-20250514"
+  supervisor: "anthropic:claude-sonnet-4-20250514"
+  temperature: 0.0
+
+business_context: |
+  Multi-provider AI system showcasing Claude Sonnet 4 capabilities.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "anthropic:claude-sonnet-4-20250514"
+  prompt: |
+    You are an advanced AI Supervisor powered by Claude Sonnet 4. Break down complex requests into optimal task sequences for specialized agents.
+    Available agents: {{agents}}
+    Return JSON ONLY: {"goal": "<brief user goal>", "plan": [{"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "verification question"}]}
+
+agents:
+  - name: "claude_simple_test_agent"
+    description: "Simple Claude test agent"
+    model: "anthropic:claude-sonnet-4-20250514"
+    prompt: "You are Claude Sonnet 4, an advanced AI assistant. Please respond helpfully to user questions and demonstrate your analytical capabilities when appropriate."
+    mcp_servers: {}
+
+  - name: "claude_analyst_agent"
+    description: "Advanced data analysis using Claude Sonnet 4"
+    model: "anthropic:claude-sonnet-4-20250514"
+    prompt: "You are Claude Sonnet 4 in analyst mode, specializing in data analysis and strategic insights. When given analytical tasks, examine data from multiple angles, identify patterns and trends, provide statistical context, generate actionable business insights, and consider implications and recommendations."
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"

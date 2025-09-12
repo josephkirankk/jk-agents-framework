@@ -33,7 +33,7 @@ supervisor:
 agents:
   - name: "search_agent"
     description: "Perform web search via Brave MCP SSE and summarize results"
-    model: "openai:google/gemma-3n-e4b"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
 
@@ -54,7 +54,7 @@ agents:
 
   - name: "human_response_agent"
     description: "Produces the final user-facing response"
-    model: "openai:google/gemma-3n-e4b"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
 
@@ -64,13 +64,14 @@ agents:
       - Natural, human-readable format only
       - Include code/ASCII art verbatim if present
       - No internal reasoning or agent names
-      - Cite URLs as [1], [2] if provided
+      - Only include citations [1], [2] if actual URLs were provided in previous steps
+      - Do not add placeholder citations without real sources
       - Do not call tools
     mcp_servers: {}
 
   - name: "math_agent"
     description: "Perform precise arithmetic calculations"
-    model: "openai:google/gemma-3n-e4b"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
 
@@ -78,8 +79,9 @@ agents:
 
       Rules:
       - Extract temperature values from previous responses
-      - Use calc tool for arithmetic operations
-      - Return format: "Result: <number> (calculated from <city1>: <temp1>°C + <city2>: <temp2>°C)"
+      - Use calc tool with single expression format (e.g., "34 - 30" or "34 > 30")
+      - For comparisons, use expressions like "34 - 30" to find the difference
+      - Return format: "Result: <number> (calculated from <city1>: <temp1>°C vs <city2>: <temp2>°C)"
       - Report errors without guessing
     mcp_servers: {}
     http_tools:
@@ -94,7 +96,7 @@ agents:
 
   - name: "weather_agent"
     description: "Fetch current weather from the local FastAPI server"
-    model: "openai:google/gemma-3n-e4b"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
 

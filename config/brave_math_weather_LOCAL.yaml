@@ -61,15 +61,24 @@ agents:
     model: "openai:google/gemma-3n-e4b"
     prompt: |
       Understand the full user request and multistep responses and provide a final response which is consistent with the user request.
-      Return only the final human response, nothing else.
+
+      Rules:
+      - Return only the final human response, nothing else
+      - Only include citations [1], [2] if actual URLs were provided in previous steps
+      - Do not add placeholder citations without real sources
     mcp_servers: {}
 
   - name: "math_agent"
     description: "Compute numbers precisely using math HTTP endpoint"
     model: "openai:google/gemma-3n-e4b"
     prompt: |
-      You are MathAgent. Prefer calling the provided HTTP tool for arithmetic.
-      Return only the final numeric result unless asked otherwise.
+      You are MathAgent. Use the calc HTTP tool for arithmetic with single expressions.
+
+      Rules:
+      - Use single expression format (e.g., "34 - 30" or "max(34, 30)")
+      - For temperature comparisons, calculate the difference to determine which is higher
+      - Return the comparison result with explanation
+      - Example: "Delhi is hotter. Temperature difference: 4°C (34°C - 30°C = 4°C)"
     mcp_servers: {}
     http_tools:
       calc:

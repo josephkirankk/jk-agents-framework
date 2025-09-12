@@ -1,0 +1,62 @@
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "google:gemini-2.0-flash-lite-001"
+  temperature: 0.0
+
+business_context: |
+  You are an AI assistant powered by Google Gemini models with advanced multimodal capabilities.
+  You can process text, images, and various file types. Prioritize accuracy and provide helpful responses.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: ""
+  prompt_file: "prompts/supervisor_prompt.txt"
+
+agents:
+  - name: "jk_csv_processing_agent"
+    description: "Advanced CSV analysis using LM Studio with Python execution capabilities"
+    model: "google:gemini-2.0-flash-lite-001"
+    prompt_file: "prompts/csv_processing_agent_prompt.txt"
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+    python_tools:
+      all_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["count_csv_rows"]
+        description: "function to count number of rows in CSV"
+
+  - name: "web_agent"
+    description: "Performs web lookups and retrieval using streamable HTTP MCP servers."
+    model: "openai:gpt-4o-mini"
+    prompt_file: "prompts/web_agent_prompt.txt"
+    mcp_servers:
+      websearch:
+        description: "Brave search MCP server (streamable-http)."
+        transport: "streamable_http"
+        url: "http://localhost:8000/mcp"
+        env: {}
+
+  - name: "test_agent"
+    description: "Simple test agent with direct prompt text for comparison"
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are a helpful test agent. Answer the user's question directly without using any external tools.
+      Be concise and accurate in your responses.
+      
+      This prompt is defined directly in the YAML file to demonstrate the difference
+      between direct prompts and file-based prompts.
+    mcp_servers: {}

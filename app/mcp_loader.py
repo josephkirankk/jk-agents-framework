@@ -21,7 +21,7 @@ class TimeoutTool(BaseTool):
         self,
         inner: BaseTool,
         timeout: float = 15.0,
-        retries: int = 2,
+        retries: int = 0,
         **kwargs,
     ):
         tool_name = getattr(
@@ -61,7 +61,16 @@ class TimeoutTool(BaseTool):
                 elif args:
                     payload = args[0]
                 else:
-                    payload = None
+                    # For functions with empty parameter schemas, use empty dict instead of None
+                    try:
+                        inner_schema = getattr(self._inner, "args_schema", None)
+                        if inner_schema is not None:
+                            payload = {}
+                        else:
+                            # Always use empty dict instead of None
+                            payload = {}
+                    except Exception:
+                        payload = {}
                 # If the inner tool expects structured args (args_schema), but
                 # got a string, coerce to a dict so inner BaseTool doesn't
                 # fail.
@@ -82,7 +91,7 @@ class TimeoutTool(BaseTool):
 
     async def _arun(self, *args: Any, **kwargs: Any):
         last_exc: Optional[BaseException] = None
-        for attempt in range(self._retries):
+        for attempt in range(self._retries + 1):
             try:
                 # Prefer structured kwargs if provided
                 payload: Any
@@ -91,7 +100,16 @@ class TimeoutTool(BaseTool):
                 elif args:
                     payload = args[0]
                 else:
-                    payload = None
+                    # For functions with empty parameter schemas, use empty dict instead of None
+                    try:
+                        inner_schema = getattr(self._inner, "args_schema", None)
+                        if inner_schema is not None:
+                            payload = {}
+                        else:
+                            # Always use empty dict instead of None
+                            payload = {}
+                    except Exception:
+                        payload = {}
                 try:
                     inner_schema = getattr(self._inner, "args_schema", None)
                 except Exception:
@@ -106,16 +124,31 @@ class TimeoutTool(BaseTool):
                 else:
                     loop = asyncio.get_running_loop()
                     coro = loop.run_in_executor(None, self._inner.run, payload)
-                return await asyncio.wait_for(coro, timeout=self._timeout)
+                result = await asyncio.wait_for(coro, timeout=self._timeout)
+                log.debug(
+                    f"Tool {self._inner.name} succeeded on "
+                    f"attempt {attempt + 1}"
+                )
+                return result
             except Exception as e:
+                log.error(
+                    f"Tool {self._inner.name} failed on "
+                    f"attempt {attempt + 1}: {type(e).__name__}: {e}"
+                )
+                import traceback
+                log.error(f"Full traceback: {traceback.format_exc()}")
                 last_exc = e
+        log.error(
+            f"Tool {self._inner.name} failed after {self._retries + 1} "
+            f"attempts. Last error: {last_exc}"
+        )
         raise last_exc or RuntimeError("Inner tool failed with unknown error")
 
  
 async def load_mcp_tools(
     servers_cfg: Dict[str, Any],
-    tool_timeout: float = 15.0,
-    tool_retries: int = 2,
+    tool_timeout: float = 30.0,
+    tool_retries: int = 0,
 ) -> Tuple[Optional[MultiServerMCPClient], List[BaseTool]]:
     if not servers_cfg:
         return None, []

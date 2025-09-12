@@ -1,0 +1,21 @@
+customer_id,age,gender,annual_income,spending_score,membership_years,last_purchase_days,total_purchases,avg_order_value,preferred_category,city,satisfaction_rating
+C001,25,Female,35000,81,2,15,45,78.50,Fashion,New York,4.2
+C002,32,Male,42000,67,3,8,32,95.20,Electronics,Los Angeles,4.5
+C003,28,Female,38000,73,1,22,28,65.30,Beauty,Chicago,3.8
+C004,45,Male,65000,45,5,45,67,120.40,Home,Houston,4.1
+C005,35,Female,48000,89,4,3,89,85.60,Fashion,Phoenix,4.7
+C006,29,Male,41000,52,2,30,23,110.20,Electronics,Philadelphia,3.5
+C007,38,Female,55000,78,6,12,78,92.80,Beauty,San Antonio,4.3
+C008,42,Male,58000,41,3,60,34,135.70,Home,San Diego,3.9
+C009,26,Female,36000,85,1,7,52,72.40,Fashion,Dallas,4.6
+C010,33,Male,44000,63,4,18,41,88.90,Electronics,San Jose,4.0
+C011,31,Female,46000,76,3,25,56,79.30,Beauty,Austin,4.4
+C012,48,Male,72000,38,7,75,45,145.60,Home,Jacksonville,3.7
+C013,27,Female,37000,82,2,10,48,74.80,Fashion,Fort Worth,4.5
+C014,36,Male,51000,59,5,35,38,102.50,Electronics,Columbus,3.8
+C015,30,Female,43000,71,3,20,62,81.70,Beauty,Charlotte,4.2
+C016,44,Male,61000,47,6,50,29,128.30,Home,San Francisco,4.0
+C017,24,Female,33000,88,1,5,67,69.20,Fashion,Indianapolis,4.8
+C018,37,Male,49000,55,4,40,35,98.40,Electronics,Seattle,3.6
+C019,34,Female,47000,79,3,14,71,86.50,Beauty,Denver,4.3
+C020,41,Male,56000,43,5,65,31,118.90,Home,Washington,3.9

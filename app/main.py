@@ -19,6 +19,8 @@ from .markdown_formatter import (
     format_result_as_markdown,
     format_direct_agent_result
 )
+from .direct_agent_logger import create_direct_agent_logger
+from .thread_manager import get_or_create_thread_id
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 
@@ -107,7 +109,12 @@ def load_app_config(cfg_path: Path | None = None) -> AppConfig:
     return AppConfig(**data)
 
 
-async def build_agents_map(app_cfg: AppConfig, *, user_input: str = ""):
+async def build_agents_map(
+    app_cfg: AppConfig,
+    *,
+    user_input: str = "",
+    config_path: Optional[str] = None
+):
     """Build agents and return agent map and MCP clients for cleanup.
 
     Pass original user input to allow Jinja2 prompt rendering.
@@ -123,6 +130,8 @@ async def build_agents_map(app_cfg: AppConfig, *, user_input: str = ""):
             business_context=app_cfg.business_context or "",
             original_user_question=user_input or "",
             dependent_request_responses="",
+            config_path=config_path,
+            enable_llm_payload_logging=False,  # Disable for supervisor mode to avoid log clutter
         )
         agents_map[a.name] = compiled
         if mcp_client:
@@ -133,54 +142,94 @@ async def build_agents_map(app_cfg: AppConfig, *, user_input: str = ""):
 async def run_direct_agent(
     agent_name: str, user_input: str, app_cfg: AppConfig
 ):
-    default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
-    # find agent config
-    target: Optional[AgentConfig] = next(
-        (a for a in app_cfg.agents if a.name == agent_name), None
+    # Initialize logger
+    logger = create_direct_agent_logger(
+        agent_name=agent_name,
+        user_input=user_input,
+        business_context=app_cfg.business_context or ""
     )
-    if not target:
-        raise SystemExit(f"Agent '{agent_name}' not found in config")
 
-    compiled, mcp_client = await build_react_agent(
-        target,
-        default_model,
-        business_context=app_cfg.business_context or "",
-        original_user_question=user_input,
-        dependent_request_responses="",
-    )
+    success = False
+    error_message = ""
+
     try:
-        system_context = (
-            "Business context:\n"
-            f"{app_cfg.business_context or ''}\n\n"
-            "Previous step results:\n(none)"
+        default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+        # find agent config
+        target: Optional[AgentConfig] = next(
+            (a for a in app_cfg.agents if a.name == agent_name), None
         )
-        state = {"messages": [
-            {"role": "system", "content": system_context},
-            {"role": "user", "content": user_input},
-        ]}
-        config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
-        try:
-            out = await compiled.ainvoke(state, config=config)
-        except AttributeError:
-            out = compiled.invoke(state, config=config)
+        if not target:
+            raise SystemExit(f"Agent '{agent_name}' not found in config")
 
-        msgs = out.get("messages", [])
-        if msgs:
-            # LangGraph messages are objects with .content attribute
-            last_msg = msgs[-1]
-            text = getattr(last_msg, "content", "")
-        else:
-            text = ""
-        
-        # Format as user-friendly Markdown
-        formatted_output = format_direct_agent_result(
-            content=text,
-            agent_name=agent_name,
-            user_input=user_input
+        compiled, mcp_client = await build_react_agent(
+            target,
+            default_model,
+            business_context=app_cfg.business_context or "",
+            original_user_question=user_input,
+            dependent_request_responses="",
+            config_path=None,  # Direct agent calls don't have config path
+            enable_llm_payload_logging=True,
+            llm_payload_logger=logger.get_llm_payload_logger(),
         )
-        print(formatted_output)
+
+        try:
+            system_context = (
+                "Business context:\n"
+                f"{app_cfg.business_context or ''}\n\n"
+                "Previous step results:\n(none)"
+            )
+
+            # Log the request
+            logger.log_agent_request(
+                compiled_agent=compiled,
+                system_context=system_context,
+                user_task=user_input
+            )
+
+            state = {"messages": [
+                {"role": "system", "content": system_context},
+                {"role": "user", "content": user_input},
+            ]}
+            # Generate unique thread ID for CLI execution
+            thread_id = get_or_create_thread_id()
+            config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+
+            try:
+                out = await compiled.ainvoke(state, config=config)
+            except AttributeError:
+                out = compiled.invoke(state, config=config)
+
+            msgs = out.get("messages", [])
+            if msgs:
+                # LangGraph messages are objects with .content attribute
+                last_msg = msgs[-1]
+                text = getattr(last_msg, "content", "")
+            else:
+                text = ""
+
+            # Log the response
+            logger.log_agent_response(response_text=text, raw_output=out)
+
+            # Format as user-friendly Markdown
+            formatted_output = format_direct_agent_result(
+                content=text,
+                agent_name=agent_name,
+                user_input=user_input
+            )
+            print(formatted_output)
+            success = True
+
+        finally:
+            await close_mcp_client(mcp_client)
+
+    except Exception as e:
+        error_message = str(e)
+        raise
     finally:
-        await close_mcp_client(mcp_client)
+        # Log execution summary
+        logger.log_execution_summary(success=success, error_message=error_message)
+        if logger.get_log_file_path():
+            print(f"\nLog saved to: {logger.get_log_file_path()}")
 
 
 async def run_supervised(user_input: str, app_cfg: AppConfig):
@@ -192,9 +241,12 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
         default_model,
         app_cfg.business_context or "",
         original_user_question=user_input,
+        config_path=None,  # CLI calls don't have config path
     )
     # Build workers
-    agents_map, mcp_clients = await build_agents_map(app_cfg, user_input=user_input)
+    agents_map, mcp_clients = await build_agents_map(
+        app_cfg, user_input=user_input, config_path=None
+    )
     try:
         result = await execute_plan(
             supervisor_compiled=supervisor,

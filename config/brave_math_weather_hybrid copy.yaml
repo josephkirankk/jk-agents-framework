@@ -1,0 +1,153 @@
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "openai:google/gemma-3n-e4b"
+  temperature: 0.0
+
+business_context: |
+  Multi-agent system rules: Delegate to specialized agents, minimize steps, use specific tasks, verify results.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "google:gemini-2.5-flash"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+
+    Task requirements:
+    - Simple, specific actions (like search queries or calculations)
+    - Include simple verification questions (e.g., "Does the result contain a number?")
+    - Always end with human_response_agent for final presentation
+
+    Available agents: {{agents}}
+
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple verification question"}
+      ]
+    }
+
+agents:
+  - name: "search_agent"
+    description: "Perform web search via Brave MCP SSE and summarize results"
+    model: "google:gemini-2.5-flash"
+    prompt: |
+      {{dependent_request_responses}}
+
+      SearchAgent: Use Brave MCP for web searches. Return concise summaries with 2-3 key URLs.
+
+      Rules:
+      - Build on previous step information when available
+      - Facts only, no speculation
+      - Bullet points for clarity
+      - No raw HTML or metadata
+
+      Available MCP servers: {{mcpservers}}
+    mcp_servers:
+      brave:
+        description: "Brave search MCP server (SSE)"
+        transport: "sse"
+        url: "http://localhost:8080/sse"
+
+  - name: "human_response_agent"
+    description: "Produces the final user-facing response"
+    model: "google:gemini-2.5-flash"
+    prompt: |
+      {{dependent_request_responses}}
+
+      Final responder: Synthesize all previous steps into a complete, natural answer.
+
+      Rules:
+      - Natural, human-readable format only
+      - Include code/ASCII art verbatim if present
+      - No internal reasoning or agent names
+      - Only include citations [1], [2] if actual URLs were provided in previous steps
+      - Do not add placeholder citations without real sources
+      - Do not call tools
+    mcp_servers: {}
+
+  - name: "math_agent"
+    description: "Perform precise arithmetic calculations"
+    model: "google:gemini-2.5-flash"
+    prompt: |
+      {{dependent_request_responses}}
+
+      MathAgent: Extract numbers from previous responses and calculate using HTTP tool.
+
+      Rules:
+      - Extract temperature values from previous responses
+      - Use calc tool with single expression format (e.g., "34 - 30" or "34 > 30")
+      - For comparisons, use expressions like "34 - 30" to find the difference
+      - Return format: "Result: <number> (calculated from <city1>: <temp1>°C vs <city2>: <temp2>°C)"
+      - Report errors without guessing
+    mcp_servers: {}
+    http_tools:
+      calc:
+        description: "Calculate arithmetic expression"
+        method: GET
+        url: "http://localhost:8001/calculate"
+        params:
+          - name: expression
+            in: query
+        response_path: result
+
+  - name: "weather_agent"
+    description: "Fetch current weather from the local FastAPI server"
+    model: "google:gemini-2.5-flash"
+    prompt: |
+      {{dependent_request_responses}}
+
+      WeatherAgent: Get weather for specified city using HTTP tool.
+
+      Rules:
+      - Extract city name from task or previous responses
+      - Call weather tool once per city
+      - Return format: "<CityName>: <temp>°C, <condition>"
+      - If unavailable: "Weather unavailable for <city>"
+    mcp_servers: {}
+    http_tools:
+      weather:
+        description: "Get weather for a city"
+        method: GET
+        url: "http://localhost:8002/weather"
+        params:
+          - name: city
+            in: query
+
+  - name: "python_exec_agent"
+    description: "Write and execute minimal Python snippets via MCP"
+    model: "google:gemini-2.5-flash"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are CodeRunner. You MUST write and execute Python code using the run_python_code tool for any computational task.
+
+      CRITICAL RULES:
+      - ALWAYS use the run_python_code tool - never just describe what you would do
+      - Write the Python code first, then execute it using the tool
+      - Show both the code (```python ... ```) and the actual execution result
+      - Use previous step data as input when appropriate
+      - Prefer standard library, avoid network or file side effects
+      - If execution fails, fix the code and retry once
+
+      Available MCP servers: {{mcpservers}}
+
+      Remember: You must actually execute the code using the available tool, not just pretend to do it!
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+

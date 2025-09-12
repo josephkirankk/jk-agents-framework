@@ -1,11 +1,14 @@
 from __future__ import annotations
 import logging
-from typing import List
+from typing import List, Optional
+from pathlib import Path
 
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from .config import SupervisorConfig, AgentConfig
 from .template_utils import render_prompt
+from .agent_builder import create_model_instance
+from .prompt_loader import load_prompt_content, get_config_directory
 
 log = logging.getLogger("supervisor_builder")
 
@@ -22,11 +25,34 @@ def build_supervisor_compiled(
     agents_cfg: List[AgentConfig],
     default_model: str,
     business_context: str = "",
-    checkpointer=MemorySaver(),
+    checkpointer=None,
     *,
     original_user_question: str = "",
+    config_path: Optional[str] = None,
 ):
+    # Create a fresh MemorySaver instance if none provided to avoid shared state
+    if checkpointer is None:
+        checkpointer = MemorySaver()
+
     agents_list = _format_agents_listing(agents_cfg)
+
+    # Load prompt content from either direct text or file
+    try:
+        config_dir = get_config_directory(
+            Path(config_path) if config_path else None
+        )
+        prompt_content = load_prompt_content(
+            prompt=supervisor_cfg.prompt,
+            prompt_file=supervisor_cfg.prompt_file,
+            config_dir=config_dir,
+        )
+    except Exception as e:
+        log.error(
+            "Failed to load prompt for supervisor: %s",
+            e,
+        )
+        raise
+
     # Render with Jinja2 so templates can use:
     # {{ agents }}, {{ business_context }}, {{ original_user_question }}
     ctx = {
@@ -35,16 +61,20 @@ def build_supervisor_compiled(
         "original_user_question": original_user_question or "",
     }
     try:
-        prompt_filled = render_prompt(supervisor_cfg.prompt or "", ctx)
+        prompt_filled = render_prompt(prompt_content, ctx)
     except Exception:
         # Fall back to simple replacements
-        prompt_filled = (supervisor_cfg.prompt or "").replace("{{agents}}", agents_list)
-        prompt_filled = prompt_filled.replace("{{business_context}}", business_context)
+        prompt_filled = prompt_content.replace("{{agents}}", agents_list)
+        prompt_filled = prompt_filled.replace(
+            "{{business_context}}", business_context
+        )
 
     supervisor_model = supervisor_cfg.model or default_model
+    # Create the appropriate model instance (handles google: prefix)
+    supervisor_model_instance = create_model_instance(supervisor_model)
 
     sup_agent = create_react_agent(
-        model=supervisor_model,
+        model=supervisor_model_instance,
         tools=[],
         prompt=prompt_filled.strip(),
         name="supervisor",

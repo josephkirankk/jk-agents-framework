@@ -1,0 +1,161 @@
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+business_context: |
+  Local stdio-only MCP setup with Context7 and Python runner.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple check"}
+      ]
+    }
+
+     Use the appropriate agents from this list:
+    {{agents}}
+
+agents:
+  - name: "test_agent"
+    description: "Simple test agent for basic validation"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      You are a helpful test agent. Be concise and accurate.
+    mcp_servers: {}
+
+  - name: "python_exec_agent"
+    description: "Execute Python code using MCP (stdio)"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      You are CodeRunner. Write and execute Python using the MCP tool.
+      Show full code and execution result. If it fails, fix once and retry.
+      Available MCP servers: {{mcpservers}}
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+        env: {}
+
+  - name: "math_agent"
+    description: "Perform precise arithmetic calculations using local HTTP service"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      MathAgent: Extract numbers from previous responses and calculate using HTTP tool.
+
+      Rules:
+      - Extract numerical values from previous responses when available
+      - Use calc tool with single expression format (e.g., "34 + 30" or "5 * 8")
+      - For comparisons, use expressions like "34 - 30"
+      - Return format: "Result: <number> (calculated from expression: <expression>)"
+      - If HTTP tool fails, do it manually and say so
+      - Report errors without guessing
+    mcp_servers: {}
+    http_tools:
+      calc:
+        description: "Calculate arithmetic expression"
+        method: GET
+        url: "http://localhost:8001/calculate"
+        params:
+          - name: expression
+            in: query
+        response_path: result
+
+  - name: "context7_docs_agent"
+    description: "Resolve library IDs and fetch docs via Context7 MCP; answer concisely with one short example."
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are Context7DocsAgent. Use the Context7 MCP tools to resolve a library and fetch its docs, then answer the user's question clearly.
+
+      Workflow:
+      1) If the user mentions a package (e.g., 'langchain', 'langgraph'), call `resolve-library-id` with the name.
+      2) Call `get-library-docs` with the resolved ID (or canonical vendor/name).
+      3) Extract only sections relevant to the question; provide one short, correct code example.
+      4) If multiple results match, briefly state your assumption. If the tools fail, say so and suggest next steps.
+
+      Output rules:
+      - Be precise (KISS), no speculative APIs.
+      - Mention version-specific notes if present.
+      - One short code block unless asked for more.
+
+      Available MCP servers: {{mcpservers}}
+    mcp_servers:
+      context7_local:
+        transport: "stdio"
+        command: "npx"
+        args: ["-y", "@upstash/context7-mcp@latest", "--api-key", "ctx7sk-0df6b560-74ea-4b1c-97c5-4b81c5d4d989"]
+        env: {}
+
+  - name: "data_analysis_agent"
+    description: "Comprehensive data analysis agent with Context7 docs and Python tools"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are DataAnalysisAgent, a comprehensive data analysis assistant with access to:
+      1. Context7 MCP tools for fetching up-to-date documentation
+      2. Python function tools for data processing and analysis
+
+      Capabilities:
+      - Fetch documentation for data science libraries (pandas, numpy, matplotlib, etc.)
+      - Perform statistical analysis on numerical data
+      - Process and analyze text data
+      - Calculate business metrics and percentages
+      - Format data for presentation
+      - Count and analyze CSV data
+
+      Workflow:
+      1. If user asks about a library/framework, use Context7 tools to get current docs
+      2. For data analysis tasks, use Python function tools to process the data
+      3. Combine documentation insights with practical analysis
+      4. Provide clear explanations with code examples when relevant
+
+      Available MCP servers: {{mcpservers}}
+
+      Always be precise, show your work, and provide actionable insights.
+    mcp_servers:
+      context7_local:
+        transport: "stdio"
+        command: "npx"
+        args: ["-y", "@upstash/context7-mcp@latest", "--api-key", "ctx7sk-0df6b560-74ea-4b1c-97c5-4b81c5d4d989"]
+        env: {}
+    python_tools:
+      data_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["calculate_percentage", "data_analyzer", "format_currency", "calculate_business_days"]
+        description: "Data analysis and business calculation tools"
+      text_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["text_processor", "count_csv_rows"]
+        description: "Text processing and CSV analysis tools"
+
+  - name: "human_response_agent"
+    description: "Produces the final user-facing response"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      Present a clear, natural answer. Include any code and results verbatim when provided.
+    mcp_servers: {}
