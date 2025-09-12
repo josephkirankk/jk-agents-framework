@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-09-05T11:25:11.943Z",
+  "original_input": "Cooling oil leak kar raha hai.",
+  "remarks": "",
+  "selected_defect": {
+    "defect_code": "PLG.HYD.HOSE.DAMAGE",
+    "defect_text": "Damage to hydraulic hoses",
+    "confidence_score": 0.55,
+    "mapping_status": "NEAR_MATCH:PLG.HYD.HOSE.DAMAGE",
+    "curator_action": "HUMAN_DECISION"
+  },
+  "selected_pairs": [
+    {
+      "root_cause": {
+        "root_cause_code": "RC.WEAR.NORMAL",
+        "root_cause_text": "Normal operational wear over time",
+        "is_primary": true
+      },
+      "corrective_action": {
+        "action_code": "CA.HOSE.REPLACE",
+        "action_text": "Replace damaged hoses",
+        "is_primary": true
+      },
+      "pair_id": "primary"
+    }
+  ],
+  "analysis_metadata": {
+    "agent_name": "jk_pilger_agent_v8",
+    "config_path": "config/jk-gemba.yaml",
+    "submission_source": "enhanced_defect_analysis_page",
+    "total_pairs_selected": 1
+  },
+  "submission_metadata": {
+    "submission_id": "submit_20250905112509",
+    "submission_timestamp": "2025-09-05T11:25:09.977344Z",
+    "filename": "submit_20250905112509.json"
+  }
+}

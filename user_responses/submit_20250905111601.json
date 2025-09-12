@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-09-05T11:16:03.644Z",
+  "original_input": "कूलिंग टावर , ट्रिप हो रहा है। ",
+  "remarks": "",
+  "selected_defect": {
+    "defect_code": "PLG.CLB.OVERHEAT.SYSTEM",
+    "defect_text": "System overheating due to cooling failure",
+    "confidence_score": 0.75,
+    "mapping_status": "NEAR_MATCH:PLG.CLB.OVERHEAT.SYSTEM",
+    "curator_action": "REVIEW_REQUIRED"
+  },
+  "selected_pairs": [
+    {
+      "root_cause": {
+        "root_cause_code": "RC.PUMP.FAIL",
+        "root_cause_text": "Complete pump failure",
+        "is_primary": true
+      },
+      "corrective_action": {
+        "action_code": "CA.PUMP.REPAIR",
+        "action_text": "Repair or replace pump",
+        "is_primary": true
+      },
+      "pair_id": "primary"
+    }
+  ],
+  "analysis_metadata": {
+    "agent_name": "jk_pilger_agent_v8",
+    "config_path": "config/jk-gemba.yaml",
+    "submission_source": "enhanced_defect_analysis_page",
+    "total_pairs_selected": 1
+  },
+  "submission_metadata": {
+    "submission_id": "submit_20250905111601",
+    "submission_timestamp": "2025-09-05T11:16:01.734116Z",
+    "filename": "submit_20250905111601.json"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "timestamp": "2025-09-05T11:20:45.410Z",
+  "original_input": "Roll ing motor not working.",
+  "remarks": "",
+  "selected_defect": {
+    "defect_code": "PLG.ELE.SERVO.FAIL.NO_RESPONSE",
+    "defect_text": "Servo Motor: Motor is not responding to commands.",
+    "confidence_score": 0.65,
+    "mapping_status": "NEAR_MATCH:PLG.ELE.SERVO.FAIL.NO_RESPONSE",
+    "curator_action": "REVIEW_REQUIRED"
+  },
+  "selected_pairs": [
+    {
+      "root_cause": {
+        "root_cause_code": "RC.SERVO_DRIVE.FAULT",
+        "root_cause_text": "Fault within the servo drive controller",
+        "is_primary": true
+      },
+      "corrective_action": {
+        "action_code": "CA.SERVO_DRIVE.REPLACE",
+        "action_text": "Replace faulty servo drive",
+        "is_primary": true
+      },
+      "pair_id": "primary"
+    },
+    {
+      "root_cause": {
+        "root_cause_code": "RC.SERVO_DRIVE.FAULT",
+        "root_cause_text": "Fault within the servo drive controller",
+        "is_primary": false
+      },
+      "corrective_action": {
+        "action_code": "CA.WIRING.REPAIR",
+        "action_text": "Repair damaged wiring",
+        "is_primary": false
+      },
+      "pair_id": "alt-0-2"
+    }
+  ],
+  "analysis_metadata": {
+    "agent_name": "jk_pilger_agent_v8",
+    "config_path": "config/jk-gemba.yaml",
+    "submission_source": "enhanced_defect_analysis_page",
+    "total_pairs_selected": 2
+  },
+  "submission_metadata": {
+    "submission_id": "submit_20250905112043",
+    "submission_timestamp": "2025-09-05T11:20:43.821988Z",
+    "filename": "submit_20250905112043.json"
+  }
+}
