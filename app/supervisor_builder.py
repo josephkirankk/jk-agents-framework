@@ -25,11 +25,15 @@ def build_supervisor_compiled(
     agents_cfg: List[AgentConfig],
     default_model: str,
     business_context: str = "",
-    checkpointer=MemorySaver(),
+    checkpointer=None,
     *,
     original_user_question: str = "",
     config_path: Optional[str] = None,
 ):
+    # Create a fresh MemorySaver instance if none provided to avoid shared state
+    if checkpointer is None:
+        checkpointer = MemorySaver()
+
     agents_list = _format_agents_listing(agents_cfg)
 
     # Load prompt content from either direct text or file

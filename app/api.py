@@ -26,6 +26,7 @@ from .planner_executor import execute_plan
 from .mcp_loader import close_mcp_client
 from .agent_builder import build_react_agent
 from .direct_agent_logger import create_direct_agent_logger
+from .thread_manager import get_or_create_thread_id
 
 # Configure logging
 logging.basicConfig(
@@ -321,6 +322,11 @@ class QueryRequest(BaseModel):
         description="If True, returns only the raw agent response content "
                     "as plain text with no JSON wrapping or metadata"
     )
+    thread_id: Optional[str] = Field(
+        None,
+        description="Optional thread ID for conversation continuity. "
+                    "If not provided, a new thread will be created."
+    )
 
 
 class QueryResponse(BaseModel):
@@ -336,6 +342,9 @@ class QueryResponse(BaseModel):
     raw_data: Optional[Dict[str, Any]] = Field(
         None,
         description="Raw unprocessed execution result when raw_output=True"
+    )
+    thread_id: str = Field(
+        ..., description="Thread ID used for this conversation"
     )
 
 
@@ -361,6 +370,11 @@ class WorkerRequest(BaseModel):
         description="If True, returns only the raw agent response content "
                     "as plain text with no JSON wrapping or metadata"
     )
+    thread_id: Optional[str] = Field(
+        None,
+        description="Optional thread ID for conversation continuity. "
+                    "If not provided, a new thread will be created."
+    )
 
 
 class WorkerResponse(BaseModel):
@@ -381,6 +395,9 @@ class WorkerResponse(BaseModel):
     raw_data: Optional[Dict[str, Any]] = Field(
         None,
         description="Raw unprocessed execution result when raw_output=True"
+    )
+    thread_id: str = Field(
+        ..., description="Thread ID used for this conversation"
     )
 
 
@@ -529,7 +546,8 @@ async def run_direct_agent_api(
     agent_name: str,
     user_input: str,
     app_cfg: AppConfig,
-    config_path: Optional[str] = None
+    config_path: Optional[str] = None,
+    thread_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Run a direct agent and return structured results for API use.
@@ -590,7 +608,9 @@ async def run_direct_agent_api(
                     {"role": "user", "content": user_input},
                 ]
             }
-            config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
+            # Get or create thread ID
+            actual_thread_id = get_or_create_thread_id(thread_id)
+            config: RunnableConfig = {"configurable": {"thread_id": actual_thread_id}}
 
             try:
                 out = await compiled.ainvoke(state, config=config)
@@ -616,6 +636,7 @@ async def run_direct_agent_api(
                 "raw_output": out,
                 "log_file": logger.get_log_file_path(),
                 "llm_payload_log_file": logger.get_llm_payload_log_path(),
+                "thread_id": actual_thread_id,
             }
 
         finally:
@@ -630,7 +651,7 @@ async def run_direct_agent_api(
 
 
 async def run_supervised_api(
-    user_input: str, app_cfg: AppConfig, config_path: Optional[str] = None
+    user_input: str, app_cfg: AppConfig, config_path: Optional[str] = None, thread_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Run the supervised multi-agent system and return structured results.
@@ -664,6 +685,7 @@ async def run_supervised_api(
             default_model_for_verifier=default_model,
             agents_configs=app_cfg.agents,
             default_model=default_model,
+            thread_id=thread_id,
         )
         return result
 
@@ -739,7 +761,9 @@ async def query_form_endpoint(
     config_path: Optional[str] = Form(None,
                                       description="Optional path to config file"),
     raw_output: bool = Form(False,
-                            description="If True, returns only raw response")
+                            description="If True, returns only raw response"),
+    thread_id: Optional[str] = Form(None,
+                                    description="Optional thread ID for conversation continuity")
 ):
     """
     Query endpoint that accepts form data instead of JSON.
@@ -756,7 +780,8 @@ async def query_form_endpoint(
     request = QueryRequest(
         input=input,
         config_path=config_path,
-        raw_output=raw_output
+        raw_output=raw_output,
+        thread_id=thread_id
     )
 
     # Use the existing query logic
@@ -792,11 +817,15 @@ async def query_endpoint(request: QueryRequest):
                 )
             app_cfg = _app_config
         
+        # Get or create thread ID
+        thread_id = get_or_create_thread_id(request.thread_id)
+        log.info(f"Using thread ID: {thread_id}")
+
         # Execute the multi-agent system
         log.info(f"Processing query: {request.input[:100]}...")
         log.info(f"Raw output requested: {request.raw_output}")
         result = await run_supervised_api(
-            request.input, app_cfg, request.config_path
+            request.input, app_cfg, request.config_path, thread_id
         )
 
         # Prepare metadata
@@ -820,7 +849,8 @@ async def query_endpoint(request: QueryRequest):
             return QueryResponse(
                 success=True,
                 response=human_response,
-                metadata=metadata
+                metadata=metadata,
+                thread_id=thread_id
             )
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -847,14 +877,16 @@ async def query_endpoint(request: QueryRequest):
         return QueryResponse(
             success=False,
             response="",
-            error=error_msg
+            error=error_msg,
+            thread_id=thread_id if 'thread_id' in locals() else get_or_create_thread_id()
         )
     except Exception as e:
         log.error(f"Error processing query: {e}")
         return QueryResponse(
             success=False,
             response="",
-            error=str(e)
+            error=str(e),
+            thread_id=thread_id if 'thread_id' in locals() else get_or_create_thread_id()
         )
 
 
@@ -1136,10 +1168,14 @@ async def worker_endpoint(request: WorkerRequest):
 
             raise HTTPException(status_code=400, detail=error_msg)
 
+        # Get or create thread ID
+        thread_id = get_or_create_thread_id(request.thread_id)
+        log.info(f"Using thread ID: {thread_id}")
+
         # Execute the agent directly
         log.info(f"Executing agent '{request.agent_name}' with input: {request.input[:100]}...")
         result = await run_direct_agent_api(
-            request.agent_name, request.input, app_cfg, request.config_path
+            request.agent_name, request.input, app_cfg, request.config_path, thread_id
         )
 
         # Prepare metadata
@@ -1165,7 +1201,8 @@ async def worker_endpoint(request: WorkerRequest):
                 agent_name=request.agent_name,
                 error=None,
                 metadata=metadata,
-                raw_data=None
+                raw_data=None,
+                thread_id=thread_id
             )
 
     except HTTPException:
@@ -1193,7 +1230,8 @@ async def worker_endpoint(request: WorkerRequest):
             agent_name=request.agent_name,
             error=error_msg,
             metadata=None,
-            raw_data=None
+            raw_data=None,
+            thread_id=thread_id if 'thread_id' in locals() else get_or_create_thread_id()
         )
     except Exception as e:
         log.error(f"Error executing worker '{request.agent_name}': {e}")
@@ -1203,7 +1241,8 @@ async def worker_endpoint(request: WorkerRequest):
             agent_name=request.agent_name,
             error=str(e),
             metadata=None,
-            raw_data=None
+            raw_data=None,
+            thread_id=thread_id if 'thread_id' in locals() else get_or_create_thread_id()
         )
 
 

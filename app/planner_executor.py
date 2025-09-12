@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field, ValidationError
 from .utils import extract_json_block
 from langchain.chat_models import init_chat_model
+from .thread_manager import get_or_create_thread_id, create_supervisor_thread_id, create_step_thread_id
 
 log = logging.getLogger("planner_executor")
 logging.getLogger("planner_executor").setLevel(logging.INFO)
@@ -194,7 +195,12 @@ async def execute_plan(
     default_verifier_timeout_seconds: Optional[int] = 45,
     agents_configs: Optional[List] = None,
     default_model: str = "openai:gpt-4o-mini",
+    thread_id: Optional[str] = None,
 ) -> Dict[str, Any]:
+    # Get or create base thread ID for this execution
+    base_thread_id = get_or_create_thread_id(thread_id)
+    supervisor_thread_id = create_supervisor_thread_id(base_thread_id)
+
     # Prepare log file with timestamped name at repo root
     log_file_path: Optional[Path] = None
     try:
@@ -403,7 +409,7 @@ async def execute_plan(
     except Exception as e:
         log.warning("Failed to print supervisor invocation messages: %s", e)
     try:
-        config = {"configurable": {"thread_id": "execute-plan-thread"}}
+        config = {"configurable": {"thread_id": supervisor_thread_id}}
         # Log supervisor request
         _safe_write([
             "--- Supervisor Request ---",
@@ -432,7 +438,7 @@ async def execute_plan(
             time.perf_counter() - t0,
         )
     except AttributeError:
-        config = {"configurable": {"thread_id": "execute-plan-thread"}}
+        config = {"configurable": {"thread_id": supervisor_thread_id}}
         _safe_write([
             "--- Supervisor Request ---",
             f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
@@ -599,8 +605,9 @@ async def execute_plan(
             )
 
             try:
+                step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
-                    "configurable": {"thread_id": f"step-{step.id}"}
+                    "configurable": {"thread_id": step_thread_id}
                 }
                 # Log worker request
                 _safe_write([
@@ -648,8 +655,9 @@ async def execute_plan(
                         time.perf_counter() - t1,
                     )
             except AttributeError:
+                step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
-                    "configurable": {"thread_id": f"step-{step.id}"}
+                    "configurable": {"thread_id": step_thread_id}
                 }
                 _safe_write([
                     (

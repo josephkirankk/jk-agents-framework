@@ -102,7 +102,7 @@ def _format_mcp_summary(servers_cfg: Dict[str, Dict]) -> str:
 async def build_react_agent(
     agent_cfg: AgentConfig,
     default_model: str,
-    checkpointer=MemorySaver(),
+    checkpointer=None,
     *,
     business_context: str = "",
     original_user_question: str = "",
@@ -111,6 +111,9 @@ async def build_react_agent(
     enable_llm_payload_logging: bool = True,
     llm_payload_logger: Optional[LLMPayloadLogger] = None,
 ):
+    # Create a fresh MemorySaver instance if none provided to avoid shared state
+    if checkpointer is None:
+        checkpointer = MemorySaver()
 
     model_id = agent_cfg.model or default_model
     # Create the appropriate model instance (handles google: prefix)

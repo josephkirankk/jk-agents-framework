@@ -20,6 +20,7 @@ from .markdown_formatter import (
     format_direct_agent_result
 )
 from .direct_agent_logger import create_direct_agent_logger
+from .thread_manager import get_or_create_thread_id
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 
@@ -189,7 +190,9 @@ async def run_direct_agent(
                 {"role": "system", "content": system_context},
                 {"role": "user", "content": user_input},
             ]}
-            config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
+            # Generate unique thread ID for CLI execution
+            thread_id = get_or_create_thread_id()
+            config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
             try:
                 out = await compiled.ainvoke(state, config=config)
