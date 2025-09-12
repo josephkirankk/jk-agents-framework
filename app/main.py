@@ -130,6 +130,7 @@ async def build_agents_map(
             original_user_question=user_input or "",
             dependent_request_responses="",
             config_path=config_path,
+            enable_llm_payload_logging=False,  # Disable for supervisor mode to avoid log clutter
         )
         agents_map[a.name] = compiled
         if mcp_client:
@@ -166,6 +167,8 @@ async def run_direct_agent(
             original_user_question=user_input,
             dependent_request_responses="",
             config_path=None,  # Direct agent calls don't have config path
+            enable_llm_payload_logging=True,
+            llm_payload_logger=logger.get_llm_payload_logger(),
         )
 
         try:

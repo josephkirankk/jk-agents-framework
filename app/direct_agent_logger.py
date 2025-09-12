@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 
+from .llm_payload_logger import LLMPayloadLogger
+
 log = logging.getLogger("direct_agent_logger")
 
 
@@ -21,7 +23,7 @@ class DirectAgentLogger:
     def __init__(self, agent_name: str, user_input: str, business_context: str = ""):
         """
         Initialize the logger with basic information.
-        
+
         Args:
             agent_name: Name of the agent being executed
             user_input: User's input/request
@@ -32,10 +34,13 @@ class DirectAgentLogger:
         self.business_context = business_context
         self.log_file_path: Optional[Path] = None
         self.start_time = datetime.now()
-        
+
+        # Initialize LLM payload logger
+        self.llm_payload_logger = LLMPayloadLogger(agent_name)
+
         # Initialize log file
         self._initialize_log_file()
-        
+
         # Write initial log header
         self._write_log_header()
     
@@ -318,6 +323,14 @@ class DirectAgentLogger:
     def get_log_file_path(self) -> Optional[str]:
         """Get the path to the log file."""
         return str(self.log_file_path) if self.log_file_path else None
+
+    def get_llm_payload_logger(self) -> LLMPayloadLogger:
+        """Get the LLM payload logger instance."""
+        return self.llm_payload_logger
+
+    def get_llm_payload_log_path(self) -> str:
+        """Get the path to the LLM payload log file."""
+        return self.llm_payload_logger.get_log_file_path()
 
 
 def create_direct_agent_logger(

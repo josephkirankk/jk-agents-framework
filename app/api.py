@@ -213,6 +213,8 @@ async def run_direct_agent_with_files(
             original_user_question=user_input,
             dependent_request_responses="",
             config_path=config_path,
+            enable_llm_payload_logging=True,
+            llm_payload_logger=logger.get_llm_payload_logger(),
         )
 
         try:
@@ -294,6 +296,7 @@ async def run_direct_agent_with_files(
                 "agent_name": agent_name,
                 "raw_output": out,
                 "log_file": logger.get_log_file_path(),
+                "llm_payload_log_file": logger.get_llm_payload_log_path(),
             }
 
         finally:
@@ -563,6 +566,8 @@ async def run_direct_agent_api(
             original_user_question=user_input,
             dependent_request_responses="",
             config_path=config_path,
+            enable_llm_payload_logging=True,
+            llm_payload_logger=logger.get_llm_payload_logger(),
         )
 
         try:
@@ -610,6 +615,7 @@ async def run_direct_agent_api(
                 "agent_name": agent_name,
                 "raw_output": out,
                 "log_file": logger.get_log_file_path(),
+                "llm_payload_log_file": logger.get_llm_payload_log_path(),
             }
 
         finally:

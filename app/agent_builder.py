@@ -16,6 +16,7 @@ from .config import AgentConfig
 from .template_utils import render_prompt
 from .gemini_schema_filter import apply_gemini_schema_filtering
 from .prompt_loader import load_prompt_content, get_config_directory
+from .llm_payload_logger import LoggingModelWrapper, LLMPayloadLogger
 
 log = logging.getLogger("agent_builder")
 
@@ -107,6 +108,8 @@ async def build_react_agent(
     original_user_question: str = "",
     dependent_request_responses: str = "",
     config_path: Optional[str] = None,
+    enable_llm_payload_logging: bool = True,
+    llm_payload_logger: Optional[LLMPayloadLogger] = None,
 ):
 
     model_id = agent_cfg.model or default_model
@@ -198,16 +201,26 @@ async def build_react_agent(
 
         # Create the actual model instance using LangChain's init_chat_model
         actual_model = init_chat_model(model_instance)
+        log.info("Created model instance: %s", type(actual_model).__name__)
 
-        # Bind tools with parallel_tool_calls=False to prevent duplicate calls
+        # Bind tools first, then wrap with logging
         if tools:
             model_with_tools = actual_model.bind_tools(tools, parallel_tool_calls=False)
             log.info("Disabled parallel tool calls for agent %s", agent_cfg.name)
         else:
             model_with_tools = actual_model
 
+        # Wrap with logging if enabled (after tool binding)
+        if enable_llm_payload_logging:
+            if llm_payload_logger is None:
+                llm_payload_logger = LLMPayloadLogger(agent_cfg.name)
+            model_with_tools = LoggingModelWrapper(model_with_tools, llm_payload_logger)
+            log.info("Enabled LLM payload logging for agent %s", agent_cfg.name)
+
     except Exception as e:
         log.warning("Failed to create model instance or bind tools with parallel_tool_calls=False: %s. Using default.", e)
+        import traceback
+        log.warning("Full traceback: %s", traceback.format_exc())
         model_with_tools = model_instance
 
     agent = create_react_agent(
