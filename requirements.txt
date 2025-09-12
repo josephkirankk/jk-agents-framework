@@ -9,8 +9,9 @@ langchain-google-genai>=2.1.0
 langgraph>=0.2.70
 langchain-mcp-adapters>=0.0.12
 mcp>=1.1.0
-requests
-jsonpath-ng
+openai>=1.0.0
+requests>=2.25.0
+jsonpath-ng>=1.5.0
 aiohttp>=3.9
 python-dotenv>=1.0.1
 Jinja2>=3.1

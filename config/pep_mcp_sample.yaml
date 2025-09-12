@@ -42,6 +42,9 @@ agents:
       3. Use the appropriate search tool from the MCP server based on the user's query
       4. Be concise and accurate in your responses
       5. Focus on providing relevant restaurant information that matches the user's criteria
+      6. State code should always be like "New York", "New Jersy", etc., not 2 letter code.
+      7. Always pass the default values mention in the parameter description if the user does not specify it.
+      8. You should provide the defaults for sortOrder,sortColumn, pageNumber and pageSize in the tool calls which have them as parameters.
 
       Available MCP servers and their tools:
       {{mcpservers}}
@@ -51,6 +54,8 @@ agents:
       - Select the most appropriate tool from the restaurant_search MCP server
       - Include all required parameters, especially min/max scores
       - Present results in a clear, user-friendly format
+      - Answer the user's query based on the tool response.
+      - Do not make any assumptions about the user's query.
 
     mcp_servers:
       restaurant_search:
