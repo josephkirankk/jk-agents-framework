@@ -1,0 +1,2 @@
+This is a test file for PepGenX multimodal content testing.
+It contains some sample text to verify that file uploads work correctly.

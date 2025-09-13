@@ -122,7 +122,18 @@ def _sanitize_for_moderation(text: str, max_chars: int = 2000) -> str:
 
 
 async def llm_verify(check_prompt: str, model: str):
-    chat = init_chat_model(model)
+    # Import the create_model_instance function to handle custom prefixes
+    from app.agent_builder import create_model_instance
+
+    # Create model instance (handles custom prefixes like pepgenx:, lmstudio:)
+    model_instance = create_model_instance(model)
+
+    # Check if it's already a model instance or needs initialization
+    if (hasattr(model_instance, 'invoke') or
+            hasattr(model_instance, 'ainvoke')):
+        chat = model_instance
+    else:
+        chat = init_chat_model(model_instance)
     messages = [
         {"role": "system", "content": "You are an objective verifier."},
         {"role": "user", "content": check_prompt},

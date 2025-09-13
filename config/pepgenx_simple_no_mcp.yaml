@@ -1,0 +1,47 @@
+models:
+  default: "pepgenx:gpt-4o"
+  supervisor: "pepgenx:gpt-4o"
+  temperature: 0.0
+
+business_context: |
+  A simple test configuration using PepGenX OpenAI API with gpt-4o model - no MCP servers.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "pepgenx:gpt-4o"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple check"}
+      ]
+    }
+
+     Use the appropriate agents from this list:
+    {{agents}}
+
+agents:
+  - name: "simple_assistant"
+    description: "Simple assistant for basic tasks without MCP servers"
+    model: "pepgenx:gpt-4o"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are a helpful assistant. Answer the user's question directly and clearly.
+      
+      Please provide a helpful response to the user's request.
+    mcp_servers: {}
+
+  - name: "human_response_agent"
+    description: "Produces the final user-facing response"
+    model: "pepgenx:gpt-4o"
+    prompt: |
+      {{dependent_request_responses}}
+      Present a clear, natural answer to the user query. never share the internal workings of the agent system.
+      Be to the point.
+    mcp_servers: {}

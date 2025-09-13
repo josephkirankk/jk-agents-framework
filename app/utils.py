@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, re
+import json
 from typing import Optional
 from pydantic import BaseModel, ValidationError
 
@@ -26,9 +26,18 @@ def extract_json_block(text: str) -> Optional[str]:
         obj, idx = decoder.raw_decode(substring)
         return substring[:idx]
     except Exception:
-        m = re.search(r"(\{(?:[^{}]|(?R))*\})", s)
-        if m:
-            return m.group(1)
+        # Find balanced braces - simple approach for JSON objects
+        brace_count = 0
+        start_idx = -1
+        for i, char in enumerate(s):
+            if char == '{':
+                if brace_count == 0:
+                    start_idx = i
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0 and start_idx != -1:
+                    return s[start_idx:i+1]
     return None
 
 def parse_supervisor_json(buf: str) -> Optional[SupervisorDecision]:

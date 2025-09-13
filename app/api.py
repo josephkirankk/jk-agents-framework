@@ -171,6 +171,34 @@ async def upload_file_to_openai(file_content: bytes, filename: str, purpose: str
     return file_response.id
 
 
+def convert_multimodal_content_to_string(content: List[Dict[str, Any]]) -> str:
+    """
+    Convert multimodal content array to a single string for PepGenX compatibility.
+
+    Args:
+        content: List of content objects with 'type' and content data
+
+    Returns:
+        str: Flattened content as a single string
+    """
+    text_parts = []
+
+    for item in content:
+        if item.get("type") == "text":
+            text_parts.append(item.get("text", ""))
+        elif item.get("type") == "image_url":
+            # Convert image reference to text description
+            image_url = item.get("image_url", {})
+            file_id = image_url.get("file_id", "unknown")
+            text_parts.append(f"[Image File ID: {file_id}]")
+        else:
+            # Handle other content types as text if possible
+            text_content = item.get("text", str(item))
+            text_parts.append(text_content)
+
+    return "\n".join(text_parts)
+
+
 async def run_direct_agent_with_files(
     agent_name: str,
     user_input: str,
@@ -198,7 +226,9 @@ async def run_direct_agent_with_files(
     error_message = ""
 
     try:
+        log.info(f"Starting run_direct_agent_with_files for agent '{agent_name}'")
         default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+        log.info(f"Using default model: {default_model}")
 
         # Find agent config
         target: Optional[AgentConfig] = next(
@@ -206,7 +236,9 @@ async def run_direct_agent_with_files(
         )
         if not target:
             raise ValueError(f"Agent '{agent_name}' not found in config")
+        log.info(f"Found agent config for '{agent_name}'")
 
+        log.info(f"Building react agent for '{agent_name}'")
         compiled, mcp_client = await build_react_agent(
             target,
             default_model,
@@ -217,6 +249,7 @@ async def run_direct_agent_with_files(
             enable_llm_payload_logging=True,
             llm_payload_logger=logger.get_llm_payload_logger(),
         )
+        log.info(f"Successfully built react agent for '{agent_name}'")
 
         try:
             system_context = (
@@ -275,9 +308,17 @@ async def run_direct_agent_with_files(
             config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
 
             try:
+                log.info(f"Invoking agent '{agent_name}' with state containing {len(state['messages'])} messages")
                 out = await compiled.ainvoke(state, config=config)
+                log.info(f"Agent '{agent_name}' invocation completed successfully")
             except AttributeError:
+                log.info(f"Falling back to sync invoke for agent '{agent_name}'")
                 out = compiled.invoke(state, config=config)
+            except Exception as e:
+                log.error(f"Agent '{agent_name}' invocation failed: {e}")
+                import traceback
+                log.error(f"Full traceback: {traceback.format_exc()}")
+                raise
 
             msgs = out.get("messages", [])
             if msgs:
@@ -915,6 +956,13 @@ async def worker_upload_endpoint(
     Returns:
         WorkerResponse with the agent's response including file analysis
     """
+    log.info(f"=== WORKER UPLOAD ENDPOINT CALLED ===")
+    log.info(f"agent_name: {agent_name}")
+    log.info(f"input length: {len(input) if input else 0}")
+    log.info(f"config_path: {config_path}")
+    log.info(f"raw_output: {raw_output}")
+    log.info(f"files count: {len(files) if files else 0}")
+
     try:
         # Load configuration
         if config_path:
@@ -950,6 +998,8 @@ async def worker_upload_endpoint(
         # Handle optional files parameter
         if files is None:
             files = []
+
+        log.info(f"Processing {len(files)} uploaded files")
 
         for file in files:
             # Read file content
@@ -1107,6 +1157,8 @@ Attached files:
         }
     except Exception as e:
         log.error(f"Error executing worker '{agent_name}' with files: {e}")
+        import traceback
+        log.error(f"Full traceback: {traceback.format_exc()}")
         return {
             "success": False,
             "response": "",

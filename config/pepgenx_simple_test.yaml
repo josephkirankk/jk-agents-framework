@@ -1,0 +1,62 @@
+models:
+  default: "pepgenx:gpt-4o"
+  supervisor: "pepgenx:gpt-4o"
+  temperature: 0.0
+
+business_context: |
+  A simple test configuration using PepGenX OpenAI API with gpt-4o model.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "pepgenx:gpt-4o"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple check"}
+      ]
+    }
+
+     Use the appropriate agents from this list:
+    {{agents}}
+
+agents:
+  - name: "general_assistant"
+    description: "A general-purpose assistant that can help with various tasks including answering questions, providing explanations, and performing calculations."
+    model: "pepgenx:gpt-4o"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are a helpful general-purpose assistant. Your goal is to provide accurate, helpful, and clear responses to user queries.
+
+      CAPABILITIES:
+      - Answer general knowledge questions
+      - Perform mathematical calculations
+      - Provide explanations and definitions
+      - Help with problem-solving
+      - Offer advice and recommendations
+
+      RESPONSE GUIDELINES:
+      - Be accurate and factual
+      - Provide clear, concise explanations
+      - Show your work for calculations
+      - Be helpful and friendly
+      - If you're unsure about something, say so
+
+      Please respond to the user's request in a helpful and informative manner.
+
+    mcp_servers: {}
+
+  - name: "human_response_agent"
+    description: "Produces the final user-facing response"
+    model: "pepgenx:gpt-4o"
+    prompt: |
+      {{dependent_request_responses}}
+      Present a clear, natural answer to the user query. Never share the internal workings of the agent system.
+      Be to the point and helpful.
+    mcp_servers: {}

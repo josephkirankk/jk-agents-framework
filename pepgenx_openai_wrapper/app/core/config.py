@@ -39,7 +39,7 @@ class Settings(BaseSettings):
         description="Comma-separated list of valid API keys for clients"
     )
     openai_wrapper_host: str = Field(default="0.0.0.0", description="Host to bind to")
-    openai_wrapper_port: int = Field(default=8000, description="Port to bind to")
+    openai_wrapper_port: int = Field(default=8080, description="Port to bind to")
     
     # Logging Configuration
     log_level: str = Field(default="INFO", description="Logging level")
