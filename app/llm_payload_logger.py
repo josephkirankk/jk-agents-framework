@@ -104,8 +104,16 @@ class LLMPayloadLogger:
                 
             # Also log to standard logger for immediate visibility
             log.info(f"LLM Interaction [{interaction_type}] - Agent: {self.agent_name}")
-            log.info(f"Messages: {len(messages)} | Tools: {len(tools or [])} | "
-                    f"Response: {'Success' if response and not error else 'Error'}")
+
+            # Determine status based on interaction type and content
+            if interaction_type.endswith('_response'):
+                status = 'Success' if response and not error else ('Error' if error else 'No Response')
+            elif interaction_type.endswith('_error'):
+                status = 'Error'
+            else:
+                status = 'Request'  # For initial request logging
+
+            log.info(f"Messages: {len(messages)} | Tools: {len(tools or [])} | Status: {status}")
             
         except Exception as e:
             log.error(f"Failed to log LLM interaction: {e}")

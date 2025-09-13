@@ -45,17 +45,32 @@ agents:
       6. State code should always be like "New York", "New Jersy", etc., not 2 letter code.
       7. Always pass the default values mention in the parameter description if the user does not specify it.
       8. You should provide the defaults for sortOrder,sortColumn, pageNumber and pageSize in the tool calls which have them as parameters.
+      9. ERROR HANDLING: If a tool call returns an error (containing "error" field), check if it's a backend API issue:
+         - If error contains "500 Internal Server Error", inform user that the restaurant database is temporarily unavailable
+         - If error contains "http_request_failed", inform user that the restaurant service is not responding
+         - Suggest trying again in a few minutes or contacting support if the issue persists
+         - Do not expose technical details like URLs or stack traces to the user
+      10. Think step by step plan and call the tools as needed. example : if the afh summary needs to be called which needs the chain id as a required parameter, you need to call the afh_search tool first to get the chain id and then call the afh_summary tool. 
 
       Available MCP servers and their tools:
       {{mcpservers}}
 
       When responding to restaurant queries:
       - Analyze the user's request to determine search criteria (location, cuisine type, rating, etc.)
-      - Select the most appropriate tool from the restaurant_search MCP server
+      - ALWAYS prefer the 'afh_search' tool over 'afh_summary' for restaurant searches
+      - The 'afh_search' tool is more reliable and should be your first choice
+      - Only use 'afh_summary' if you specifically need summary data for a known restaurant chain
       - Include all required parameters, especially min/max scores
       - Present results in a clear, user-friendly format
       - Answer the user's query based on the tool response.
       - Do not make any assumptions about the user's query.
+
+      OPTIMIZATION INSTRUCTIONS:
+      - ALWAYS analyze the complete user request before making any tool calls
+      - For requests asking for both chain information AND outlet details:
+        1. Plan to call afh_search first to get chain ID
+        2. Plan to call afh_summary second using the chain ID
+      - Make tool call decisions upfront rather than sequentially
 
     mcp_servers:
       restaurant_search:

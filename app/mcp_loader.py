@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import json
+import time
 from typing import Any, Dict, List, Tuple, Optional
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -84,6 +85,18 @@ class TimeoutTool(BaseTool):
                     except Exception:
                         # Common generic key for text-like inputs
                         payload = {"query": payload}
+
+                # Filter out empty arrays and empty strings to avoid backend API issues
+                if isinstance(payload, dict):
+                    filtered_payload = {}
+                    for key, value in payload.items():
+                        if isinstance(value, list) and len(value) == 0:
+                            continue  # Skip empty arrays
+                        if isinstance(value, str) and value == "":
+                            continue  # Skip empty strings
+                        filtered_payload[key] = value
+                    payload = filtered_payload
+
                 return self._inner.run(payload)
             except Exception as e:
                 last_exc = e
@@ -119,6 +132,18 @@ class TimeoutTool(BaseTool):
                         payload = json.loads(payload)
                     except Exception:
                         payload = {"query": payload}
+
+                # Filter out empty arrays and empty strings to avoid backend API issues
+                if isinstance(payload, dict):
+                    filtered_payload = {}
+                    for key, value in payload.items():
+                        if isinstance(value, list) and len(value) == 0:
+                            continue  # Skip empty arrays
+                        if isinstance(value, str) and value == "":
+                            continue  # Skip empty strings
+                        filtered_payload[key] = value
+                    payload = filtered_payload
+
                 if hasattr(self._inner, "arun"):
                     coro = self._inner.arun(payload)
                 else:
@@ -323,12 +348,16 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                 pname = p.get("name")
                 where = p.get("in", "query")
                 if pname in payload:
+                    value = payload[pname]
+                    # Skip empty arrays and empty strings to avoid backend API issues
+                    if (isinstance(value, list) and len(value) == 0) or (isinstance(value, str) and value == ""):
+                        continue
                     if where == "query":
-                        query[pname] = payload[pname]
+                        query[pname] = value
                     else:
                         if body is None:
                             body = {}
-                        body[pname] = payload[pname]
+                        body[pname] = value
 
             timeout = aiohttp.ClientTimeout(
                 total=20,
@@ -356,6 +385,20 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                         )
                     async with resp:
                         txt = await resp.text()
+
+                        # Check HTTP status code for errors
+                        if resp.status >= 400:
+                            return json.dumps({
+                                "method": _method,
+                                "timestamp": int(time.time() * 1000),
+                                "body": body,
+                                "baseUrl": _url.split('/api')[0] if '/api' in _url else _url,
+                                "path": '/api' + _url.split('/api')[1] if '/api' in _url else _url,
+                                "error": f"{resp.status} {resp.reason} from {_method} {_url}",
+                                "response_body": txt[:500] + "..." if len(txt) > 500 else txt,
+                                "hint": "Check backend API logs for detailed error information"
+                            })
+
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 return json.dumps({
                     "error": "http_request_failed",
@@ -410,12 +453,16 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                 pname = p.get("name")
                 where = p.get("in", "query")
                 if pname in payload:
+                    value = payload[pname]
+                    # Skip empty arrays and empty strings to avoid backend API issues
+                    if (isinstance(value, list) and len(value) == 0) or (isinstance(value, str) and value == ""):
+                        continue
                     if where == "query":
-                        query[pname] = payload[pname]
+                        query[pname] = value
                     else:
                         if body is None:
                             body = {}
-                        body[pname] = payload[pname]
+                        body[pname] = value
 
             try:
                 if _method == "GET":
@@ -440,6 +487,20 @@ def build_http_tools(http_tools_cfg: Dict[str, Any]) -> List[BaseTool]:
                         timeout=15,
                     )
                 txt = r.text
+
+                # Check HTTP status code for errors
+                if r.status_code >= 400:
+                    return json.dumps({
+                        "method": _method,
+                        "timestamp": int(time.time() * 1000),
+                        "body": body,
+                        "baseUrl": _url.split('/api')[0] if '/api' in _url else _url,
+                        "path": '/api' + _url.split('/api')[1] if '/api' in _url else _url,
+                        "error": f"{r.status_code} {r.reason} from {_method} {_url}",
+                        "response_body": txt[:500] + "..." if len(txt) > 500 else txt,
+                        "hint": "Check backend API logs for detailed error information"
+                    })
+
             except requests.exceptions.RequestException as e:
                 return json.dumps({
                     "error": "http_request_failed",
