@@ -27,7 +27,7 @@ supervisor:
 
 agents:
   - name: "restaurants_agent"
-    description: "A restaurants agent to get the restaurant information"
+    description: "Specialized agent for restaurant search and information retrieval. Use this agent when users need to: find restaurants by location, name, or criteria; get restaurant details like addresses, scores, or chain information; search for specific restaurant chains or outlets; retrieve restaurant data from the PBNA database. This agent has access to comprehensive restaurant search tools and can handle complex queries involving location-based searches, filtering, and detailed restaurant information."
     model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
@@ -56,6 +56,8 @@ agents:
          - pageSize: 10
          - marketIdentifier: "PBNA"
       5. STATE CODES: Always use full state names ("New York", "California") not abbreviations ("NY", "CA")
+      6. Check the info from the config so the values passed to the tools are correct
+      7. Use the search string parameter in the afh_search tool to search for restaurant names only. do not use it for any other search criteria.
 
       QUERY PATTERN OPTIMIZATION:
       - For "find restaurants + get chain ID" requests: Plan both afh_search AND afh_summary calls upfront
