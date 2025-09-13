@@ -1,0 +1,7 @@
+{
+  "access_token": "test-okta-access-token-for-testing",
+  "expires_in": 3600,
+  "token_type": "Bearer",
+  "scope": "openid profile email",
+  "refresh_token": "test-refresh-token"
+}
