@@ -26,7 +26,7 @@ def main():
     # Configure OpenAI client to use your wrapper
     client = OpenAI(
         api_key="sk-test-key1",  # Your wrapper API key
-        base_url="http://127.0.0.1:8080/v1"  # Your wrapper URL
+        base_url="http://127.0.0.1:8000/v1"  # Your wrapper URL
     )
     
     try:
@@ -36,34 +36,35 @@ def main():
         for model in models.data[:3]:  # Show first 3
             print(f"   • {model.id}")
         
-        print("\n💬 Step 2: Simple chat completion")
+        print("\n💬 Step 2: Simple chat completion (with system prompt)")
         response = client.chat.completions.create(
-            model="claude-4-sonnet",
+            model="gpt-5",
             messages=[
-                {"role": "user", "content": "Hello! Please introduce yourself briefly."}
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "what is 2 +3 ?"}
             ],
             max_tokens=100
         )
-        
+
         print("✅ Chat completion successful!")
         print(f"Response: {response.choices[0].message.content}")
-        
+
         print("\n🤖 Step 3: Chat with system message")
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a helpful coding assistant."},
-                {"role": "user", "content": "Write a simple Python hello world program."}
+                {"role": "system",
+                 "content": "You are a helpful coding assistant."},
+                {"role": "user",
+                 "content": "Write a simple Python hello world program."}
             ],
             max_tokens=150,
             temperature=0.7
         )
-        
+
         print("✅ System message chat successful!")
         print(f"Response: {response.choices[0].message.content}")
-        
         print("\n🎉 Success! Your PepGenX API is working as OpenAI API!")
-        
     except Exception as e:
         print(f"❌ Error: {e}")
         print("\n🔧 Troubleshooting:")

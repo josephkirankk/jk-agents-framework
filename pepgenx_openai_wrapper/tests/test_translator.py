@@ -106,6 +106,37 @@ class TestRequestTranslator:
         assert "Assistant: AI is artificial intelligence." in pepgenx_request.custom_prompt
         assert "User: Tell me more." in pepgenx_request.custom_prompt
 
+    def test_default_system_prompt_behavior(self):
+        """Test new default system prompt behavior (system_prompt=0)."""
+        # Test request without system message (should use default=0, which becomes None)
+        openai_request_no_system = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[ChatMessage(role=MessageRole.USER, content="What is 2+2?")]
+        )
+
+        pepgenx_request = RequestTranslator.translate_chat_completion(openai_request_no_system)
+
+        # Should have no system_prompt in the payload (excluded via exclude_none=True)
+        assert pepgenx_request.system_prompt is None
+        payload = pepgenx_request.model_dump(exclude_none=True)
+        assert "system_prompt" not in payload
+
+        # Test request with explicit system message (should map to appropriate ID)
+        openai_request_with_system = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[
+                ChatMessage(role=MessageRole.SYSTEM, content="You are a helpful assistant"),
+                ChatMessage(role=MessageRole.USER, content="What is 2+2?")
+            ]
+        )
+
+        pepgenx_request_with_system = RequestTranslator.translate_chat_completion(openai_request_with_system)
+
+        # Should map to system_prompt=2 for "helpful assistant"
+        assert pepgenx_request_with_system.system_prompt == 2
+        payload_with_system = pepgenx_request_with_system.model_dump(exclude_none=True)
+        assert payload_with_system["system_prompt"] == 2
+
 
 class TestResponseTranslator:
     """Test cases for PepGenX to OpenAI response translation."""

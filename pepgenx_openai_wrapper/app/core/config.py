@@ -7,7 +7,7 @@ supporting environment variables, .env files, and validation.
 
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
@@ -15,13 +15,18 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """Application settings with validation and environment variable support."""
-    
+
     # PepGenX API Configuration
     pepgenx_api_url: str = Field(..., description="PepGenX API endpoint URL")
     pepgenx_project_id: str = Field(..., description="PepGenX project ID")
     pepgenx_team_id: str = Field(..., description="PepGenX team ID")
     pepgenx_api_key: str = Field(..., description="PepGenX API key")
-    
+    pepgenx_default_system_prompt: int = Field(
+        default=0,
+        description="Default system prompt ID (0=no system prompt for direct "
+                    "answers, other numbers for specific prompts like "
+                    "2=Adobe Firefly)"
+    )
     # OKTA Token Configuration
     okta_token_file: str = Field(
         default="okta_token.json",

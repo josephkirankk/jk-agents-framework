@@ -23,6 +23,7 @@ from ..models.pepgenx_models import (
     PepGenXRequest,
     PepGenXResponse,
     format_messages_for_pepgenx,
+    get_default_system_prompt,
 )
 
 logger = get_logger("translator")
@@ -45,12 +46,25 @@ class RequestTranslator:
         logger.debug("Translating OpenAI request to PepGenX format")
         
         # Convert messages to PepGenX format
-        messages_dict = [msg.dict() for msg in request.messages]
+        messages_dict = [msg.model_dump() for msg in request.messages]
         custom_prompt, system_prompt = format_messages_for_pepgenx(messages_dict)
-        
+
         # Map model name
         pepgenx_model = get_pepgenx_model(request.model)
-        
+
+        # Handle system prompt logic:
+        # - If system_prompt is None (no system messages in OpenAI request),
+        #   apply the configured default
+        # - If system_prompt is 0, set to None (no system prompt)
+        # - Otherwise, use the provided system_prompt value
+        if system_prompt is None:
+            # No system messages provided, use configured default
+            default_prompt = get_default_system_prompt()
+            system_prompt = default_prompt if default_prompt != 0 else None
+        elif system_prompt == 0:
+            # Explicit request for no system prompt
+            system_prompt = None
+
         # Create PepGenX request
         pepgenx_request = PepGenXRequest(
             generation_model=pepgenx_model,
@@ -61,22 +75,21 @@ class RequestTranslator:
         # Map optional parameters if supported by PepGenX
         if request.temperature is not None:
             pepgenx_request.temperature = request.temperature
-        
+
         if request.max_tokens is not None:
             pepgenx_request.max_tokens = request.max_tokens
-        
+
         if request.top_p is not None:
             pepgenx_request.top_p = request.top_p
-        
+
         if request.frequency_penalty is not None:
             pepgenx_request.frequency_penalty = request.frequency_penalty
-        
+
         if request.presence_penalty is not None:
             pepgenx_request.presence_penalty = request.presence_penalty
-        
+
         if request.stop is not None:
             pepgenx_request.stop = request.stop
-        
         logger.debug(
             "Request translation completed",
             original_model=request.model,
@@ -84,13 +97,13 @@ class RequestTranslator:
             messages_count=len(request.messages),
             custom_prompt_length=len(custom_prompt)
         )
-        
+
         return pepgenx_request
 
 
 class ResponseTranslator:
     """Translates PepGenX responses to OpenAI format."""
-    
+
     @staticmethod
     def translate_chat_completion(
         pepgenx_response: PepGenXResponse,
@@ -99,24 +112,24 @@ class ResponseTranslator:
     ) -> ChatCompletionResponse:
         """
         Translate PepGenX response to OpenAI chat completion format.
-        
+
         Args:
             pepgenx_response: Response from PepGenX API
             original_request: Original OpenAI request for context
             request_id: Optional request ID for tracking
-            
+
         Returns:
             ChatCompletionResponse: OpenAI-compatible response
         """
         logger.debug("Translating PepGenX response to OpenAI format")
-        
+
         # Generate response ID if not provided
         if not request_id:
             request_id = f"chatcmpl-{uuid.uuid4().hex[:29]}"
-        
         # Handle error responses
         if pepgenx_response.error:
-            logger.error("PepGenX response contains error", error=pepgenx_response.error)
+            logger.error("PepGenX response contains error",
+                         error=pepgenx_response.error)
             # For now, we'll create a response with an error message
             # In production, this might need to raise an HTTPException instead
             choices = [
@@ -132,10 +145,10 @@ class ResponseTranslator:
         else:
             # Translate choices
             choices = ResponseTranslator._translate_choices(pepgenx_response)
-        
+
         # Translate usage information
         usage = ResponseTranslator._translate_usage(pepgenx_response)
-        
+
         # Create OpenAI response
         openai_response = ChatCompletionResponse(
             id=request_id,
@@ -145,14 +158,14 @@ class ResponseTranslator:
             created=pepgenx_response.created or int(time.time()),
             system_fingerprint=f"pepgenx-wrapper-{int(time.time())}"
         )
-        
+
         logger.debug(
             "Response translation completed",
             response_id=request_id,
             choices_count=len(choices),
             has_usage=usage is not None
         )
-        
+
         return openai_response
     
     @staticmethod

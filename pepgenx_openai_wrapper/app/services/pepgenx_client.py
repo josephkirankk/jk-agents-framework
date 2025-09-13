@@ -327,8 +327,8 @@ class PepGenXClient:
             # Simple health check request
             test_request = PepGenXRequest(
                 generation_model="gpt-4",
-                custom_prompt="Hello",
-                system_prompt=2
+                custom_prompt="Hello"
+                # system_prompt will use the default from config
             )
             
             start_time = time.time()

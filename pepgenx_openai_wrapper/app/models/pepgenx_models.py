@@ -9,17 +9,28 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
+from ..core.config import settings
+
+
+def get_default_system_prompt() -> int:
+    """Get the default system prompt ID from settings."""
+    try:
+        return settings.pepgenx_default_system_prompt
+    except Exception:
+        # Fallback to 0 if settings not available
+        return 0
+
 
 class PepGenXRequest(BaseModel):
     """PepGenX API request payload."""
-    
+
     generation_model: str = Field(..., description="Model to use for generation")
     custom_prompt: str = Field(..., description="The prompt text for generation")
-    system_prompt: Union[int, str] = Field(
-        default=2,
-        description="System prompt identifier or text"
+    system_prompt: Optional[Union[int, str]] = Field(
+        default=None,
+        description="System prompt identifier or text "
+                    "(None=use default from config)"
     )
-    
     # Optional parameters that might be supported
     temperature: Optional[float] = Field(
         default=None,
@@ -165,50 +176,41 @@ SYSTEM_PROMPT_MAPPINGS = {
 def get_system_prompt_id(system_text: Optional[str]) -> Union[int, str]:
     """
     Map system prompt text to PepGenX system prompt ID.
-    
+
+    NOTE: Always returns 0 for direct response mode as requested.
+    System prompts are handled by including them in the custom_prompt instead.
+
     Args:
         system_text: System prompt text from OpenAI request
-        
+
     Returns:
-        Union[int, str]: System prompt ID or text for PepGenX
+        Union[int, str]: Always returns 0 for direct response mode
     """
-    if not system_text:
-        return 2  # Default helpful assistant
-    
-    # Simple keyword matching for common system prompts
-    text_lower = system_text.lower()
-    
-    if "helpful assistant" in text_lower:
-        return 2
-    elif "creative" in text_lower or "writer" in text_lower:
-        return 3
-    elif "code" in text_lower or "programming" in text_lower:
-        return 4
-    elif "analyz" in text_lower or "analytical" in text_lower:
-        return 5
-    else:
-        # For custom system prompts, we might need to pass the text directly
-        # This depends on PepGenX API capabilities
-        return system_text
+    # Always use system prompt 0 (direct response mode) as requested
+    return 0
 
 
-def format_messages_for_pepgenx(messages: List[Dict[str, Any]]) -> tuple[str, Union[int, str]]:
+def format_messages_for_pepgenx(messages: List[Dict[str, Any]]) -> tuple[str, Optional[Union[int, str]]]:
     """
     Convert OpenAI messages format to PepGenX custom_prompt and system_prompt.
-    
+
+    NOTE: Always uses system_prompt=0 (direct response mode). System messages
+    are included in the custom_prompt for better control and consistency.
+
     Args:
         messages: List of OpenAI chat messages
-        
+
     Returns:
         tuple: (custom_prompt, system_prompt) for PepGenX API
+        system_prompt will always be 0 for direct response mode
     """
     system_messages = []
     conversation_messages = []
-    
+
     for message in messages:
         role = message.get("role", "")
         content = message.get("content", "")
-        
+
         if role == "system" or role == "developer":
             system_messages.append(content)
         elif role in ["user", "assistant"]:
@@ -217,18 +219,41 @@ def format_messages_for_pepgenx(messages: List[Dict[str, Any]]) -> tuple[str, Un
                 conversation_messages.append(f"User: {content}")
             else:
                 conversation_messages.append(f"Assistant: {content}")
-    
-    # Combine system messages
-    system_prompt = get_system_prompt_id(
-        " ".join(system_messages) if system_messages else None
-    )
-    
-    # Create custom prompt
+
+    # Always use system prompt 0 (direct response mode)
+    system_prompt = 0
+
+    # Create custom prompt - include system messages at the beginning
+    prompt_parts = []
+
+    # Add system messages as instructions at the beginning
+    if system_messages:
+        system_text = " ".join(system_messages)
+        prompt_parts.append(f"Instructions: {system_text}")
+
+    # Add conversation messages
     if conversation_messages:
-        custom_prompt = "\n".join(conversation_messages)
+        # If there's only one user message and we have system instructions,
+        # format it cleanly
+        if len(conversation_messages) == 1 and conversation_messages[0].startswith("User: "):
+            user_message = conversation_messages[0][6:]  # Remove "User: " prefix
+            if system_messages:
+                prompt_parts.append(f"\nUser: {user_message}")
+            else:
+                # No system messages, just use the user message directly
+                prompt_parts = [user_message]
+        else:
+            # Multi-turn conversation
+            prompt_parts.extend(conversation_messages)
     else:
         # Fallback: use the last message content
         last_message = messages[-1] if messages else {}
-        custom_prompt = last_message.get("content", "Hello")
-    
+        fallback_content = last_message.get("content", "Hello")
+        if system_messages:
+            prompt_parts.append(f"\nUser: {fallback_content}")
+        else:
+            prompt_parts = [fallback_content]
+
+    custom_prompt = "\n".join(prompt_parts) if len(prompt_parts) > 1 else prompt_parts[0] if prompt_parts else "Hello"
+
     return custom_prompt, system_prompt

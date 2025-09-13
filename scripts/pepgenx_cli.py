@@ -325,20 +325,22 @@ Examples:
     # Test command
     test_parser = subparsers.add_parser('test', help='Test a specific model')
     test_parser.add_argument('--model', '-m', required=True, help='Model name to test')
-    test_parser.add_argument('--system-prompt', '-s', type=int, default=2,
-                           help='System prompt ID (default: 2 - Adobe Firefly Image Optimizer, use 0 for no system prompt)')
-    test_parser.add_argument('--user-prompt', '-u', default='Hello, how are you?',
-                           help='User prompt text (default: "Hello, how are you?")')
+    test_parser.add_argument(
+        '--system-prompt', '-s', type=int, default=0,
+        help='System prompt ID (default: 0 - No system prompt '
+             'for direct responses, use other numbers for specific prompts)')
+    test_parser.add_argument(
+        '--user-prompt', '-u', default='Hello, how are you?',
+        help='User prompt text (default: "Hello, how are you?")')
 
     args = parser.parse_args()
-    
+
     if not args.command:
         parser.print_help()
         return
-    
+
     # Load configuration
     config = load_config()
-    
     # Execute command
     if args.command == 'list':
         list_models(config)

@@ -93,6 +93,7 @@ A production-ready FastAPI wrapper that provides OpenAI-compatible API endpoints
 | `PEPGENX_PROJECT_ID` | PepGenX project ID | - | Yes |
 | `PEPGENX_TEAM_ID` | PepGenX team ID | - | Yes |
 | `PEPGENX_API_KEY` | PepGenX API key | - | Yes |
+| `PEPGENX_DEFAULT_SYSTEM_PROMPT` | Default system prompt ID (0=direct answers, 2=Adobe Firefly) | `0` | No |
 | `OKTA_TOKEN_FILE` | Path to OKTA token JSON file | `okta_token.json` | Yes |
 | `OPENAI_WRAPPER_API_KEYS` | Comma-separated API keys for clients | - | Yes |
 | `OPENAI_WRAPPER_HOST` | Host to bind to | `0.0.0.0` | No |
