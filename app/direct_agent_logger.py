@@ -45,11 +45,16 @@ class DirectAgentLogger:
         self._write_log_header()
     
     def _initialize_log_file(self):
-        """Initialize the log file with timestamped name at repo root."""
+        """Initialize the log file with timestamped name in agentlog folder."""
         try:
             ts = self.start_time.strftime("%Y%m%d%H%M%S")
             repo_root = Path(__file__).resolve().parents[1]
-            self.log_file_path = repo_root / f"direct_agentlog_{ts}.log"
+            agentlog_dir = repo_root / "agentlog"
+
+            # Create agentlog directory if it doesn't exist
+            agentlog_dir.mkdir(exist_ok=True)
+
+            self.log_file_path = agentlog_dir / f"direct_agentlog_{ts}.log"
         except Exception as e:
             log.debug("Failed to initialize log file: %s", e)
             self.log_file_path = None
@@ -243,27 +248,50 @@ class DirectAgentLogger:
             "",
         ]
 
+        # Add reference to LLM payload file
+        if hasattr(self, 'llm_payload_logger') and self.llm_payload_logger:
+            llm_payload_file = getattr(self.llm_payload_logger, 'log_file', None)
+            if llm_payload_file:
+                log_lines.extend([
+                    f"--- LLM Payload Reference ---",
+                    f"Full request/response details: {llm_payload_file}",
+                    "",
+                ])
+
         # Add tool calls section if any were found
         if tool_calls:
             log_lines.extend([
-                "--- Tool Calls ---",
+                "--- Tool Calls (Enhanced) ---",
+                "Note: Full LLM request/response details available in payload file above",
+                "",
             ])
             for i, call in enumerate(tool_calls, 1):
                 if call["type"] == "tool_call":
                     args_str = self._format_args_compact(call.get("args", {}))
                     duplicate_marker = " (DUPLICATE)" if call.get("is_duplicate", False) else ""
-                    log_lines.append(f"{i}. {call['name']}({args_str}){duplicate_marker}")
+                    log_lines.append(f"{i}. Tool Call: {call['name']}")
+                    log_lines.append(f"   ID: {call.get('id', 'unknown')}")
+                    log_lines.append(f"   Arguments: {args_str}{duplicate_marker}")
                     if "result" in call:
-                        result_str = str(call["result"])[:100]
-                        if len(str(call["result"])) > 100:
-                            result_str += "..."
-                        log_lines.append(f"   → {result_str}")
+                        result_str = str(call["result"])
+                        if len(result_str) > 200:
+                            result_str = result_str[:200] + "... (truncated)"
+                        log_lines.append(f"   Result: {result_str}")
+                    log_lines.append("")
                 elif call["type"] == "tool_result":
-                    result_str = str(call["result"])[:100]
-                    if len(str(call["result"])) > 100:
-                        result_str += "..."
+                    result_str = str(call["result"])
+                    if len(result_str) > 200:
+                        result_str = result_str[:200] + "... (truncated)"
                     log_lines.append(f"{i}. Tool Result [{call['id']}]: {result_str}")
-            log_lines.append("")
+                    log_lines.append("")
+
+            # Add summary of LLM interactions
+            log_lines.extend([
+                "--- LLM Interaction Summary ---",
+                f"Total tool calls processed: {len([c for c in tool_calls if c['type'] == 'tool_call'])}",
+                f"Check payload file for complete request/response cycle details",
+                "",
+            ])
 
         log_lines.extend([
             f"--- Usage Information ---",
