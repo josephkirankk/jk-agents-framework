@@ -9,7 +9,7 @@ import time
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class MessageRole(str, Enum):
@@ -25,18 +25,33 @@ class MessageRole(str, Enum):
 class ChatMessage(BaseModel):
     """A single message in a chat conversation."""
     role: MessageRole = Field(..., description="The role of the message author")
-    content: Optional[str] = Field(None, description="The content of the message")
-    name: Optional[str] = Field(None, description="The name of the author of this message")
-    
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v, info):
-        """Ensure content is provided for most message types."""
-        if hasattr(info, 'data') and 'role' in info.data:
-            role = info.data.get("role")
-            if role in [MessageRole.SYSTEM, MessageRole.USER, MessageRole.ASSISTANT] and not v:
-                raise ValueError(f"Content is required for {role} messages")
-        return v
+    content: Optional[Union[str, List[Dict[str, Any]]]] = Field(
+        None, description="The content of the message"
+    )
+    name: Optional[str] = Field(
+        None, description="The name of the author of this message"
+    )
+
+    @model_validator(mode='after')
+    def validate_and_normalize_content(self):
+        """Normalize content format and validate."""
+        # Handle both string and array content formats
+        if isinstance(self.content, list):
+            # Extract text from array format: [{'type': 'text', 'text': '...'}]
+            text_parts = []
+            for item in self.content:
+                if isinstance(item, dict) and item.get('type') == 'text':
+                    text_parts.append(item.get('text', ''))
+                elif isinstance(item, dict) and 'text' in item:
+                    text_parts.append(item['text'])
+            self.content = ' '.join(text_parts)
+
+        # Validate content is provided for required message types
+        if self.role in [MessageRole.SYSTEM, MessageRole.USER, MessageRole.ASSISTANT]:
+            if not self.content or (isinstance(self.content, str) and not self.content.strip()):
+                raise ValueError(f"Content is required for {self.role} messages")
+
+        return self
 
 
 class ChatCompletionRequest(BaseModel):
