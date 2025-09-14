@@ -27,6 +27,7 @@ from .mcp_loader import close_mcp_client
 from .agent_builder import build_react_agent
 from .direct_agent_logger import create_direct_agent_logger
 from .thread_manager import get_or_create_thread_id
+from .checkpointer_manager import get_memory_stats, clear_thread_memory, reset_all_memory
 
 # Configure logging
 logging.basicConfig(
@@ -177,7 +178,8 @@ async def run_direct_agent_with_files(
     app_cfg: AppConfig,
     file_ids: List[str],
     file_info: List[Dict[str, Any]],
-    config_path: Optional[str] = None
+    config_path: Optional[str] = None,
+    thread_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Run a direct agent with file attachments.
@@ -272,7 +274,9 @@ async def run_direct_agent_with_files(
                     {"role": "user", "content": message_content},
                 ]
             }
-            config: RunnableConfig = {"configurable": {"thread_id": "test-thread"}}
+            # Get or create thread ID
+            actual_thread_id = get_or_create_thread_id(thread_id)
+            config: RunnableConfig = {"configurable": {"thread_id": actual_thread_id}}
 
             try:
                 out = await compiled.ainvoke(state, config=config)
@@ -298,6 +302,7 @@ async def run_direct_agent_with_files(
                 "raw_output": out,
                 "log_file": logger.get_log_file_path(),
                 "llm_payload_log_file": logger.get_llm_payload_log_path(),
+                "thread_id": actual_thread_id,
             }
 
         finally:
@@ -754,6 +759,25 @@ async def health_check():
     return HealthResponse(status="healthy", version="1.0.0")
 
 
+@app.get("/memory/stats")
+async def memory_stats():
+    """Get memory statistics from the global checkpointer."""
+    try:
+        stats = get_memory_stats()
+        return {
+            "status": "success",
+            "memory_stats": stats,
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    except Exception as e:
+        log.error(f"Error getting memory stats: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+
+
 @app.post("/query/form")
 async def query_form_endpoint(
     input: str = Form(..., description="User question or prompt",
@@ -899,6 +923,11 @@ async def worker_upload_endpoint(
         False,
         description="If True, returns only raw agent response as plain text"
     ),
+    thread_id: Optional[str] = Form(
+        None,
+        description="Optional thread ID for conversation continuity. "
+                    "If not provided, a new thread will be created."
+    ),
     files: Optional[List[UploadFile]] = File(
         None, description="Optional files to upload and attach to the request"
     )
@@ -940,6 +969,10 @@ async def worker_upload_endpoint(
                 status_code=400,
                 detail=f"Agent '{agent_name}' not found. Available agents: {', '.join(agent_names)}"
             )
+
+        # Get or create thread ID
+        actual_thread_id = get_or_create_thread_id(thread_id)
+        log.info(f"Using thread ID: {actual_thread_id}")
 
         # Process uploaded files
         file_ids = []
@@ -1050,7 +1083,7 @@ Attached files:
         )
         result = await run_direct_agent_with_files(
             agent_name, enhanced_input, app_cfg, file_ids, file_info,
-            config_path
+            config_path, actual_thread_id
         )
 
         # Prepare metadata
@@ -1076,7 +1109,8 @@ Attached files:
                 "success": True,
                 "response": result["response"],
                 "agent_name": agent_name,
-                "metadata": metadata
+                "metadata": metadata,
+                "thread_id": actual_thread_id
             }
 
     except HTTPException:
@@ -1103,7 +1137,8 @@ Attached files:
             "success": False,
             "response": "",
             "agent_name": agent_name,
-            "error": error_msg
+            "error": error_msg,
+            "thread_id": actual_thread_id if 'actual_thread_id' in locals() else get_or_create_thread_id()
         }
     except Exception as e:
         log.error(f"Error executing worker '{agent_name}' with files: {e}")
@@ -1111,7 +1146,8 @@ Attached files:
             "success": False,
             "response": "",
             "agent_name": agent_name,
-            "error": str(e)
+            "error": str(e),
+            "thread_id": actual_thread_id if 'actual_thread_id' in locals() else get_or_create_thread_id()
         }
 
 

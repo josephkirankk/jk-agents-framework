@@ -49,7 +49,7 @@ agents:
          - Use 'afh_search' as primary tool for restaurant searches (most reliable)
          - Use 'afh_summary' only when you need detailed outlet information for a specific chain ID
          - Use 'afh_fetchConfig' when you need to understand available filter options
-      4. PARAMETER DEFAULTS: Always provide these defaults when not specified by user:
+      4. PARAMETER DEFAULTS: Always provide these defaults when not specified by user for afh_search and afh_summarytool:
          - sortOrder: "Asc"
          - sortColumn: "STREET"
          - pageNumber: 0
