@@ -7,6 +7,7 @@ from pathlib import Path
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
+from .checkpointer_manager import get_global_checkpointer
 from .mcp_loader import load_mcp_tools, build_http_tools
 from .python_tool_loader import (
     load_python_function_tools,
@@ -111,9 +112,10 @@ async def build_react_agent(
     enable_llm_payload_logging: bool = True,
     llm_payload_logger: Optional[LLMPayloadLogger] = None,
 ):
-    # Create a fresh MemorySaver instance if none provided to avoid shared state
+    # Use global checkpointer for memory persistence across API calls
     if checkpointer is None:
-        checkpointer = MemorySaver()
+        checkpointer = get_global_checkpointer()
+        log.info(f"Using global checkpointer for agent {agent_cfg.name}")
 
     model_id = agent_cfg.model or default_model
     # Create the appropriate model instance (handles google: prefix)

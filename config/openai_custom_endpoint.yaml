@@ -1,0 +1,117 @@
+# ============================================================================
+# CUSTOM OPENAI ENDPOINT CONFIGURATION EXAMPLE
+# ============================================================================
+# This example demonstrates how to use custom OpenAI-compatible endpoints
+# (like LM Studio, PepGenX wrapper, or other OpenAI-compatible services)
+# alongside standard providers in JK-Agents.
+#
+# SETUP FOR CUSTOM ENDPOINTS:
+# 1. Set environment variables for your custom endpoint:
+#    OPENAI_BASE_URL=http://127.0.0.1:8080/v1  # Your custom endpoint
+#    OPENAI_API_KEY=your-custom-api-key        # Your custom API key
+#
+# 2. The custom endpoint must be OpenAI-compatible (support /v1/chat/completions)
+#
+# 3. Use standard "openai:" prefix - JK-Agents will automatically use
+#    the custom base URL if OPENAI_BASE_URL is set
+# ============================================================================
+
+models:
+  # Custom OpenAI-compatible endpoint (will use OPENAI_BASE_URL if set)
+  default: "openai:gpt-4"
+  supervisor: "openai:gpt-4"
+
+  # Standard providers as fallbacks
+  azure_fallback: "azure_openai:gpt-4.1"
+  google_fallback: "google:gemini-2.0-flash-exp"
+
+  temperature: 0.1
+
+business_context: |
+  You are an AI system that can use custom OpenAI-compatible endpoints
+  alongside standard providers. This allows integration with services like
+  LM Studio, custom wrappers, or other OpenAI-compatible APIs.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "openai:gpt-4"  # Will use custom endpoint if configured
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+    
+    You are a supervisor that creates execution plans using available agents.
+    Available agents:
+    {{agents}}
+    
+    Create a JSON plan with steps that can run in parallel where possible.
+    Each step should specify the most appropriate agent for the task.
+    
+    Return only JSON, with top-level object:
+    {
+      "goal": "<short restatement of user goal>",
+      "plan": [
+        {"id":"s1", "agent":"A", "task":"...", "depends_on":[], "verify":"...", "timeout_seconds":60, "retry":2},
+        ...
+      ]
+    }
+    
+    Respond with JSON only and nothing else.
+
+agents:
+  # Agents using custom OpenAI endpoint
+  - name: "custom_assistant"
+    description: "General purpose assistant using custom OpenAI endpoint"
+    model: "openai:gpt-5-nano"
+    prompt: |
+      You are a helpful AI assistant.
+      Provide accurate, helpful responses to user questions.
+      Be concise and professional in your communication.
+    mcp_servers: {}
+
+  - name: "custom_analyst"
+    description: "Advanced analysis using custom endpoint"
+    model: "openai:gpt-4"
+    prompt: |
+      You are an expert analyst.
+      Provide thorough, well-reasoned analysis with detailed explanations.
+      Focus on accuracy, depth, and professional-quality insights.
+    mcp_servers: {}
+
+  - name: "custom_creative"
+    description: "Creative tasks using custom endpoint"
+    model: "openai:gpt-4"
+    prompt: |
+      You are a creative assistant.
+      Help with creative writing, brainstorming, and innovative solutions.
+      Be imaginative while maintaining practical applicability.
+    mcp_servers: {}
+
+  # Fallback agents using standard providers
+  - name: "azure_fallback_agent"
+    description: "Fallback agent using Azure OpenAI"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      You are a fallback agent using Azure OpenAI.
+      Provide reliable responses when custom endpoints are unavailable.
+    mcp_servers: {}
+
+  - name: "google_fallback_agent"
+    description: "Fallback agent using Google Gemini"
+    model: "google:gemini-2.0-flash-exp"
+    prompt: |
+      You are a fallback agent using Google Gemini.
+      Provide fast, efficient responses for backup scenarios.
+    mcp_servers: {}
+
+  - name: "human_response_agent"
+    description: "Final response formatter"
+    model: "openai:gpt-4"  # Will use custom endpoint
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Present a clear, natural answer based on the previous agent responses.
+      Format the information in a user-friendly way without revealing internal processes.
+    mcp_servers: {}
