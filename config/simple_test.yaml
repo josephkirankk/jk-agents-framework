@@ -33,10 +33,10 @@ supervisor:
 agents:
   - name: "simple_test_agent"
     description: "Simple test agent without external dependencies"
-    model: "azure_openai:gpt-4.1"
+    model: "openai:gpt-4o"
     prompt: |
       You are a helpful test agent. Answer the user's question directly without using any external tools.
-      Be concise and accurate in your responses.
+      Be concise and accurate in your responses. search the memory and answer if use asks a question that has been answered or provided before.
     mcp_servers: {}
 
   - name: "human_response_agent"

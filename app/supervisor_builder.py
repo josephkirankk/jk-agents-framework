@@ -4,7 +4,7 @@ from typing import List, Optional
 from pathlib import Path
 
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import MemorySaver
+from .checkpointer_manager import get_global_checkpointer
 from .config import SupervisorConfig, AgentConfig
 from .template_utils import render_prompt
 from .agent_builder import create_model_instance
@@ -30,9 +30,10 @@ def build_supervisor_compiled(
     original_user_question: str = "",
     config_path: Optional[str] = None,
 ):
-    # Create a fresh MemorySaver instance if none provided to avoid shared state
+    # Use global checkpointer for memory persistence across API calls
     if checkpointer is None:
-        checkpointer = MemorySaver()
+        checkpointer = get_global_checkpointer()
+        log.info("Using global checkpointer for supervisor")
 
     agents_list = _format_agents_listing(agents_cfg)
 
