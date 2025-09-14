@@ -1,0 +1,1112 @@
+{
+  "defects": [
+    {
+      "defect_code": "HSP.GBX.GEARBOLT.LOOSE",
+      "defect_text": "Gearbox & Drive → Gear bolt loose / fastener loosening",
+      "likely_root_causes": [
+        "RC.TORQUE.INSUFFICIENT",
+        "RC.VIBRATION.LOOSENING",
+        "RC.IMPROPER_LOCKING_DEVICE"
+      ],
+      "recommended_actions": [
+        "CA.TORQUE.RETIGHTEN",
+        "CA.APPLY_LOCKING_COMPOUND",
+        "CA.VIBRATION.ISOLATE"
+      ]
+    },
+    {
+      "defect_code": "HSP.GBX.GEAR.TOOTH_WEAR",
+      "defect_text": "Gearbox & Drive → Gear tooth wear / pitting / scoring",
+      "likely_root_causes": [
+        "RC.LUBE.INSUFFICIENT",
+        "RC.CONTAM.DEBRIS",
+        "RC.ALIGN.MISALIGN"
+      ],
+      "recommended_actions": [
+        "CA.LUBE.CHECK_SUPPLY",
+        "CA.OIL.FILTER_REPLACE",
+        "CA.ALIGN.RESET_SHAFT"
+      ]
+    },
+    {
+      "defect_code": "HSP.GBX.GEAR.TOOTH_CRACK",
+      "defect_text": "Gearbox & Drive → Gear tooth cracking / fatigue fracture",
+      "likely_root_causes": [
+        "RC.OVERLOAD.OPERATION",
+        "RC.MATERIAL.DEFECT",
+        "RC.IMPACT.OVERLOAD"
+      ],
+      "recommended_actions": [
+        "CA.GEAR.REPLACE",
+        "CA.REVIEW_OPERATING_LOAD",
+        "CA.MATERIAL.CHECK_QUALITY"
+      ]
+    },
+    {
+      "defect_code": "HSP.GBX.BEARING.SPALLED",
+      "defect_text": "Gearbox & Drive → Bearing spalling / flaking / failure",
+      "likely_root_causes": [
+        "RC.CONTAM.DEBRIS",
+        "RC.ALIGN.MISALIGN",
+        "RC.OVERLOAD.OPERATION"
+      ],
+      "recommended_actions": [
+        "CA.BEARING.REPLACE",
+        "CA.OIL.ANALYSIS_AND_CHANGE",
+        "CA.ALIGN.RESET_SHAFT"
+      ]
+    },
+    {
+      "defect_code": "HSP.GBX.OIL.CONTAM",
+      "defect_text": "Gearbox & Drive → Oil contamination / water-in-oil",
+      "likely_root_causes": [
+        "RC.COOLANT.LEAK",
+        "RC.SEAL.WEAR",
+        "RC.MAINT.OVERDUE"
+      ],
+      "recommended_actions": [
+        "CA.OIL.SAMPLE_ANALYSIS",
+        "CA.OIL.REPLACE",
+        "CA.CHECK.SEALS"
+      ]
+    },
+    {
+      "defect_code": "HSP.RLS.ROLL.FLATSPOT",
+      "defect_text": "Roll Stand → Roll flat spots / localized wear",
+      "likely_root_causes": [
+        "RC.ROLL.WEAR",
+        "RC.FOREIGN.PARTICLES",
+        "RC.IMPROPER_STORAGE"
+      ],
+      "recommended_actions": [
+        "CA.ROLL.REGRIND",
+        "CA.CLEAN_LINE",
+        "CA.IMPLEMENT_ROLL_ROTATION_SCHEDULE"
+      ]
+    },
+    {
+      "defect_code": "HSP.RLS.ROLL_PROFILE_ERROR",
+      "defect_text": "Roll Stand → Incorrect roll profile / crowning error",
+      "likely_root_causes": [
+        "RC.ROLL.WEAR",
+        "RC.IMPROPER_SETUP",
+        "RC.MAINT.OVERDUE"
+      ],
+      "recommended_actions": [
+        "CA.ROLL.REGRIND",
+        "CA.UPDATE_SETUP_CHECKLIST",
+        "CA.TRAIN_OPERATOR"
+      ]
+    },
+    {
+      "defect_code": "HSP.RLS.MANDREL.BREAK",
+      "defect_text": "Roll Stand → Mandrel fracture or breakage",
+      "likely_root_causes": [
+        "RC.MANDREL.MISALIGN",
+        "RC.MATERIAL.DEFECT",
+        "RC.OVERLOAD.OPERATION"
+      ],
+      "recommended_actions": [
+        "CA.MANDREL.REPLACE",
+        "CA.MANDREL.ALIGN",
+        "CA.MATERIAL.CHECK_QUALITY"
+      ]
+    },
+    {
+      "defect_code": "HSP.RLS.MANDREL.SEIZE",
+      "defect_text": "Roll Stand → Mandrel seizure / stuck mandrel",
+      "likely_root_causes": [
+        "RC.CONTAM.FOREIGN_OBJECT",
+        "RC.LUBE.STARVATION",
+        "RC.WEAR.OVALIZATION"
+      ],
+      "recommended_actions": [
+        "CA.MANDREL.CLEAN_REPLACE",
+        "CA.LUBE.CHECK_SUPPLY",
+        "CA.INSPECT_GUIDE_CLEARANCE"
+      ]
+    },
+    {
+      "defect_code": "HSP.RLS.ROLL.BEARING.FAIL",
+      "defect_text": "Roll Stand → Roll bearing failure / overheating",
+      "likely_root_causes": [
+        "RC.LUBE.LOSS",
+        "RC.CONTAM.DEBRIS",
+        "RC.OVERLOAD.OPERATION"
+      ],
+      "recommended_actions": [
+        "CA.BEARING.REPLACE",
+        "CA.LUBE.CHECK_SUPPLY",
+        "CA.ADJUST_LOAD"
+      ]
+    },
+    {
+      "defect_code": "HSP.RLS.GUIDE.WEAR",
+      "defect_text": "Roll Stand → Guide shoe / guide wear causing tube marks",
+      "likely_root_causes": [
+        "RC.GUIDE.WEAR",
+        "RC.FOREIGN.PARTICLES",
+        "RC.IMPROPER_ALIGNMENT"
+      ],
+      "recommended_actions": [
+        "CA.GUIDE.REPLACE",
+        "CA.CLEAN_LINE",
+        "CA.MANDREL.ALIGN"
+      ]
+    },
+    {
+      "defect_code": "HSP.RLS.ROLL.SLIP",
+      "defect_text": "Roll Stand → Roll slippage / insufficient clamp force",
+      "likely_root_causes": [
+        "RC.CLAMP.LOOSE",
+        "RC.OIL.CONTAMINATION",
+        "RC.WEAR.OVALIZATION"
+      ],
+      "recommended_actions": [
+        "CA.CLAMP.RETIGHTEN",
+        "CA.CLEAN_LINE",
+        "CA.TRAIN_OPERATOR"
+      ]
+    },
+    {
+      "defect_code": "HSP.HYD.PUMP.CAVITATION",
+      "defect_text": "Hydraulics → Pump cavitation (noise, erosion, air bubbles)",
+      "likely_root_causes": [
+        "RC.SUCTION.AIR_INGRESS",
+        "RC.FLOW.RESTRICTION",
+        "RC.FLOW.LOW"
+      ],
+      "recommended_actions": [
+        "CA.SUCTION.CHECK_LINE",
+        "CA.CLEAN_STRINER_OR_FILTER",
+        "CA.CHECK_FLUID_LEVEL_AND_VISCOSITY"
+      ]
+    },
+    {
+      "defect_code": "HSP.HYD.PUMP.FAIL",
+      "defect_text": "Hydraulics → Pump mechanical failure / abnormal noise",
+      "likely_root_causes": [
+        "RC.PUMP.MECHANICAL_FAIL",
+        "RC.CONTAM.DEBRIS",
+        "RC.AGE.DEGRADATION"
+      ],
+      "recommended_actions": [
+        "CA.PUMP.REPLACE",
+        "CA.FILTER.REPLACE",
+        "CA.OIL.REPLACE"
+      ]
+    },
+    {
+      "defect_code": "HSP.HYD.VALVE.STICK",
+      "defect_text": "Hydraulics → Directional/control valve sticking or sluggish",
+      "likely_root_causes": [
+        "RC.CONTAM.SPOOL",
+        "RC.WEAR.VALVE",
+        "RC.MAINT.OVERDUE"
+      ],
+      "recommended_actions": [
+        "CA.VALVE.CLEAN",
+        "CA.VALVE.REPLACE",
+        "CA.PLC.RELOAD_PROGRAM"
+      ]
+    },
+    {
+      "defect_code": "HSP.HYD.SEAL_LEAK",
+      "defect_text": "Hydraulics → Cylinder seal leakage / rod damage",
+      "likely_root_causes": [
+        "RC.SEAL.WEAR",
+        "RC.ROD.SCRATCH",
+        "RC.CONTAM.ABRASIVES"
+      ],
+      "recommended_actions": [
+        "CA.SEAL.REPLACE",
+        "CA.ROD.POLISH_OR_REPLACE",
+        "CA.ADD_FILTRATION"
+      ]
+    },
+    {
+      "defect_code": "HSP.HYD.RELIEF_VALVE_MALF",
+      "defect_text": "Hydraulics → Relief valve sticking / pressure instability",
+      "likely_root_causes": [
+        "RC.CONTAM.SPOOL",
+        "RC.AGE.DEGRADATION",
+        "RC.PARAM.MISCONFIG"
+      ],
+      "recommended_actions": [
+        "CA.RELIEF.REBUILD_OR_REPLACE",
+        "CA.FILTER.REPLACE",
+        "CA.CALIBRATE_PRESSURE"
+      ]
+    },
+    {
+      "defect_code": "HSP.CLB.LUBE.PUMP_FAIL",
+      "defect_text": "Cooling & Lube → Lubrication pump failure / insufficient circulation",
+      "likely_root_causes": [
+        "RC.PUMP.MECHANICAL_FAIL",
+        "RC.CONTAM.OIL_DIRT",
+        "RC.MAINT.OVERDUE"
+      ],
+      "recommended_actions": [
+        "CA.PUMP.REPLACE",
+        "CA.FILTER.REPLACE",
+        "CA.TERMINAL.TIGHTEN"
+      ]
+    },
+    {
+      "defect_code": "HSP.CLB.FILTER.CLOG",
+      "defect_text": "Cooling & Lube → Filter clogged / restricted flow",
+      "likely_root_causes": [
+        "RC.CONTAM.OIL_DIRT",
+        "RC.MAINT.OVERDUE",
+        "RC.CONTAM.DEBRIS"
+      ],
+      "recommended_actions": [
+        "CA.FILTER.REPLACE",
+        "CA.SCHEDULE.MAINTENANCE",
+        "CA.INSTALL_PRE-FILTER"
+      ]
+    },
+    {
+      "defect_code": "HSP.CLB.HEATEXCH.FOUL",
+      "defect_text": "Cooling & Lube → Heat exchanger fouling (reduced cooling)",
+      "likely_root_causes": [
+        "RC.SCALE.BUILDUP",
+        "RC.FLOW.LOW",
+        "RC.OIL.CONTAMINATION"
+      ],
+      "recommended_actions": [
+        "CA.CLEAN.HEAT_EXCHANGER",
+        "CA.FLOW.INCREASE",
+        "CA.OIL.DEHYDRATE"
+      ]
+    },
+    {
+      "defect_code": "HSP.CLB.OIL.WATER_INGRESS",
+      "defect_text": "Cooling & Lube → Water ingress / emulsified oil",
+      "likely_root_causes": [
+        "RC.COOLANT.LEAK",
+        "RC.CONDENSATION",
+        "RC.MAINT.OVERDUE"
+      ],
+      "recommended_actions": [
+        "CA.OIL.DEHYDRATE_OR_REPLACE",
+        "CA.CHECK.SEALS",
+        "CA.REPAIR_COOLANT_SYSTEM"
+      ]
+    },
+    {
+      "defect_code": "HSP.ELE.MOTOR.WIND_SHORT",
+      "defect_text": "Electrical → Motor winding short / insulation failure",
+      "likely_root_causes": [
+        "RC.INSULATION.AGING",
+        "RC.MOISTURE.INGRESS",
+        "RC.TEMPERATURE.SHOCK"
+      ],
+      "recommended_actions": [
+        "CA.MOTOR.REWIND_OR_REPLACE",
+        "CA.DRY.ENCLOSURE",
+        "CA.INSTALL_TEMPERATURE_MONITORING"
+      ]
+    },
+    {
+      "defect_code": "HSP.ELE.VFD.OVERCUR_TRIP",
+      "defect_text": "Electrical → VFD overcurrent / protective trip",
+      "likely_root_causes": [
+        "RC.MOTOR.SHORT",
+        "RC.PARAM.MISCONFIG",
+        "RC.MAINT.OVERDUE"
+      ],
+      "recommended_actions": [
+        "CA.VFD.RESET_PARAM",
+        "CA.MOTOR.TEST",
+        "CA.CHECK_SUPPLY"
+      ]
+    },
+    {
+      "defect_code": "HSP.ELE.PANEL.LOOSE_TERM",
+      "defect_text": "Electrical → Panel loose terminal / overheating point",
+      "likely_root_causes": [
+        "RC.VIBRATION.RELAXATION",
+        "RC.POOR_TERMINAL_PREP",
+        "RC.CORROSION.CONTACT"
+      ],
+      "recommended_actions": [
+        "CA.TERMINAL.TIGHTEN",
+        "CA.CONTACT.CLEAN",
+        "CA.ADD_LOCKING_COMPOUNDS"
+      ]
+    },
+    {
+      "defect_code": "HSP.ELE.ENCODER.FAIL",
+      "defect_text": "Electrical → Encoder/position sensor failure / intermittent signals",
+      "likely_root_causes": [
+        "RC.CABLE.DAMAGE",
+        "RC.SENSOR_CONTAMINATION",
+        "RC.INTERFERENCE.EMI"
+      ],
+      "recommended_actions": [
+        "CA.ENCODER.REPLACE_OR_CLEAN",
+        "CA.CABLE.REPLACE",
+        "CA.IMPROVE_SHIELDING"
+      ]
+    },
+    {
+      "defect_code": "HSP.CTRL.SENSOR.FAIL",
+      "defect_text": "Control → Sensor failure / out-of-range readings",
+      "likely_root_causes": [
+        "RC.WIRE.BREAK",
+        "RC.CONTAM.SENSOR_FACE",
+        "RC.PARAM.MISCONFIG"
+      ],
+      "recommended_actions": [
+        "CA.SENSOR.REPLACE",
+        "CA.WIRE.REPAIR",
+        "CA.CALIBRATE_SENSOR"
+      ]
+    },
+    {
+      "defect_code": "HSP.CTRL.PLC.COMM_ERR",
+      "defect_text": "Control → PLC communication fault / intermittent I/O",
+      "likely_root_causes": [
+        "RC.HW.COMP_FAILURE",
+        "RC.CABLE.SHIELD_FAIL",
+        "RC.SOFTWARE.BUG"
+      ],
+      "recommended_actions": [
+        "CA.PLC.MODULE_REPLACE",
+        "CA.CABLE.REPLACE",
+        "CA.PLC.RELOAD_PROGRAM"
+      ]
+    },
+    {
+      "defect_code": "HSP.CTRL.HMI.FAIL",
+      "defect_text": "Control → HMI / operator panel freeze or crash",
+      "likely_root_causes": [
+        "RC.HMI.SW_CRASH",
+        "RC.HW.COMP_FAILURE",
+        "RC.PARAM.MISCONFIG"
+      ],
+      "recommended_actions": [
+        "CA.HMI.REBOOT",
+        "CA.HMI.REPLACE",
+        "CA.SOFTWARE_UPDATE_AND_BACKUP"
+      ]
+    },
+    {
+      "defect_code": "HSP.TOOL.CUTTER.DULL",
+      "defect_text": "Tooling → Cutter / shear dullness producing burrs or length errors",
+      "likely_root_causes": [
+        "RC.ROLL.WEAR",
+        "RC.MATERIAL.DEFECT",
+        "RC.CUTTER.TIMING_ERROR"
+      ],
+      "recommended_actions": [
+        "CA.CUTTER.SHARPEN_OR_REPLACE",
+        "CA.CHECK_MATERIAL_SPEC",
+        "CA.CUTTER.RESET_TIMING"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.WALL_THICK_VAR",
+      "defect_text": "Product → Wall thickness variation / non-uniform reduction",
+      "likely_root_causes": [
+        "RC.ROLL.WEAR",
+        "RC.MANDREL.MISALIGN",
+        "RC.STRAIN.EXCESS"
+      ],
+      "recommended_actions": [
+        "CA.ROLL.REGRIND",
+        "CA.MANDREL.ALIGN",
+        "CA.PROCESS.ADJUST_LOAD"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.CENTERLINE.CRACK",
+      "defect_text": "Product → Centerline crack / longitudinal split",
+      "likely_root_causes": [
+        "RC.STRAIN.EXCESS",
+        "RC.MATERIAL.DEFECT",
+        "RC.TEMPERATURE.SHOCK"
+      ],
+      "recommended_actions": [
+        "CA.PROCESS.ADJUST_LOAD",
+        "CA.MATERIAL.CHECK_QUALITY",
+        "CA.ADD_INSPECTION_ULTRASONIC"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.LONGIT_CRACK",
+      "defect_text": "Product → Longitudinal crack / splitting along length",
+      "likely_root_causes": [
+        "RC.MANDREL.MISALIGN",
+        "RC.STRAIN.EXCESS",
+        "RC.MATERIAL.INCLUSION"
+      ],
+      "recommended_actions": [
+        "CA.MANDREL.ALIGN",
+        "CA.PROCESS.ADJUST_LOAD",
+        "CA.MATERIAL.CHECK_QUALITY"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.OVALITY",
+      "defect_text": "Product → Ovality / out-of-round tubes",
+      "likely_root_causes": [
+        "RC.ROLL.WEAR",
+        "RC.SADDLE.INST_ERROR",
+        "RC.MANDREL.MISALIGN"
+      ],
+      "recommended_actions": [
+        "CA.ROLL.REGRIND",
+        "CA.SADDLE.RESET",
+        "CA.MANDREL.ALIGN"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.SURFACE_DEFECT",
+      "defect_text": "Product → Surface scoring / scratches / dents / foreign particle marks",
+      "likely_root_causes": [
+        "RC.GUIDE.WEAR",
+        "RC.FOREIGN.PARTICLES",
+        "RC.INCOMPLETE_INSPECTION"
+      ],
+      "recommended_actions": [
+        "CA.GUIDE.REPLACE",
+        "CA.CLEAN_LINE",
+        "CA.TRAIN_OPERATOR"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.FOLD_WRINKLE",
+      "defect_text": "Product → Fold / wrinkling / laps (rolled fold defects)",
+      "likely_root_causes": [
+        "RC.MATERIAL.INCLUSION",
+        "RC.ROLL.WEAR",
+        "RC.STRAIN.EXCESS"
+      ],
+      "recommended_actions": [
+        "CA.MATERIAL.CHECK_QUALITY",
+        "CA.ROLL.REGRIND",
+        "CA.PROCESS.ADJUST_LOAD"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.LENGTH_VAR",
+      "defect_text": "Product → Tube length variation / incorrect cut length",
+      "likely_root_causes": [
+        "RC.CUTTER.TIMING_ERROR",
+        "RC.FEED.SLIP",
+        "RC.CTRL.SENSOR.FAIL"
+      ],
+      "recommended_actions": [
+        "CA.CUTTER.RESET_TIMING",
+        "CA.FEED.REALIGN",
+        "CA.ENCODER.REPLACE_OR_CLEAN"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.INCLUSION",
+      "defect_text": "Product → Internal inclusion / non-metallic inclusion causing defects",
+      "likely_root_causes": [
+        "RC.MATERIAL.INCLUSION",
+        "RC.MATERIAL.DEFECT"
+      ],
+      "recommended_actions": [
+        "CA.MATERIAL.CHECK_QUALITY",
+        "CA.ADD_INSPECTION_ULTRASONIC"
+      ]
+    },
+    {
+      "defect_code": "HSP.PRODUCT.SEAM_LAP",
+      "defect_text": "Product → Seam, lap or overlap (surface discontinuity)",
+      "likely_root_causes": [
+        "RC.TOOLING_CHANGE_NOT_LOGGED",
+        "RC.FOREIGN.PARTICLES"
+      ],
+      "recommended_actions": [
+        "CA.TRAIN_OPERATOR",
+        "CA.CLEAN_LINE",
+        "CA.PROCESS.ADJUST_LOAD"
+      ]
+    }
+  ],
+  "root_causes": [
+    {
+      "root_cause_code": "RC.TORQUE.INSUFFICIENT",
+      "root_cause_text": "Torque → Insufficient torque / incorrect torque spec"
+    },
+    {
+      "root_cause_code": "RC.VIBRATION.LOOSENING",
+      "root_cause_text": "Vibration → Component loosening due to vibration/resonance"
+    },
+    {
+      "root_cause_code": "RC.IMPROPER_LOCKING_DEVICE",
+      "root_cause_text": "Assembly → Missing or improper locking device (lock washer/compound)"
+    },
+    {
+      "root_cause_code": "RC.LUBE.INSUFFICIENT",
+      "root_cause_text": "Lubrication → Insufficient lubricant supply or wrong lubricant"
+    },
+    {
+      "root_cause_code": "RC.CONTAM.DEBRIS",
+      "root_cause_text": "Contamination → Solid debris / abrasive particles in oil or on parts"
+    },
+    {
+      "root_cause_code": "RC.LUBE.LOSS",
+      "root_cause_text": "Lubrication → Loss of lubrication due to pump failure or leak"
+    },
+    {
+      "root_cause_code": "RC.ALIGN.MISALIGN",
+      "root_cause_text": "Alignment → Shaft, roll or mandrel misalignment"
+    },
+    {
+      "root_cause_code": "RC.IMPACT.OVERLOAD",
+      "root_cause_text": "Mechanical → Impact or shock overload event"
+    },
+    {
+      "root_cause_code": "RC.MATERIAL.DEFECT",
+      "root_cause_text": "Material → Sub-surface defect or low-quality billet/tube"
+    },
+    {
+      "root_cause_code": "RC.CONTAM.FOREIGN_OBJECT",
+      "root_cause_text": "Contamination → Foreign object ingress (metal chips, grit)"
+    },
+    {
+      "root_cause_code": "RC.WEAR.OVALIZATION",
+      "root_cause_text": "Wear → Mandrel/roll ovalization or dimensional drift"
+    },
+    {
+      "root_cause_code": "RC.LUBE.STARVATION",
+      "root_cause_text": "Lubrication → Starvation due to blockage or pump failure"
+    },
+    {
+      "root_cause_code": "RC.OVERLOAD.OPERATION",
+      "root_cause_text": "Operation → Excessive loads or incorrect operation parameters"
+    },
+    {
+      "root_cause_code": "RC.SUCTION.AIR_INGRESS",
+      "root_cause_text": "Hydraulics → Suction line air ingestion (loose fittings/cracks)"
+    },
+    {
+      "root_cause_code": "RC.FLOW.RESTRICTION",
+      "root_cause_text": "Hydraulics → Flow restriction (blocked strainer/pipe)"
+    },
+    {
+      "root_cause_code": "RC.SEAL.WEAR",
+      "root_cause_text": "Seal → Seal wear or failure"
+    },
+    {
+      "root_cause_code": "RC.ROD.SCRATCH",
+      "root_cause_text": "Cylinder → Rod surface damage / scratch causing seal damage"
+    },
+    {
+      "root_cause_code": "RC.PRESSURE.OVERLOAD",
+      "root_cause_text": "Hydraulics → Overpressure or pressure spikes"
+    },
+    {
+      "root_cause_code": "RC.AGE.DEGRADATION",
+      "root_cause_text": "Component → Ageing / fatigue degradation"
+    },
+    {
+      "root_cause_code": "RC.PUMP.MECHANICAL_FAIL",
+      "root_cause_text": "Pump → Mechanical wear or internal pump failure"
+    },
+    {
+      "root_cause_code": "RC.ELEC.MOTOR_FAULT",
+      "root_cause_text": "Electrical → Motor faults or winding damage"
+    },
+    {
+      "root_cause_code": "RC.CONTAM.OIL_DIRT",
+      "root_cause_text": "Contamination → Oil dirt/sludge from poor filtration or breakdown"
+    },
+    {
+      "root_cause_code": "RC.MAINT.OVERDUE",
+      "root_cause_text": "Maintenance → Overdue or poor maintenance practice"
+    },
+    {
+      "root_cause_code": "RC.SCALE.BUILDUP",
+      "root_cause_text": "Scaling → Heat-exchanger / coolant scaling or deposits"
+    },
+    {
+      "root_cause_code": "RC.FLOW.LOW",
+      "root_cause_text": "Cooling → Low coolant or lube flow"
+    },
+    {
+      "root_cause_code": "RC.INSULATION.AGING",
+      "root_cause_text": "Electrical → Insulation aging or breakdown"
+    },
+    {
+      "root_cause_code": "RC.MOISTURE.INGRESS",
+      "root_cause_text": "Environment → Moisture ingress / condensation"
+    },
+    {
+      "root_cause_code": "RC.MOTOR.SHORT",
+      "root_cause_text": "Electrical → Motor short circuit or earth leakage"
+    },
+    {
+      "root_cause_code": "RC.PARAM.MISCONFIG",
+      "root_cause_text": "Control → Incorrect configuration / parameter on VFD/PLC"
+    },
+    {
+      "root_cause_code": "RC.VIBRATION.RELAXATION",
+      "root_cause_text": "Mechanical → Terminal/fastener relaxation due to vibration"
+    },
+    {
+      "root_cause_code": "RC.CORROSION.CONTACT",
+      "root_cause_text": "Corrosion → Contact oxidation causing high resistance"
+    },
+    {
+      "root_cause_code": "RC.WIRE.BREAK",
+      "root_cause_text": "Wiring → Broken conductor / terminated poorly"
+    },
+    {
+      "root_cause_code": "RC.CONTAM.SENSOR_FACE",
+      "root_cause_text": "Sensor → Sensor surface fouled by oil/dust affecting measurement"
+    },
+    {
+      "root_cause_code": "RC.SOFTWARE.BUG",
+      "root_cause_text": "Software → PLC/HMI software bug or stored-data corruption"
+    },
+    {
+      "root_cause_code": "RC.HW.COMP_FAILURE",
+      "root_cause_text": "Hardware → PLC/HMI hardware module failure"
+    },
+    {
+      "root_cause_code": "RC.ROLL.WEAR",
+      "root_cause_text": "Rolls → General roll wear from use or abrasive material"
+    },
+    {
+      "root_cause_code": "RC.MANDREL.MISALIGN",
+      "root_cause_text": "Mandrel → Mandrel off-center or misaligned"
+    },
+    {
+      "root_cause_code": "RC.STRAIN.EXCESS",
+      "root_cause_text": "Process → Excessive strain due to high reduction per pass"
+    },
+    {
+      "root_cause_code": "RC.MATERIAL.INCLUSION",
+      "root_cause_text": "Material → Non-metallic inclusion or tramp elements in billet"
+    },
+    {
+      "root_cause_code": "RC.SADDLE.INST_ERROR",
+      "root_cause_text": "Setup → Saddle or support incorrectly set during setup"
+    },
+    {
+      "root_cause_code": "RC.GUIDE.WEAR",
+      "root_cause_text": "Guide → Guide shoe wear or incorrect geometry"
+    },
+    {
+      "root_cause_code": "RC.OIL.CONTAMINATION",
+      "root_cause_text": "Oil → Oil contaminated with external substances (water/particles)"
+    },
+    {
+      "root_cause_code": "RC.CLAMP.LOOSE",
+      "root_cause_text": "Clamp → Loose clamping / worn clamp surfaces"
+    },
+    {
+      "root_cause_code": "RC.CONTAM.SPOOL",
+      "root_cause_text": "Valve → Spool contamination / particulate in valve body"
+    },
+    {
+      "root_cause_code": "RC.WEAR.VALVE",
+      "root_cause_text": "Valve → Valve spool / seat wear"
+    },
+    {
+      "root_cause_code": "RC.PIPE.CRACK",
+      "root_cause_text": "Pipe → Pipe or hose crack leading to leak"
+    },
+    {
+      "root_cause_code": "RC.COOLANT.LEAK",
+      "root_cause_text": "Coolant → Leak into lubricant circuits"
+    },
+    {
+      "root_cause_code": "RC.CONDENSATION",
+      "root_cause_text": "Environment → Condensation from temperature swings"
+    },
+    {
+      "root_cause_code": "RC.INTERFERENCE.EMI",
+      "root_cause_text": "Electrical → Electromagnetic interference affecting sensors/encoders"
+    },
+    {
+      "root_cause_code": "RC.CABLE.SHIELD_FAIL",
+      "root_cause_text": "Cable → Cable shielding or grounding failure"
+    },
+    {
+      "root_cause_code": "RC.HMI.SW_CRASH",
+      "root_cause_text": "HMI → HMI software crash or hang"
+    },
+    {
+      "root_cause_code": "RC.CUTTER.TIMING_ERROR",
+      "root_cause_text": "Cutting → Cutter timing misaligned relative to feed"
+    },
+    {
+      "root_cause_code": "RC.FEED.SLIP",
+      "root_cause_text": "Feeder → Slippage in feed rollers or loss of traction"
+    },
+    {
+      "root_cause_code": "RC.FOREIGN.PARTICLES",
+      "root_cause_text": "Process → Foreign particles on tube surface causing marks or damage"
+    },
+    {
+      "root_cause_code": "RC.TEMPERATURE.SHOCK",
+      "root_cause_text": "Thermal → Rapid temperature changes causing micro-cracks or distortion"
+    },
+    {
+      "root_cause_code": "RC.INCOMPLETE_INSPECTION",
+      "root_cause_text": "Quality → Missing or incomplete incoming material inspection"
+    },
+    {
+      "root_cause_code": "RC.CABLE.DAMAGE",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.CABLE.DAMAGE — please review and replace with an expert description."
+    },
+    {
+      "root_cause_code": "RC.CONTAM.ABRASIVES",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.CONTAM.ABRASIVES — please review and replace with an expert description."
+    },
+    {
+      "root_cause_code": "RC.CTRL.SENSOR.FAIL",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.CTRL.SENSOR.FAIL — please review and replace with an expert description."
+    },
+    {
+      "root_cause_code": "RC.IMPROPER_ALIGNMENT",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.IMPROPER_ALIGNMENT — please review and replace with an expert description."
+    },
+    {
+      "root_cause_code": "RC.IMPROPER_SETUP",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.IMPROPER_SETUP — please review and replace with an expert description."
+    },
+    {
+      "root_cause_code": "RC.IMPROPER_STORAGE",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.IMPROPER_STORAGE — please review and replace with an expert description."
+    },
+    {
+      "root_cause_code": "RC.POOR_TERMINAL_PREP",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.POOR_TERMINAL_PREP — please review and replace with an expert description."
+    },
+    {
+      "root_cause_code": "RC.SENSOR_CONTAMINATION",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.SENSOR_CONTAMINATION — please review and replace with an expert description."
+    },
+    {
+      "root_cause_code": "RC.TOOLING_CHANGE_NOT_LOGGED",
+      "root_cause_text": "Autogenerated placeholder for root cause code RC.TOOLING_CHANGE_NOT_LOGGED — please review and replace with an expert description."
+    }
+  ],
+  "corrective_actions": [
+    {
+      "action_code": "CA.TORQUE.RETIGHTEN",
+      "action_text": "Torque → Retighten bolts to manufacturer torque spec and log torque values"
+    },
+    {
+      "action_code": "CA.APPLY_LOCKING_COMPOUND",
+      "action_text": "Fasteners → Apply thread-locker or use prevailing torque nuts / lock washers"
+    },
+    {
+      "action_code": "CA.VIBRATION.ISOLATE",
+      "action_text": "Structural → Add damping/isolation mounts, check foundation bolts"
+    },
+    {
+      "action_code": "CA.LUBE.CHECK_SUPPLY",
+      "action_text": "Lubrication → Confirm lubricant type, flow rate and refill to spec; log lubrication events"
+    },
+    {
+      "action_code": "CA.OIL.FILTER_REPLACE",
+      "action_text": "Filtration → Replace oil filters, clean strainers, then sample oil"
+    },
+    {
+      "action_code": "CA.ALIGN.RESET_SHAFT",
+      "action_text": "Alignment → Re-align shaft/gear train using laser/alignment tools"
+    },
+    {
+      "action_code": "CA.GEAR.REPLACE",
+      "action_text": "Gearbox → Replace damaged gear to OEM spec and inspect mating components"
+    },
+    {
+      "action_code": "CA.BEARING.REPLACE",
+      "action_text": "Bearings → Replace bearings, inspect housing and shaft journals, update lubrication schedule"
+    },
+    {
+      "action_code": "CA.OIL.SAMPLE_ANALYSIS",
+      "action_text": "Lubrication → Perform oil analysis (particle count, water content, viscosity) and act on results"
+    },
+    {
+      "action_code": "CA.MANDREL.CLEAN_REPLACE",
+      "action_text": "Mandrel → Clean mandrel, or replace if damaged; inspect seating and runout"
+    },
+    {
+      "action_code": "CA.INSPECT_GUIDE_CLEARANCE",
+      "action_text": "Mandrel → Inspect and correct guide clearance and guide geometry"
+    },
+    {
+      "action_code": "CA.ROLL.REGRIND",
+      "action_text": "Rolls → Regrind roll profile to spec or replace if out of tolerance"
+    },
+    {
+      "action_code": "CA.PROCESS.ADJUST_LOAD",
+      "action_text": "Process → Reduce process loads/strain per pass; update operating recipe"
+    },
+    {
+      "action_code": "CA.CLEAN_LINE",
+      "action_text": "Housekeeping → Clean production line, remove foreign particles, improve guards/screens"
+    },
+    {
+      "action_code": "CA.CLAMP.RETIGHTEN",
+      "action_text": "Clamp → Retighten or replace clamp assemblies and inspect contact surfaces"
+    },
+    {
+      "action_code": "CA.SUCTION.CHECK_LINE",
+      "action_text": "Hydraulics → Inspect suction hose/piping, shorten suction run, remove restrictions"
+    },
+    {
+      "action_code": "CA.CHECK_FLUID_LEVEL_AND_VISCOSITY",
+      "action_text": "Hydraulics → Verify fluid level and correct viscosity for ambient temperature"
+    },
+    {
+      "action_code": "CA.CLEAN_STRINER_OR_FILTER",
+      "action_text": "Filtration → Clean or replace suction strainers/filters; add pre-filtration if needed"
+    },
+    {
+      "action_code": "CA.PUMP.REPLACE",
+      "action_text": "Hydraulics → Replace or rebuild failing pump, balance and test system pressures"
+    },
+    {
+      "action_code": "CA.RELIEF.REBUILD_OR_REPLACE",
+      "action_text": "Hydraulics → Service or replace relief valve and calibrate pressure settings"
+    },
+    {
+      "action_code": "CA.SEAL.REPLACE",
+      "action_text": "Seals → Replace worn seals, inspect rod surface and housing for damage"
+    },
+    {
+      "action_code": "CA.ROD.POLISH_OR_REPLACE",
+      "action_text": "Hydraulics → Polish minor rod damage; replace if scoring is severe"
+    },
+    {
+      "action_code": "CA.FILTER.REPLACE",
+      "action_text": "Filtration → Replace filters and update filter-change interval; add condition monitoring"
+    },
+    {
+      "action_code": "CA.OIL.REPLACE",
+      "action_text": "Lubrication → Drain and replace contaminated oil; flush system if needed"
+    },
+    {
+      "action_code": "CA.CLEAN.HEAT_EXCHANGER",
+      "action_text": "Cooling → Clean heat exchanger and restore flow rates; check for scale removal measures"
+    },
+    {
+      "action_code": "CA.OIL.DEHYDRATE_OR_REPLACE",
+      "action_text": "Lubrication → Dehydrate oil (centrifuge/degasser) or replace if emulsified"
+    },
+    {
+      "action_code": "CA.MOTOR.REWIND_OR_REPLACE",
+      "action_text": "Electrical → Rewind or replace motor; test insulation resistance and thermal sensors"
+    },
+    {
+      "action_code": "CA.DRY.ENCLOSURE",
+      "action_text": "Electrical → Dry and seal motor/enclosure and install moisture control measures"
+    },
+    {
+      "action_code": "CA.VFD.RESET_PARAM",
+      "action_text": "VFD → Reset VFD parameters to OEM recommended; log changes and run test cycles"
+    },
+    {
+      "action_code": "CA.MOTOR.TEST",
+      "action_text": "Electrical → Perform motor insulation and surge tests; diagnose rotor/bar issues"
+    },
+    {
+      "action_code": "CA.TERMINAL.TIGHTEN",
+      "action_text": "Electrical → Tighten terminations to torque spec and document torque values"
+    },
+    {
+      "action_code": "CA.CONTACT.CLEAN",
+      "action_text": "Electrical → Clean or replace corroded contact surfaces"
+    },
+    {
+      "action_code": "CA.ENCODER.REPLACE_OR_CLEAN",
+      "action_text": "Sensors → Clean encoder or replace; verify alignment and shielding"
+    },
+    {
+      "action_code": "CA.CABLE.REPLACE",
+      "action_text": "Wiring → Replace damaged cables with correct spec and re-run shielding/grounding"
+    },
+    {
+      "action_code": "CA.IMPROVE_SHIELDING",
+      "action_text": "EMI → Improve grounding and cable shielding; reroute power/signal cables separately"
+    },
+    {
+      "action_code": "CA.PLC.RELOAD_PROGRAM",
+      "action_text": "Controls → Reload PLC program from verified backup and test I/O mapping"
+    },
+    {
+      "action_code": "CA.PLC.MODULE_REPLACE",
+      "action_text": "Controls → Replace faulty PLC I/O or communication modules"
+    },
+    {
+      "action_code": "CA.HMI.REBOOT",
+      "action_text": "HMI → Soft reboot HMI; preserve logs for post-mortem"
+    },
+    {
+      "action_code": "CA.HMI.REPLACE",
+      "action_text": "HMI → Replace HMI unit if hardware fault; keep configuration backups"
+    },
+    {
+      "action_code": "CA.CUTTER.SHARPEN_OR_REPLACE",
+      "action_text": "Tooling → Sharpen or replace cutter/shear and verify cut geometry"
+    },
+    {
+      "action_code": "CA.CUTTER.RESET_TIMING",
+      "action_text": "Cutting → Reset and verify cutter timing and synchronisation with feed"
+    },
+    {
+      "action_code": "CA.FEED.REALIGN",
+      "action_text": "Feeder → Adjust feed rollers, inspect traction surfaces and conveyor alignment"
+    },
+    {
+      "action_code": "CA.MATERIAL.CHECK_QUALITY",
+      "action_text": "Quality → Reject suspect billet/tube batch; run chemical/micro inspection"
+    },
+    {
+      "action_code": "CA.ADD_INSPECTION_ULTRASONIC",
+      "action_text": "Quality → Add ultrasonic or eddy-current in-line inspection for inclusions/cracks"
+    },
+    {
+      "action_code": "CA.UPDATE_MAINTENANCE_SCHEDULE",
+      "action_text": "Maintenance → Adjust preventive maintenance schedule based on failure root-cause trends"
+    },
+    {
+      "action_code": "CA.INSTALL_MONITORING",
+      "action_text": "Reliability → Install vibration and temperature monitoring on bearings and gearbox"
+    },
+    {
+      "action_code": "CA.TRAIN_OPERATOR",
+      "action_text": "Human → Operator training and updated SOPs for setup, shift handover and abnormal-condition response"
+    },
+    {
+      "action_code": "CA.IMPLEMENT_PARTICLE_SEPARATION",
+      "action_text": "Filtration → Add offline particle removal (centrifuge/magnet) and improved filtration stages"
+    },
+    {
+      "action_code": "CA.ADD_PRE-FILTER",
+      "action_text": "Filtration → Add pre-filter/strainer to suction line to prevent pump cavitation and wear"
+    },
+    {
+      "action_code": "CA.REVIEW_OPERATING_LOAD",
+      "action_text": "Process → Review and limit operating loads; implement alarm thresholds for overload"
+    },
+    {
+      "action_code": "CA.REPAIR_COOLANT_SYSTEM",
+      "action_text": "Cooling → Repair coolant leak paths and ensure separation of coolant and lube loops"
+    },
+    {
+      "action_code": "CA.SCHEDULE.MAINTENANCE",
+      "action_text": "Maintenance → Create and enforce PM tasks: bearing checks, roll inspection, filter change logs"
+    },
+    {
+      "action_code": "CA.ADD_GASKET_SEAL_CHECK",
+      "action_text": "Sealing → Inspect gaskets/seal seating and replace with correct spec parts"
+    },
+    {
+      "action_code": "CA.ADD_FILTRATION",
+      "action_text": "Autogenerated placeholder corrective action for CA.ADD_FILTRATION — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.ADD_LOCKING_COMPOUNDS",
+      "action_text": "Autogenerated placeholder corrective action for CA.ADD_LOCKING_COMPOUNDS — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.ADJUST_LOAD",
+      "action_text": "Autogenerated placeholder corrective action for CA.ADJUST_LOAD — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.CALIBRATE_PRESSURE",
+      "action_text": "Autogenerated placeholder corrective action for CA.CALIBRATE_PRESSURE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.CALIBRATE_SENSOR",
+      "action_text": "Autogenerated placeholder corrective action for CA.CALIBRATE_SENSOR — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.CHECK.SEALS",
+      "action_text": "Autogenerated placeholder corrective action for CA.CHECK.SEALS — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.CHECK_MATERIAL_SPEC",
+      "action_text": "Autogenerated placeholder corrective action for CA.CHECK_MATERIAL_SPEC — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.CHECK_SUPPLY",
+      "action_text": "Autogenerated placeholder corrective action for CA.CHECK_SUPPLY — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.FLOW.INCREASE",
+      "action_text": "Autogenerated placeholder corrective action for CA.FLOW.INCREASE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.GUIDE.REPLACE",
+      "action_text": "Autogenerated placeholder corrective action for CA.GUIDE.REPLACE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.IMPLEMENT_ROLL_ROTATION_SCHEDULE",
+      "action_text": "Autogenerated placeholder corrective action for CA.IMPLEMENT_ROLL_ROTATION_SCHEDULE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.INSTALL_PRE-FILTER",
+      "action_text": "Autogenerated placeholder corrective action for CA.INSTALL_PRE-FILTER — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.INSTALL_TEMPERATURE_MONITORING",
+      "action_text": "Autogenerated placeholder corrective action for CA.INSTALL_TEMPERATURE_MONITORING — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.MANDREL.ALIGN",
+      "action_text": "Autogenerated placeholder corrective action for CA.MANDREL.ALIGN — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.MANDREL.REPLACE",
+      "action_text": "Autogenerated placeholder corrective action for CA.MANDREL.REPLACE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.OIL.ANALYSIS_AND_CHANGE",
+      "action_text": "Autogenerated placeholder corrective action for CA.OIL.ANALYSIS_AND_CHANGE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.OIL.DEHYDRATE",
+      "action_text": "Autogenerated placeholder corrective action for CA.OIL.DEHYDRATE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.SADDLE.RESET",
+      "action_text": "Autogenerated placeholder corrective action for CA.SADDLE.RESET — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.SENSOR.REPLACE",
+      "action_text": "Autogenerated placeholder corrective action for CA.SENSOR.REPLACE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.SOFTWARE_UPDATE_AND_BACKUP",
+      "action_text": "Autogenerated placeholder corrective action for CA.SOFTWARE_UPDATE_AND_BACKUP — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.UPDATE_SETUP_CHECKLIST",
+      "action_text": "Autogenerated placeholder corrective action for CA.UPDATE_SETUP_CHECKLIST — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.VALVE.CLEAN",
+      "action_text": "Autogenerated placeholder corrective action for CA.VALVE.CLEAN — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.VALVE.REPLACE",
+      "action_text": "Autogenerated placeholder corrective action for CA.VALVE.REPLACE — please review and replace with specific steps."
+    },
+    {
+      "action_code": "CA.WIRE.REPAIR",
+      "action_text": "Autogenerated placeholder corrective action for CA.WIRE.REPAIR — please review and replace with specific steps."
+    }
+  ],
+  "meta": {
+    "version": "3.1.1",
+    "description": "Enhanced Pilger Machine ontology — expanded defects, root causes and corrective actions covering mechanical (gearbox, bearings, rolls, mandrel), hydraulics, lubrication/cooling, electrical, controls, tooling and product-quality defects. Validated for internal consistency (codes uniqueness & reference integrity).",
+    "validated_on": "2025-09-01",
+    "validated_by": "Assistant (Pilger machine ontology validation script)",
+    "validation_notes": "Auto-added placeholders for referenced but missing codes; review placeholders."
+  }
+}
