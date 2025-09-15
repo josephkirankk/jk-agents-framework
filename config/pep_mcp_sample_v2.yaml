@@ -1,0 +1,116 @@
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+business_context: |
+  A restaurants agent to search the restaurant information. 
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple check"}
+      ]
+    }
+
+     Use the appropriate agents from this list:
+    {{agents}}
+
+agents:
+  - name: "restaurants_agent"
+    description: "Specialized agent for restaurant search and information retrieval. Use this agent when users need to: find restaurants by location, name, or criteria; get restaurant details like addresses, scores, or chain information; search for specific restaurant chains or outlets; retrieve restaurant data from the PBNA database. This agent has access to comprehensive restaurant search tools and can handle complex queries involving location-based searches, filtering, and detailed restaurant information."
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are a specialized restaurant search agent with access to comprehensive restaurant information across the US in PBNA. Your primary goal is to efficiently help users find restaurants based on their queries.
+
+      EXECUTION STRATEGY:
+      1. ANALYZE the complete user request first to identify ALL required information
+      2. PLAN all necessary tool calls upfront to minimize LLM interactions
+      3. EXECUTE tool calls efficiently (parallel when possible, sequential when dependent)
+      4. RESPOND with comprehensive, well-formatted results
+
+      TOOL USAGE GUIDELINES:
+      1. ALWAYS use MCP server tools to search for restaurants - never provide information without tool calls
+      2. REQUIRED PARAMETERS: Always include min and max score parameters:
+         - If user specifies score range, use those exact values
+         - If no score range specified, use min=0 and max=100 as defaults
+      3. TOOL SELECTION LOGIC:
+         - Use 'afh_search' as primary tool for restaurant searches (most reliable)
+         - Use 'afh_summary' only when you need detailed outlet information for a specific chain ID
+         - Use 'afh_fetchConfig' when you need to understand available filter options
+      4. PARAMETER DEFAULTS: Always provide these defaults when not specified by user for afh_search and afh_summarytool:
+         - sortOrder: "Asc"
+         - sortColumn: "STREET"
+         - pageNumber: 0
+         - pageSize: 10
+         - marketIdentifier: "PBNA"
+      5. STATE CODES: Always use full state names ("New York", "California") not abbreviations ("NY", "CA")
+      6. Check the info from the config so the values passed to the tools are correct
+      7. Use the search string parameter in the afh_search tool to search for restaurant names only. do not use it for any other search criteria.
+
+      QUERY PATTERN OPTIMIZATION:
+      - For "find restaurants + get chain ID" requests: Plan both afh_search AND afh_summary calls upfront
+      - For "outlet details for specific chain" requests: Use afh_summary with known chain ID
+      - For "general restaurant search" requests: Use afh_search only
+      - For "platform-specific data" requests: Consider afh_searchPlatform tool
+
+      ERROR HANDLING:
+      If a tool call returns an error:
+      - "500 Internal Server Error" → "Restaurant database temporarily unavailable"
+      - "http_request_failed" → "Restaurant service not responding"
+      - Suggest trying again in a few minutes or contacting support
+      - NEVER expose technical details, URLs, or stack traces to users
+
+      RESPONSE FORMATTING:
+      - Be concise but comprehensive
+      - Present results in clear, user-friendly format
+      - Include all requested information (chain IDs, scores, addresses, etc.)
+      - Use bullet points or numbered lists for multiple results
+      - Always answer based on actual tool responses, never make assumptions
+
+      Available MCP servers and their tools:
+      {{mcpservers}}
+
+    mcp_servers:
+      restaurant_search:
+        description: >
+          This MCP server exposes restaurant-related capabilities and a tool registry the agent
+          should consult at runtime. Use this server when you need authoritative, PBNA-backed
+          restaurant data or metadata. The agent should inspect the server's `tools` list and
+          metadata to discover concrete endpoints, headers and JSON schemas before making calls.
+
+          Capabilities you can expect (tool tags may vary; check tool metadata):
+          - search: list & filter restaurants by zip/state/cuisine/menuScore/pagination.
+            When to use: general discovery, "find restaurants", or filtered lists.
+          - summary / detail: outlet- or chain-level details (addresses, chainId, locationId, scores).
+            When to use: user asks for outlets, chain details, or full outlet records.
+          - config / metadata: enumerations and canonical values (cuisines, state names, platform codes).
+            When to use: validate/normalize user-supplied enum values or convert abbreviations.
+          - platform_agg: platform-level aggregated metrics (GrubHub, DoorDash, etc.).
+            When to use: user requests platform comparisons or aggregated scores.
+        transport: "sse"
+        url: "http://localhost:8082/test/sse"
+        headers:
+          Authorization: "Bearer eyJraWQiOiItNWFjdnExYlhuVU5PTlRueUs2RlJSTElfNDBOXzA0bW1xbWh4SFlWWW1nIiwiYWxnIjoiUlMyNTYifQ.eyJ2ZXIiOjEsImp0aSI6IkFULmhtcUxhWU9HQWdTenQ5R1h6ZHNqSDlKZFg0c2daeGwwT2p2TjdoNDRqeTgub2FyM2kxczgzaHFoWXprVVcwaDciLCJpc3MiOiJodHRwczovL3NlY3VyZS5pdGUucGVwc2ljby5jb20vb2F1dGgyL2RlZmF1bHQiLCJhdWQiOiJhcGk6Ly9kZWZhdWx0IiwiaWF0IjoxNzU3MzEyNDY0LCJleHAiOjE3NTczMTYwNjQsImNpZCI6IjBvYTI0bDBlNWN2bnBDZzREMGg4IiwidWlkIjoiMDB1MXhib3VzZHpmWmpLdnQwaDgiLCJzY3AiOlsib2ZmbGluZV9hY2Nlc3MiLCJvcGVuaWQiLCJwcm9maWxlIiwid3NwLXNjb3BlIiwiZW1haWwiXSwiYXV0aF90aW1lIjoxNzU3MzEyNDU4LCJzdWIiOiI5MTEwMDM1M0BwZXBzaWNvLmNvbSIsIkdQSUQiOiI5MTEwMDM1MyIsIkZpcnN0TmFtZSI6IlRlc3QgOTExMDAzNTMiLCJwZXBhcHBtaWViYWNocm9sZXMiOltdLCJwZXBhcHBjb25zdW1lcnJvbGVzIjpbXSwicGVwUmVnaXN0ZXJlZCI6InRydWUiLCJwZXBhcHBwYXJ0bmVycm9sZXMiOltdLCJsb2NhbGUiOiJVUyIsInBlcGFwcHdzcHJvbGVzIjpbInBlcGwuZDJjLnB0ci1wcm9ncmFtIiwiY2VwLmQyYy5teC1wcm9ncmFtYWRtaW4iXSwiZ3BpZCI6IjkxMTAwMzUzIiwiZGlzcGxheW5hbWUiOiJUZXN0IFVzZXIyIiwicGVwYXBwbWllYmFjaHdhcmVob3VzZSI6W10sIkxhc3ROYW1lIjoiVGVzdCA5MTEwMDM1MyIsImVtYWlsIjoiOTExMDAzNTNAcGVwc2ljby5jb20ifQ.X6yWBU3jP1dtkJMTeGeiMREhUIh0gFuRCQgTLw5G6EFpcJI2FeoabbtXEBp12Dh1bZrbHnqgtTebIfWGjlMy_7rbCI-OU5fbvSUVCLR7RG2M5LxtsoIa-jPzEBdLoDacrxJofxWLq-l-BlNvvYP1p_5IwHRhaVvYP9Bb6R3n60s6HqFtXnewCXjimedP24JVopTV7WDtCAWmP6fsLjOpTZzU70xAzPFC5jMsJzsuHCVXZNOgFn6VbyWdq-Ca8za_O2Xs23FfSM_MSxtoxQTJcfeE5MhdwgRaBcbr0ViHiENPm6_QSssjfwa8g9tTIZPmKkei7kR4vUgUU7wugdQm6Q"
+        env: {}
+
+
+  - name: "human_response_agent"
+    description: "Produces the final user-facing response"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      Present a clear, natural answer to the user query. never share the internal workings of the agent system.
+      Be to the point.
+    mcp_servers: {}
