@@ -52,7 +52,7 @@ The CSV Analyst Agent provides intelligent analysis and enhancement of CSV files
 curl -X POST "http://localhost:8000/worker/upload" \
   -F "agent_name=csv_analyst_agent" \
   -F "input=Analyze this sales data and provide business insights with visualizations" \
-  -F "config_path=config/gemba-predictive-v1.yaml" \
+  -F "config_path=config/x-v1.yaml" \
   -F "files=@sales_data.csv"
 ```
 
@@ -91,21 +91,21 @@ Upload files and execute an agent with file attachments.
 curl -X POST "http://localhost:8000/worker/upload" \
   -F "agent_name=ocr_agent" \
   -F "input=Analyze this image and tell me what you see" \
-  -F "config_path=config/gemba-predictive-v1.yaml" \
+  -F "config_path=config/x-v1.yaml" \
   -F "files=@image.jpg"
 
 # CSV Analysis with CSV Analyst Agent
 curl -X POST "http://localhost:8000/worker/upload" \
   -F "agent_name=csv_analyst_agent" \
   -F "input=Analyze this sales data and provide intelligent insights" \
-  -F "config_path=config/gemba-predictive-v1.yaml" \
+  -F "config_path=config/x-v1.yaml" \
   -F "files=@sales_data.csv"
 
 # Multiple Files Analysis
 curl -X POST "http://localhost:8000/worker/upload" \
   -F "agent_name=python_exec_agent" \
   -F "input=Analyze these files and provide insights" \
-  -F "config_path=config/gemba-predictive-v1.yaml" \
+  -F "config_path=config/x-v1.yaml" \
   -F "files=@image.jpg" \
   -F "files=@document.pdf"
 ```
@@ -121,7 +121,7 @@ url = "http://localhost:8000/worker/upload"
 data = {
     "agent_name": "python_exec_agent",
     "input": "Analyze these files and provide insights",
-    "config_path": "config/gemba-predictive-v1.yaml"
+    "config_path": "config/x-v1.yaml"
 }
 
 # Files to upload

@@ -203,7 +203,7 @@ print(f"Result: {result}")  # Output: Result: 25.0
 ### 3. Test with Agent
 
 ```bash
-python -m app.main --config config/gemba_agents_v1.yaml --agent python_function_demo_agent --input "Calculate 30% of 150"
+python -m app.main --config config/x_agents_v1.yaml --agent python_function_demo_agent --input "Calculate 30% of 150"
 ```
 
 ## Best Practices
@@ -262,7 +262,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 See the complete working examples in:
 - `tools/python_function_tools.py` - Example tool implementations
-- `config/gemba_agents_v1.yaml` - YAML configuration examples
+- `config/x_agents_v1.yaml` - YAML configuration examples
 - `test_python_tools.py` - Testing examples
 
 ## Next Steps
