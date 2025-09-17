@@ -128,7 +128,8 @@ agents:
     model: "openai:qwen/qwen3-4b-2507"
     prompt: |
       {{dependent_request_responses}}
-      Your task is the understand the question and write the code for the question and execute it using the tool. only think on how to write the code, write the code and execute the code using the tool.
+      Your task is to carefully interpret the question, generate the correct code to solve it, and execute that code using the provided tool.
+      Focus only on coding: plan the solution, write the code, and run it.
       
     mcp_servers:
       python_runner:
