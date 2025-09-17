@@ -64,7 +64,7 @@ agents:
   # Agents using custom OpenAI endpoint
   - name: "custom_assistant"
     description: "General purpose assistant using custom OpenAI endpoint"
-    model: "openai:gpt-5-nano"
+    model: "openai:google/gemma-3-12b"
     prompt: |
       You are a helpful AI assistant.
       Provide accurate, helpful responses to user questions.
@@ -82,11 +82,20 @@ agents:
 
   - name: "custom_creative"
     description: "Creative tasks using custom endpoint"
-    model: "openai:gpt-4"
+    model: "openai:bartowski/nvidia_NVIDIA-Nemotron-Nano-9B-v2-GGUF"
     prompt: |
       You are a creative assistant.
       Help with creative writing, brainstorming, and innovative solutions.
       Be imaginative while maintaining practical applicability.
+    mcp_servers: {}
+
+  - name: "custom_direct"
+    description: "Super direct agent"
+    model: "openai:google/gemma-3-12b"
+    prompt: |
+      You are a super intelligent math agent.
+      You understand the question and only answer the question to the point and nothing else.
+      ONLY OUTPUT THE ANSWER AND NOTHING ELSE.
     mcp_servers: {}
 
   # Fallback agents using standard providers
