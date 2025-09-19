@@ -1,0 +1,268 @@
+[
+  {
+    "group": "CHU",
+    "group_name": "Chuck & Jaws",
+    "defects": [
+      {
+        "defect_code": "CHU.MC.CYLPIN.WORN",
+        "defect_text": "Mother Chuck: Cylinder pin is excessively worn.",
+        "failure_mode": "WEAR",
+        "severity": "MEDIUM",
+        "potential_cause": "LACK_OF_LUBRICATION, MISALIGNMENT, NORMAL_LIFECYCLE"
+      },
+      {
+        "defect_code": "CHU.MC.CYLPIN.LOOSE",
+        "defect_text": "Mother Chuck: Cylinder pin is loose in its housing.",
+        "failure_mode": "LOOSENESS",
+        "severity": "LOW",
+        "potential_cause": "VIBRATION, IMPROPER_INSTALLATION"
+      },
+      {
+        "defect_code": "CHU.MC.CYLPIN.BENT",
+        "defect_text": "Mother Chuck: Cylinder pin is bent or deformed.",
+        "failure_mode": "DEFORMATION",
+        "severity": "HIGH",
+        "potential_cause": "OVERLOAD, IMPACT_EVENT"
+      },
+      {
+        "defect_code": "CHU.MC.CYLPIN.FRACTURED",
+        "defect_text": "Mother Chuck: Cylinder pin has broken/fractured.",
+        "failure_mode": "FRACTURE",
+        "severity": "CRITICAL",
+        "potential_cause": "FATIGUE, OVERLOAD, PREVIOUS_DAMAGE"
+      },
+      {
+        "defect_code": "CHU.MC.JAW.FRACTURED",
+        "defect_text": "Mother Chuck: Jaw is broken or cracked.",
+        "failure_mode": "FRACTURE",
+        "severity": "CRITICAL",
+        "potential_cause": "IMPACT_EVENT, MATERIAL_FATIGUE"
+      },
+      {
+        "defect_code": "CHU.MC.JAW.LOOSE",
+        "defect_text": "Mother Chuck: Jaw or its securing bolts are loose.",
+        "failure_mode": "LOOSENESS",
+        "severity": "MEDIUM",
+        "potential_cause": "VIBRATION, IMPROPER_TORQUE"
+      },
+      {
+        "defect_code": "CHU.MC.BEARINGBOLT.FRACTURED",
+        "defect_text": "Mother Chuck: Bearing shaft or cover bolt has broken.",
+        "failure_mode": "FRACTURE",
+        "severity": "HIGH",
+        "potential_cause": "OVER_TORQUE, VIBRATION, FATIGUE"
+      },
+      {
+        "defect_code": "CHU.PUSHER.WELD.CRACKED",
+        "defect_text": "Pusher Stand: Welding has cracked or failed.",
+        "failure_mode": "WELD_FAILURE",
+        "severity": "HIGH",
+        "potential_cause": "FATIGUE, OVERLOAD, POOR_WELD_QUALITY"
+      }
+    ]
+  },
+  {
+    "group": "FEED",
+    "group_name": "Feed Trolley & Pusher",
+    "defects": [
+      {
+        "defect_code": "FEED.TROLLEY.PLATE.WELD_FAIL",
+        "defect_text": "Feed Trolley: A weld on a structural plate has failed.",
+        "failure_mode": "WELD_FAILURE",
+        "severity": "HIGH",
+        "potential_cause": "FATIGUE, VIBRATION"
+      },
+      {
+        "defect_code": "FEED.TROLLEY.PLATE.DEFORMED",
+        "defect_text": "Feed Trolley: Pushing plate is bent or damaged.",
+        "failure_mode": "DEFORMATION",
+        "severity": "MEDIUM",
+        "potential_cause": "IMPACT_EVENT, OVERLOAD"
+      },
+      {
+        "defect_code": "FEED.TROLLEY.CHAIN.FRACTURED",
+        "defect_text": "Feed Trolley: Drive chain or link has broken.",
+        "failure_mode": "FRACTURE",
+        "severity": "CRITICAL",
+        "potential_cause": "WEAR, TENSION_ISSUE, LACK_OF_LUBRICATION"
+      },
+      {
+        "defect_code": "FEED.TROLLEY.CYL.LEAK",
+        "defect_text": "Feed Trolley: Hydraulic/pneumatic cylinder is leaking.",
+        "failure_mode": "LEAK",
+        "severity": "MEDIUM",
+        "potential_cause": "SEAL_FAILURE, ROD_DAMAGE"
+      },
+      {
+        "defect_code": "FEED.TROLLEY.CYL.FAIL_NO_MOTION",
+        "defect_text": "Feed Trolley: Cylinder is not actuating.",
+        "failure_mode": "FUNCTIONAL_FAILURE",
+        "severity": "HIGH",
+        "potential_cause": "INTERNAL_FAILURE, PRESSURE_LOSS"
+      }
+    ]
+  },
+  {
+    "group": "MOT",
+    "group_name": "Motors & Drives",
+    "defects": [
+      {
+        "defect_code": "MOT.MAIN.TRIP.OVERLOAD",
+        "defect_text": "Main Motor: Tripped on thermal overload.",
+        "failure_mode": "TRIP_OVERLOAD",
+        "severity": "HIGH",
+        "potential_cause": "MECHANICAL_BINDING, BEARING_FAILURE, VOLTAGE_DROP"
+      },
+      {
+        "defect_code": "MOT.PUMP.TRIP.ELECTRICAL",
+        "defect_text": "Pump Motor: Tripped on electrical fault (short/ground).",
+        "failure_mode": "TRIP_ELECTRICAL",
+        "severity": "HIGH",
+        "potential_cause": "WINDING_FAILURE, CABLE_DAMAGE, MOISTURE_INGRESS"
+      },
+      {
+        "defect_code": "MOT.SERVO.FAIL.NO_RESPONSE",
+        "defect_text": "Servo Motor: Motor is not responding to commands.",
+        "failure_mode": "FUNCTIONAL_FAILURE",
+        "severity": "CRITICAL",
+        "potential_cause": "DRIVER_FAULT, ENCODER_FAILURE, WIRING_ISSUE"
+      },
+      {
+        "defect_code": "MOT.SERVO.FAN.FAIL",
+        "defect_text": "Servo Motor: Cooling fan is not operational.",
+        "failure_mode": "COMPONENT_FAILURE",
+        "severity": "LOW",
+        "potential_cause": "BEARING_FAILURE, ELECTRICAL_FAULT"
+      },
+      {
+        "defect_code": "MOT.DRIVE.BELT.FRACTURED",
+        "defect_text": "Motor Drive: Drive belt has snapped.",
+        "failure_mode": "FRACTURE",
+        "severity": "HIGH",
+        "potential_cause": "WEAR, TENSION_ISSUE, MISALIGNMENT"
+      }
+    ]
+  },
+  {
+    "group": "HYD",
+    "group_name": "Hydraulic System",
+    "defects": [
+      {
+        "defect_code": "HYD.SYSTEM.PRESSURE.LOW",
+        "defect_text": "Hydraulic System: System pressure is below operating threshold.",
+        "failure_mode": "LOW_PRESSURE",
+        "severity": "HIGH",
+        "potential_cause": "PUMP_WEAR, RELIEF_VALVE_ISSUE, MAJOR_LEAK"
+      },
+      {
+        "defect_code": "HYD.SYSTEM.TEMP.HIGH",
+        "defect_text": "Hydraulic System: Oil temperature is above operating threshold.",
+        "failure_mode": "OVERHEATING",
+        "severity": "MEDIUM",
+        "potential_cause": "COOLER_FAILURE, LOW_OIL_LEVEL, BLOCKED_FILTER"
+      },
+      {
+        "defect_code": "HYD.FILTER.BLOCKED",
+        "defect_text": "Hydraulic Filter: Filter is clogged/jammed, high delta-P.",
+        "failure_mode": "BLOCKED",
+        "severity": "MEDIUM",
+        "potential_cause": "OIL_CONTAMINATION, NORMAL_LIFECYCLE"
+      },
+      {
+        "defect_code": "HYD.HOSE.LEAK.FITTING",
+        "defect_text": "Hydraulic Hose: Leakage at a hose fitting or crimp.",
+        "failure_mode": "LEAK",
+        "severity": "LOW",
+        "potential_cause": "VIBRATION, IMPROPER_INSTALLATION"
+      },
+      {
+        "defect_code": "HYD.HOSE.BURST",
+        "defect_text": "Hydraulic Hose: Hose has burst.",
+        "failure_mode": "BURST",
+        "severity": "CRITICAL",
+        "potential_cause": "AGING, ABRASION, OVERPRESSURE"
+      }
+    ]
+  },
+  {
+    "group": "OIL",
+    "group_name": "Lubrication & Oil Transfer",
+    "defects": [
+      {
+        "defect_code": "OIL.PUMP.XFER.LEAK.SEAL",
+        "defect_text": "Oil Transfer Pump: Leaking from shaft seal.",
+        "failure_mode": "LEAK",
+        "severity": "MEDIUM",
+        "potential_cause": "SEAL_WEAR, SHAFT_SCORING, CONTAMINATION"
+      },
+      {
+        "defect_code": "OIL.PUMP.XFER.FAIL.NO_FLOW",
+        "defect_text": "Oil Transfer Pump: Running but not pumping oil.",
+        "failure_mode": "NO_FLOW",
+        "severity": "HIGH",
+        "potential_cause": "CAVITATION, LOSS_OF_PRIME, INTERNAL_FAILURE"
+      },
+      {
+        "defect_code": "OIL.PUMP.XFER.COUPLING.FRACTURED",
+        "defect_text": "Oil Transfer Pump: Motor coupling has failed.",
+        "failure_mode": "FRACTURE",
+        "severity": "HIGH",
+        "potential_cause": "MISALIGNMENT, SHOCK_LOAD"
+      },
+      {
+        "defect_code": "OIL.COOLER.LEAK.INTERNAL",
+        "defect_text": "Oil Cooling Coil: Internal leak (oil/water mixing).",
+        "failure_mode": "LEAK_INTERNAL",
+        "severity": "CRITICAL",
+        "potential_cause": "CORROSION, EROSION"
+      }
+    ]
+  },
+  {
+    "group": "STR",
+    "group_name": "Structural Components",
+    "defects": [
+      {
+        "defect_code": "STR.FRAME.WELD.CRACKED",
+        "defect_text": "Machine Frame: A structural weld has cracked.",
+        "failure_mode": "WELD_FAILURE",
+        "severity": "CRITICAL",
+        "potential_cause": "FATIGUE, VIBRATION"
+      },
+      {
+        "defect_code": "STR.GUIDEROD.BOLT.FRACTURED",
+        "defect_text": "Guide Rod Support: Mounting bolt has broken.",
+        "failure_mode": "FRACTURE",
+        "severity": "HIGH",
+        "potential_cause": "FATIGUE, OVER_TORQUE"
+      },
+      {
+        "defect_code": "STR.GUIDEROD.DEFORMED",
+        "defect_text": "Guide Rod: Rod is bent or permanently deformed.",
+        "failure_mode": "DEFORMATION",
+        "severity": "HIGH",
+        "potential_cause": "IMPACT_EVENT, MECHANICAL_BINDING"
+      }
+    ]
+  },
+  {
+      "group": "AUX",
+      "group_name": "Auxiliary Systems",
+      "defects": [
+        {
+          "defect_code": "AUX.DIEHEATER.FAIL.NO_HEAT",
+          "defect_text": "Die Heating Induction: System is not heating.",
+          "failure_mode": "FUNCTIONAL_FAILURE",
+          "severity": "MEDIUM",
+          "potential_cause": "COIL_FAILURE, POWER_SUPPLY_ISSUE, CONTROLLER_FAULT"
+        },
+        {
+          "defect_code": "AUX.TURNING.FAIL.JAMMED",
+          "defect_text": "Turning System: Mechanism is jammed or not rotating.",
+          "failure_mode": "JAMMED",
+          "severity": "MEDIUM",
+          "potential_cause": "MECHANICAL_OBSTRUCTION, LUBRICATION_FAILURE"
+        }
+      ]
+  }
+]
