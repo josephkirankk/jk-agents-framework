@@ -90,12 +90,33 @@ class RequestTranslator:
 
         if request.stop is not None:
             pepgenx_request.stop = request.stop
+
+        # Handle tools and tool_choice
+        if request.tools is not None:
+            # Convert OpenAI tools format to PepGenX format
+            pepgenx_tools = []
+            for tool in request.tools:
+                pepgenx_tool = {
+                    "type": tool.type,
+                    "function": {
+                        "name": tool.function.name,
+                        "description": tool.function.description,
+                        "parameters": tool.function.parameters
+                    }
+                }
+                pepgenx_tools.append(pepgenx_tool)
+            pepgenx_request.tools = pepgenx_tools
+
+        if request.tool_choice is not None:
+            pepgenx_request.tool_choice = request.tool_choice
+
         logger.debug(
             "Request translation completed",
             original_model=request.model,
             pepgenx_model=pepgenx_model,
             messages_count=len(request.messages),
-            custom_prompt_length=len(custom_prompt)
+            custom_prompt_length=len(custom_prompt),
+            tools_count=len(request.tools) if request.tools else 0
         )
 
         return pepgenx_request
@@ -184,21 +205,54 @@ class ResponseTranslator:
         if pepgenx_response.choices:
             for i, choice in enumerate(pepgenx_response.choices):
                 # Handle different choice formats
+                text = ""
+                finish_reason = "stop"
+
                 if isinstance(choice, dict):
-                    text = choice.get("text", "")
+                    # Handle PepGenX raw response format: choices[].message.content
+                    if "message" in choice and isinstance(choice["message"], dict):
+                        text = choice["message"].get("content", "")
+                    else:
+                        # Fallback to direct text field
+                        text = choice.get("text", "")
                     finish_reason = choice.get("finish_reason", "stop")
+                elif hasattr(choice, "message") and hasattr(choice.message, "content"):
+                    # Handle structured choice object with message.content
+                    text = choice.message.content or ""
+                    finish_reason = getattr(choice, "finish_reason", "stop")
                 elif hasattr(choice, "text"):
-                    text = choice.text
+                    # Handle simple choice object with text field
+                    text = choice.text or ""
                     finish_reason = getattr(choice, "finish_reason", "stop")
                 else:
                     text = str(choice)
                     finish_reason = "stop"
-                
+
+                # Ensure text is never empty to avoid validation errors
+                if not text or not text.strip():
+                    text = "No response content available"
+                    logger.warning(f"Empty content found in choice {i}, using fallback message")
+
+                # Check for tool calls in the choice
+                tool_calls = None
+                if isinstance(choice, dict):
+                    # Check for standard OpenAI tool_calls format
+                    if "message" in choice and isinstance(choice["message"], dict):
+                        message_data = choice["message"]
+                        if "tool_calls" in message_data and message_data["tool_calls"]:
+                            tool_calls = ResponseTranslator._parse_openai_tool_calls(message_data["tool_calls"])
+                    # Check for direct tool_calls in choice
+                    elif "tool_calls" in choice and choice["tool_calls"]:
+                        tool_calls = ResponseTranslator._parse_openai_tool_calls(choice["tool_calls"])
+                elif hasattr(choice, "tool_calls") and choice.tool_calls:
+                    tool_calls = ResponseTranslator._parse_openai_tool_calls(choice.tool_calls)
+
                 openai_choice = ChatCompletionChoice(
                     index=i,
                     message=ChatMessage(
                         role=MessageRole.ASSISTANT,
-                        content=text
+                        content=text,
+                        tool_calls=tool_calls
                     ),
                     finish_reason=finish_reason
                 )
@@ -208,30 +262,37 @@ class ResponseTranslator:
             # Try to extract text from raw response
             raw = pepgenx_response.raw_response
             text = ""
-            
+
             # Common response field names to check
             for field in ["text", "content", "response", "output", "result"]:
                 if field in raw:
                     text = str(raw[field])
                     break
-            
+
             if not text and isinstance(raw, dict):
                 # If no standard field found, try to find any string value
                 for value in raw.values():
                     if isinstance(value, str) and len(value) > 10:  # Reasonable content length
                         text = value
                         break
-            
+
             if not text:
                 text = "No content found in response"
                 logger.warning("Could not extract content from PepGenX response")
-            
+
+            # Check for PepGenX-specific function calls format
+            tool_calls = None
+            if isinstance(raw, dict) and "functions" in raw:
+                # PepGenX uses "functions" instead of "tool_calls"
+                tool_calls = ResponseTranslator._parse_pepgenx_functions(raw["functions"])
+
             choices.append(
                 ChatCompletionChoice(
                     index=0,
                     message=ChatMessage(
                         role=MessageRole.ASSISTANT,
-                        content=text
+                        content=text,
+                        tool_calls=tool_calls
                     ),
                     finish_reason="stop"
                 )
@@ -341,3 +402,133 @@ class ResponseTranslator:
             completion_tokens=estimated_tokens,
             total_tokens=estimated_tokens
         )
+
+    @staticmethod
+    def _parse_tool_calls(tool_calls_data):
+        """
+        Parse tool calls from PepGenX response format to OpenAI format.
+
+        Args:
+            tool_calls_data: Tool calls data from PepGenX response
+
+        Returns:
+            List[ToolCall]: Parsed tool calls in OpenAI format
+        """
+        from ..models.openai_models import ToolCall
+
+        if not tool_calls_data:
+            return None
+
+        parsed_calls = []
+
+        for i, call_data in enumerate(tool_calls_data):
+            try:
+                if isinstance(call_data, dict):
+                    # Expected format: {"id": "...", "type": "function", "function": {"name": "...", "arguments": "..."}}
+                    call_id = call_data.get("id", f"call_{i}")
+                    call_type = call_data.get("type", "function")
+                    function_data = call_data.get("function", {})
+
+                    tool_call = ToolCall(
+                        id=call_id,
+                        type=call_type,
+                        function=function_data
+                    )
+                    parsed_calls.append(tool_call)
+                else:
+                    logger.warning(f"Unexpected tool call format: {type(call_data)}")
+
+            except Exception as e:
+                logger.error(f"Failed to parse tool call {i}: {e}")
+                continue
+
+        return parsed_calls if parsed_calls else None
+
+    @staticmethod
+    def _parse_pepgenx_functions(functions_data):
+        """
+        Parse function calls from PepGenX-specific format to OpenAI format.
+
+        PepGenX format: [{"name": "function_name", "arguments": "{\"param\": \"value\"}"}]
+        OpenAI format: [{"id": "call_id", "type": "function", "function": {"name": "...", "arguments": "..."}}]
+
+        Args:
+            functions_data: Functions data from PepGenX response
+
+        Returns:
+            List[ToolCall]: Parsed tool calls in OpenAI format
+        """
+        from ..models.openai_models import ToolCall
+
+        if not functions_data:
+            return None
+
+        parsed_calls = []
+
+        for i, func_data in enumerate(functions_data):
+            try:
+                if isinstance(func_data, dict):
+                    # PepGenX format: {"name": "function_name", "arguments": "{\"param\": \"value\"}"}
+                    func_name = func_data.get("name", f"unknown_function_{i}")
+                    func_args = func_data.get("arguments", "{}")
+
+                    # Convert to OpenAI format
+                    tool_call = ToolCall(
+                        id=f"call_{i}_{func_name}",
+                        type="function",
+                        function={
+                            "name": func_name,
+                            "arguments": func_args
+                        }
+                    )
+                    parsed_calls.append(tool_call)
+                else:
+                    logger.warning(f"Unexpected function format: {type(func_data)}")
+
+            except Exception as e:
+                logger.error(f"Failed to parse function call {i}: {e}")
+                continue
+
+        logger.info(f"Parsed {len(parsed_calls)} function calls from PepGenX response")
+        return parsed_calls if parsed_calls else None
+
+    @staticmethod
+    def _parse_openai_tool_calls(tool_calls_data):
+        """
+        Parse tool calls from standard OpenAI format.
+
+        The PepGenX API actually returns tool_calls in standard OpenAI format:
+        [{"id": "call_id", "type": "function", "function": {"name": "...", "arguments": "..."}}]
+
+        Args:
+            tool_calls_data: Tool calls data in OpenAI format
+
+        Returns:
+            List[ToolCall]: Parsed tool calls
+        """
+        from ..models.openai_models import ToolCall
+
+        if not tool_calls_data:
+            return None
+
+        parsed_calls = []
+
+        for call_data in tool_calls_data:
+            try:
+                if isinstance(call_data, dict):
+                    # Standard OpenAI format - can use directly
+                    tool_call = ToolCall(
+                        id=call_data.get("id", "unknown"),
+                        type=call_data.get("type", "function"),
+                        function=call_data.get("function", {})
+                    )
+                    parsed_calls.append(tool_call)
+                else:
+                    logger.warning(f"Unexpected tool call format: {type(call_data)}")
+
+            except Exception as e:
+                logger.error(f"Failed to parse OpenAI tool call: {e}")
+                continue
+
+        logger.info(f"Parsed {len(parsed_calls)} tool calls from OpenAI format")
+        return parsed_calls if parsed_calls else None

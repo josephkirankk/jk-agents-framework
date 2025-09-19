@@ -28,7 +28,7 @@ supervisor:
 agents:
   - name: "restaurants_agent"
     description: "Specialized agent for restaurant search and information retrieval. Use this agent when users need to: find restaurants by location, name, or criteria; get restaurant details like addresses, scores, or chain information; search for specific restaurant chains or outlets; retrieve restaurant data from the PBNA database. This agent has access to comprehensive restaurant search tools and can handle complex queries involving location-based searches, filtering, and detailed restaurant information."
-    model: "azure_openai:gpt-4.1"
+    model: "openai:gpt-4o"
     prompt: |
       {{dependent_request_responses}}
 

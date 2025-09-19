@@ -1,0 +1,95 @@
+# Working Python Execution Agent Configuration
+# This configuration uses models with proven tool calling capabilities
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.1
+
+business_context: |
+  You are an AI system with Python code execution capabilities.
+  Use the run_python_code tool for all computational tasks.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+    
+    You are a supervisor that creates execution plans using available agents.
+    Use python_exec_agent for any math, computation, or data analysis tasks.
+    Available agents:
+    {{agents}}
+    
+    Create a JSON plan with steps that can run in parallel where possible.
+    Each step should specify the most appropriate agent for the task.
+    
+    Return only JSON, with top-level object:
+    {
+      "goal": "<short restatement of user goal>",
+      "plan": [
+        {"id":"s1", "agent":"python_exec_agent", "task":"...", "depends_on":[], "verify":"...", "timeout_seconds":60, "retry":2}
+      ]
+    }
+    
+    Respond with JSON only and nothing else.
+
+agents:
+  - name: "python_exec_agent"
+    description: "Execute Python code with guaranteed tool calling support"
+    model: "azure_openai:gpt-4.1"  # Proven reliable tool calling
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are CodeRunner. You MUST write and execute Python code using the run_python_code tool for any computational task.
+
+      CRITICAL RULES:
+      - ALWAYS use the run_python_code tool - never just describe what you would do
+      - Write the Python code first, then execute it using the tool
+      - Show both the code (```python ... ```) and the actual execution result
+      - Use previous step data as input when appropriate
+      - Prefer standard library, avoid network or file side effects
+      - If execution fails, fix the code and retry once
+
+      Always execute the code using the tool and return the result.
+
+      Available MCP servers: {{mcpservers}}
+
+      Remember: You must actually execute the code using the available tool, not just pretend to do it!
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  - name: "human_response_agent"
+    description: "Final response formatter"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Present a clear, natural answer based on the previous agent responses.
+      Format the information in a user-friendly way without revealing internal processes.
+    mcp_servers: {}
+
+# Alternative model configurations (uncomment to test)
+# For Google Gemini (good tool calling support):
+# model: "google:gemini-2.0-flash-exp"
+
+# For OpenAI (if using custom endpoint):
+# model: "openai:gpt-4o-mini"
+
+# For cost-effective option:
+# model: "azure_openai:gpt-4o-mini"

@@ -22,6 +22,26 @@ class MessageRole(str, Enum):
     TOOL = "tool"
 
 
+class ToolCall(BaseModel):
+    """A tool call made by the assistant."""
+    id: str = Field(..., description="The ID of the tool call")
+    type: Literal["function"] = Field(default="function", description="The type of tool call")
+    function: Dict[str, Any] = Field(..., description="The function call details")
+
+
+class Function(BaseModel):
+    """Function definition for tools."""
+    name: str = Field(..., description="The name of the function")
+    description: Optional[str] = Field(None, description="Description of the function")
+    parameters: Optional[Dict[str, Any]] = Field(None, description="Function parameters schema")
+
+
+class Tool(BaseModel):
+    """Tool definition."""
+    type: Literal["function"] = Field(default="function", description="The type of tool")
+    function: Function = Field(..., description="The function definition")
+
+
 class ChatMessage(BaseModel):
     """A single message in a chat conversation."""
     role: MessageRole = Field(..., description="The role of the message author")
@@ -30,6 +50,9 @@ class ChatMessage(BaseModel):
     )
     name: Optional[str] = Field(
         None, description="The name of the author of this message"
+    )
+    tool_calls: Optional[List[ToolCall]] = Field(
+        None, description="Tool calls made by the assistant"
     )
 
     @model_validator(mode='after')
@@ -130,6 +153,14 @@ class ChatCompletionRequest(BaseModel):
     user: Optional[str] = Field(
         default=None,
         description="Unique identifier for the end-user"
+    )
+    tools: Optional[List[Tool]] = Field(
+        default=None,
+        description="List of tools the model can call"
+    )
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Controls which tool is called by the model"
     )
     
     @field_validator("messages")

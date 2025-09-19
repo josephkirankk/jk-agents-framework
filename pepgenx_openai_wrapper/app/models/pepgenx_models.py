@@ -15,10 +15,14 @@ from ..core.config import settings
 def get_default_system_prompt() -> int:
     """Get the default system prompt ID from settings."""
     try:
-        return settings.pepgenx_default_system_prompt
+        default_prompt = settings.pepgenx_default_system_prompt
+        # PepGenX API requires system_prompt to be 1-7, not 0
+        if default_prompt == 0:
+            return 1  # Use system prompt 1 instead of 0
+        return default_prompt
     except Exception:
-        # Fallback to 0 if settings not available
-        return 0
+        # Fallback to 1 if settings not available (PepGenX requires 1-7)
+        return 1
 
 
 class PepGenXRequest(BaseModel):
@@ -65,7 +69,19 @@ class PepGenXRequest(BaseModel):
         default=None,
         description="Stop sequences"
     )
-    
+    tools: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="List of tools the model can call"
+    )
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Controls which tool is called by the model"
+    )
+    raw_response: Optional[bool] = Field(
+        default=True,
+        description="Whether to return raw response from PepGenX API"
+    )
+
     @field_validator("custom_prompt")
     @classmethod
     def validate_custom_prompt(cls, v):

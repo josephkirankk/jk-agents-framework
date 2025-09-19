@@ -92,7 +92,10 @@ class PepGenXClient:
             
             # Log the response
             log_pepgenx_response(logger, 200, response_data, duration_ms)
-            
+
+            # Debug: Log the actual response structure
+            logger.info("PepGenX raw response structure", raw_response=response_data)
+
             # Parse response
             return self._parse_response(response_data, request.generation_model)
             
