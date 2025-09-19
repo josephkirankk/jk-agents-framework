@@ -64,7 +64,7 @@ agents:
   # Agents using custom OpenAI endpoint
   - name: "custom_assistant"
     description: "General purpose assistant using custom OpenAI endpoint"
-    model: "openai:gpt-5-nano"
+    model: "openai:gpt-5"
     prompt: |
       You are a helpful AI assistant.
       Provide accurate, helpful responses to user questions.

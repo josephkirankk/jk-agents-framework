@@ -1,0 +1,1341 @@
+openapi: 3.0.0
+info:
+  title: FastAPI
+  version: 0.1.0
+  description: This API provides endpoints for the LLMGeneric FastAPI services.
+  contact:
+    name: DAI-PEPGENX
+    email: test@pepsico.com
+servers:
+  - description: SwaggerHub API Auto Mocking
+    url: 'https://swaggerhub.mypepsico.com/virts/CGF-PEPGENX/pepgenx-llmgeneric/0.1.0'
+  - url: 'https://apim-na.qa.mypepsico.com/cgf/pepgenx'
+    description: qa
+paths:
+  /v2/llm/list-models:
+    get:
+      tags:
+        - LLM Models
+      summary: List all available LLM models
+      description: |
+        Returns a list of all available models for generate response and reasoning response. Metallama models are marked as restricted access. Requires headers for validation.
+      operationId: listModels
+      parameters:
+        - $ref: '#/components/parameters/CommonHeaders_Team_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Project_ID'
+        - $ref: '#/components/parameters/CommonHeaders_User_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Transaction_ID'
+        - $ref: '#/components/parameters/CommonHeaders_PEPGENX_APIKEY'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListModelsResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+  '/v2/llm/{model_provider_name}/generate-response':
+    post:
+      tags:
+        - LLM Response
+      summary: Generate response using LLM for a specific supported LLM provider.
+      operationId: generateLLMResponse
+      description: |
+        Model provider name in path parameter is used to specify LLM vendor. This is dynamic and will be updated as we onboard new LLMs from other vendors. Currently, only supported value is "openai". So use this as the URL for this operation "/v2/llm/openai/generate-response". During a performance test of *100 concurrent virtual users for 30 minutes* using the *GPT-4o model, it was observed that the average response time for this API was **2.69 seconds* and the 90th percentile was *3.773 seconds*. These times are indicative as to what a use case team may see while hitting this API but by no means are they guarantees. The LLM- Check API Performance testing on APIGEE Endpoints with the Load Scale of 100 Vusers for  of LLM Generate response Actual Load Test – 100 Vusers  for  0.5 hr Duration  Generate Response AVG Response Time is 2.69 Seconds 90th Percentile is 3.773 seconds
+      parameters:
+        - name: model_provider_name
+          in: path
+          required: true
+          description: 'The name of the LLM provider (e.g., "openai")'
+          schema:
+            type: string
+            enum:
+              - openai
+              - aws-anthropic
+              - aws-meta
+              - aws-nova
+              - databricks
+        - $ref: '#/components/parameters/CommonHeaders_Team_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Project_ID'
+        - $ref: '#/components/parameters/CommonHeaders_User_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Transaction_ID'
+        - $ref: '#/components/parameters/CommonHeaders_PEPGENX_APIKEY'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateResponseRequestv2'
+
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/GenerateResponseResponse'
+                  - $ref: '#/components/schemas/GenerateRawResponseResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+  '/v2/llm/{model_provider_name}/generate-reasoning-response':
+    post:
+      summary: Generate reasoning response using LLM for a specific supported LLM provider.
+      tags:
+        - LLM Response
+      operationId: generateReasoningResponse
+      description: |
+        Model provider name in path parameter is used to specify LLM vendor. This is dynamic and will be updated as we onboard new LLMs from other vendors. Currently, it supports openai and aws-anthropic.
+      parameters:
+        - name: model_provider_name
+          in: path
+          required: true
+          description: 'The name of the LLM provider (e.g., "openai")'
+          schema:
+            type: string
+            enum:
+              - openai
+              - aws-anthropic
+        - $ref: '#/components/parameters/CommonHeaders_Team_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Project_ID'
+        - $ref: '#/components/parameters/CommonHeaders_User_ID'
+        - $ref: '#/components/parameters/CommonHeaders_PEPGENX_APIKEY'
+        - $ref: '#/components/parameters/CommonHeaders_Transaction_ID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateReasonResponseRequestv2'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/GenerateResponseResponse'
+                  - $ref: '#/components/schemas/GenerateRawResponseResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+  /v2/llm/rai/prompt-safety:
+    post:
+      tags:
+        - RAI Prompt Safety
+      operationId: raiPromptSafety
+      summary: Verify safety of a prompt using Content Safety and Text Analytics service for HAP and PII filtration.
+      description: |
+        During a performance test of *100 concurrent virtual users for 60 minutes, it was observed that the average response time for this API was **2.698 seconds* and the 95th percentile was *6.229 seconds*. These times are indicative as to what a use case team may see while hitting this API but by no means are they guarantees.
+      parameters:
+        - $ref: '#/components/parameters/CommonHeaders_Team_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Project_ID'
+        - $ref: '#/components/parameters/CommonHeaders_User_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Transaction_ID'
+        - $ref: '#/components/parameters/CommonHeaders_PEPGENX_APIKEY'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptSafetyRequest'
+            examples:
+              Example 1:
+                value:
+                  prompt: what's the distance between the sun and the last planet in the solar system?
+                  pii_category_filter:
+                    PERSON: false
+                    PERSONTYPE: false
+                    PHONE_NUMBER: false
+                    ORGANIZATION: false
+                    ADDRESS: false
+                    EMAIL: false
+                    URL: false
+                    IP_ADDRESS: false
+                    DATETIME: false
+                    QUANTITY: false
+                    ABA_ROUTING_NUMBER: true
+                    SWIFT_CODE: true
+                    CREDIT_CARD_NUMBER: true
+                    INTERNATIONAL_BANKING_ACCOUNT_NUMBER: true
+                  content_safety_category_filter:
+                    CONTENT_SAFETY_CATEGORY_HATE: 0
+                    CONTENT_SAFETY_CATEGORY_SELFHARM: 0
+                    CONTENT_SAFETY_CATEGORY_SEXUAL: 0
+                    CONTENT_SAFETY_CATEGORY_VIOLENCE: 0
+        description: ''
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptSafetyResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+  /v2/llm/prompt-catalog:
+    get:
+      tags:
+        - Prompt Catalog
+      description: This endpoint gets lists of available prompts
+      operationId: promptCatalog
+      summary: Get prompt catalog.
+      parameters:
+        - $ref: '#/components/parameters/CommonHeaders_Team_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Project_ID'
+        - $ref: '#/components/parameters/CommonHeaders_User_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Transaction_ID'
+        - $ref: '#/components/parameters/CommonHeaders_PEPGENX_APIKEY'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptCatalogResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+  /v2/llm/system-prompt-catalog:
+    get:
+      tags:
+        - Prompt Catalog
+      description: This endpoint gets lists of available system prompts
+      operationId: systeamPromptCatalog
+      summary: Get systeam prompt catalog.
+      parameters:
+        - $ref: '#/components/parameters/CommonHeaders_Team_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Project_ID'
+        - $ref: '#/components/parameters/CommonHeaders_User_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Transaction_ID'
+        - $ref: '#/components/parameters/CommonHeaders_PEPGENX_APIKEY'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemPromptCatalogResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerError'
+  /v1/llm/generate-metaprompt:
+    post:
+      tags:
+        - Meta Prompt
+      summary: Metaprompt
+      description: API endpoint for processing the metaprompt.
+      operationId: metaprompt_v1_llm_generate_metaprompt_post
+      parameters:
+        - name: model_provider_name
+          in: query
+          required: false
+          schema:
+            type: string
+            default: openai
+            title: Model Provider Name
+        - $ref: '#/components/parameters/CommonHeaders_Team_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Project_ID'
+        - $ref: '#/components/parameters/CommonHeaders_User_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Transaction_ID'
+        - $ref: '#/components/parameters/CommonHeaders_PEPGENX_APIKEY'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateMetaResponseInput'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/llm/generate-autoresponse:
+    post:
+      tags:
+        - LLM Router
+      summary: LLM Router
+      description: Auto-selects LLM model and generates a response from the appropriate LLM.
+      operationId: generateAutoResponse
+      parameters:
+        - $ref: '#/components/parameters/CommonHeaders_Team_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Project_ID'
+        - $ref: '#/components/parameters/CommonHeaders_User_ID'
+        - $ref: '#/components/parameters/CommonHeaders_Transaction_ID'
+        - $ref: '#/components/parameters/CommonHeaders_PEPGENX_APIKEY'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAutoResponseInput'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: null
+              $ref: '#/components/schemas/GenerateAutoResponseOutput'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateResponseError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateResponseError'
+  /v1/llm/adaptive-prompting:
+    post:
+      tags:
+        - Adaptive Prompting
+      summary: Adaptive Prompting
+      description: API endpoint for processing the adaptive prompting.
+      operationId: adaptive_prompting_v1_llm_adaptive_prompting_post
+      parameters:
+        - name: source_model
+          in: query
+          required: false
+          schema:
+            enum:
+              - gpt-35-turbo
+              - gpt-4
+              - gpt-4o
+              - gpt-4o-mini
+              - gpt-4.1
+              - gpt-4.1-nano
+              - gpt-4.1-mini
+              - claude-3-5-sonnet
+              - claude-3-sonnet
+              - claude-3-opus
+              - claude-3-5-haiku
+              - claude-3-haiku
+              - claude-3-7-sonnet
+              - claude-4-sonnet
+            type: string
+            title: Source Model
+          style: form
+        - name: target_model
+          in: query
+          required: false
+          schema:
+            enum:
+              - gpt-35-turbo
+              - gpt-4
+              - gpt-4o
+              - gpt-4o-mini
+              - gpt-4.1
+              - gpt-4.1-nano
+              - gpt-4.1-mini
+              - claude-3-5-sonnet
+              - claude-3-sonnet
+              - claude-3-opus
+              - claude-3-5-haiku
+              - claude-3-haiku
+              - claude-3-7-sonnet
+              - claude-4-sonnet
+            type: string
+            title: Target Model
+          deprecated: false
+          style: form
+        - name: model_provider_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Model Provider Name
+        - name: team_id
+          in: header
+          required: true
+          schema:
+            type: string
+            title: Team Id
+        - name: project_id
+          in: header
+          required: true
+          schema:
+            type: string
+            title: Project Id
+        - name: user_id
+          in: header
+          required: true
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: User Id
+            example: 12345678 or none
+        - name: transaction_id
+          in: header
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Transaction Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAdaptivePromptRequestInput'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateAdaptivePromptResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  parameters:
+    CommonHeaders_Team_ID:
+      in: header
+      name: team_id
+      schema:
+        type: string
+      required: true
+    CommonHeaders_Project_ID:
+      in: header
+      name: project_id
+      schema:
+        type: string
+      required: true
+    CommonHeaders_User_ID:
+      in: header
+      name: user_id
+      schema:
+        type: string
+      required: false
+    CommonHeaders_Transaction_ID:
+      in: header
+      name: transaction_id
+      schema:
+        type: string
+      required: false
+    CommonHeaders_PEPGENX_APIKEY:
+      in: header
+      name: x-pepgenx-apikey
+      schema:
+        type: string
+      required: true
+  schemas:
+    GenerateAutoResponseInput:
+      type: object
+      properties:
+        custom_prompt:
+          type: string
+          description: The prompt provided by the user to classify and generate response
+      required:
+        - custom_prompt
+    GenerateResponseError: 
+      type: object
+      properties:
+        error_code:
+          type: integer
+        error_message:
+          type: string
+    GenerateAutoResponseOutput:
+      type: object
+      description: Response schema from LLM (placeholder; adjust based on your model)
+      properties:
+        response:
+          type: string
+        model_provider:
+          type: string
+        generation_model:
+          type: string
+    ListModelsResponse:
+      type: object
+      title: ListModelsResponse
+      properties:
+        models:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: Model name
+              provider:
+                type: string
+                description: 'Model provider (e.g., openai, metallama)'
+              restricted:
+                type: boolean
+                description: True if model is restricted access
+    GenerateAdaptivePromptRequestInput:
+      properties:
+        original_prompt:
+          anyOf:
+            - type: string
+            - items:
+                type: object
+              type: array
+          title: Original Prompt
+          description: Original Prompt to be converted for adaptation
+          default: string
+        task_type:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Task Type
+          description: 'Task type signifies what the prompt is intended to perform. Summarization, question-answering, coding, reasoning, etc. There are no fixed values to this'
+          default: Summarization
+        source_model:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Source Model
+          description: Source model of the original prompt
+          default: gpt-4
+        target_model:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Target Model
+          description: Target model to which the prompt should be adapted
+          default: claude-3-sonnet
+        allow_language_content_services:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: allow language content services
+          description: allow_language_content_services
+          default: 3
+      type: object
+      title: GenerateAdaptivePromptRequestInput
+    GenerateAdaptivePromptResponse:
+      properties:
+        adapted_prompt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: adapted prompt
+          description: Generated prompt which is compatible with target_model
+        explanation:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: explanation
+          description: Explanation of changes in original vs adapted prompt
+      type: object
+      title: GenerateAdaptivePromptResponse
+    GenerateMetaResponseInput:
+      properties:
+        custom_prompt:
+          anyOf:
+            - type: string
+            - items:
+                type: object
+              type: array
+          title: Custom Prompt
+          description: custom prompt for usage
+          default: string
+        tone:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Tone
+          description: tone required in the meta-prompt
+          default: professional
+        persona:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Persona
+          description: persona required in the meta-prompt
+          default: assistant
+        tokens:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: tokens
+          description: number of tokens
+          default: null
+        business_context:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: business_context
+          description: business context if provided
+          default: None
+      type: object
+      title: GenerateMetaResponseInput
+    GenerateResponseRequestv2:
+      type: object
+      title: GenerateResponseRequestv2
+      properties:
+        prompt:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    description: 'The role of the entity in the conversation (e.g., "assistant", "user").'
+                  content:
+                    type: string
+                    description: The content of the message.
+                required:
+                  - role
+                  - content
+          description: 
+            'Prompt would be replacing custom_prompt going forward. The prompt or prompts to generate completions for, encoded as a string, or array of strings. <|endoftext|> is the document separator that the model sees during training, so if a prompt is not specified, the model generates as if from the beginning of a new document. If this is provided, then the prompt parameter is ignored.'
+          example:
+            - what's the distance between the sun and the last planet in the solar system?
+            - - role: assistant
+                content: 'Generate finance report for abc company in Q42024, and also calculate 57 multiplied by 67 and add that as the final earnings for 2024'
+              - role: user
+                content: 'you are an AI assistant, which excels in answering any finance-based questions'
+        generation_model:
+          type: string
+          description: |
+            This is the mandatory parameter to pass the LLM model name to be used. This list will be updated once new models are onboarded.  We recommend using "gpt-5" as that is faster, better, and has more availability to reduce errors and latency. The available models for openai are: 'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-35-turbo'. For aws-anthropic, the available model is: 'claude-3-5-sonnet'
+          enum:
+            - gpt-5
+            - gpt-5-chat
+            - gpt-5-mini
+            - gpt-5-nano
+            - gpt-4o
+            - gpt-4o-mini
+            - gpt-4
+            - gpt-4.1
+            - gpt-4.1-nano
+            - gpt-4.1-mini
+            - gpt-35-turbo
+            - claude-3-5-sonnet
+            - claude-3-sonnet
+            - claude-3-opus
+            - claude-3-haiku
+            - claude-3-5-haiku
+            - claude-3-7-sonnet
+            - claude-4-sonnet
+            - nova-lite
+            - nova-pro
+            - nova micro
+            - llama-3.3-70b-instruct
+            - llama-4-maverick
+        generation_model_version:
+          type: integer
+          default: 0
+          enum:
+            - 0
+            - -1
+          description: 'Version of the generation model available on the platform. Version ''0'' indicates the latest version of generation model available on platform. Version ''-1'' refers to the version that is going to be descoped soon. A point to note here is that not all generation models would have version ''-1'' available on the platform. It is advised that users go ahead with version ''0'', which is the latest one available.'
+        max_tokens:
+          type: integer
+          description: |
+            The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens can't exceed the model's context length. Most models have a context length of 2048 tokens (except for the newest models, which support 4096). Please refer to this for up-to-date information on maximum tokens supported by a given model: https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#model-summary-table-and-region-availability
+          example:
+            100
+        temperature:
+          type: number
+          description: |
+            What sampling temperature to use, between 0 and 2. Higher values mean the model takes more risks. Try 0.9 for more creative applications, and 0 (argmax sampling) for ones with a well-defined answer. We generally recommend altering this or top_p but not both.
+          example:
+            0.9
+        top_p:
+          type: number
+          description: |
+            An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both.
+          example:
+            0
+        n:
+          type: integer
+          description: |
+            How many chat completion choices to generate for each input message. This is only applicable for models from the model provider 'openai'
+          example:
+            1
+        stop:
+          type: array
+          items:
+            type: string
+          description: |
+            Up to 4 sequences where the API will stop generating further tokens.
+        presence_penalty:
+          type: number
+          description: |
+            Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. This parameter is only available for openai models.
+        frequency_penalty:
+          type: number
+          description: |
+            Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. This parameter is only available for openai models.
+        logit_bias:
+          type: object
+          description: |
+            Modify the likelihood of specified tokens appearing in the completion. Accepts a JSON object that maps tokens (specified by their token ID in the tokenizer) to an associated bias value from -100 to 100. Mathematically, the bias is added to the logits generated by the model prior to sampling. The exact effect varies per model, but values between -1 and 1 should decrease or increase the likelihood of selection; values like -100 or 100 should result in a ban or exclusive selection of the relevant token.This parameter is non existent for claude-3-5-sonnet
+        stream:
+          type: boolean
+          default: false
+        
+        tools:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: |
+            A list of tools the model can call. Currently, only functions are supported as a tool. Use this to provide a list of functions the model can generate JSON inputs for. Note: The input number provided references registered functions in the function catalog on pepgenx.
+          example:
+            - value:
+                - type: function
+                  function:
+                    name: set_prompts_check
+                    parameters:
+                      type: object
+                      properties:
+                        prompt:
+                          type: string
+                          description: |
+                            Serves as the creative directive for the generation process. It should contain a detailed description of the desired output, including key visual elements, themes, and the overall mood or style. Guides the model in understanding what to generate or emphasize in the output. Specificity in the prompt can greatly influence the accuracy and relevance of the generated content, leading to outputs that closely align with the user's vision.
+                        negative_prompt:
+                          type: string
+                          description: |
+                            This parameter specifies elements, themes, or characteristics to be excluded from the generated output. By clearly identifying what to avoid, the negative_prompt helps steer the generation process away from specific content or motifs that do not align with the user's intentions. This ensures the output remains within the desired thematic boundaries, improving the relevance and appropriateness of the final product. 
+                      required:
+                        - prompt
+                        - negative_prompt
+
+        tool_choice:
+          type: string
+          description: |
+            Controls which (if any) function is called by the model. "none" means the model won't call a function and instead generates a message. "auto" means the model can pick between generating a message or calling a function. Specifying a particular function's name "my_function" forces the model to call that function. "any" as an available enum only exists for model provider aws-anthropic and  model claude-3-5-sonnet.
+          default: none
+          example:
+            - none
+            - auto (not for aws models)
+            - my_function
+            - any (only for aws models)
+        seed:
+          type: integer
+          description: |
+            If specified, our system will make a best effort to sample deterministically, such that repeated requests with the same seed and parameters should return the same result. Determinism is not guaranteed, and you should refer to the system_fingerprint response parameter to monitor changes in the backend.
+          example:
+            0
+        custom_prompt:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    description: 'The role of the entity in the conversation (e.g., "assistant", "user").'
+                  content:
+                    type: string
+                    description: The content of the message.
+                required:
+                  - role
+                  - content
+          description: |
+            The prompt or prompts to generate completions for, encoded as a string, or array of strings. <|endoftext|> is the document separator that the model sees during training, so if a prompt isn't specified, the model generates as if from the beginning of a new document. If this is provided, then the prompt parameter is ignored.
+          example:
+            - what's the distance between the sun and the last planet in the solar system?
+            - - role: assistant
+                content: 'Generate finance report for abc company in Q42024, and also calculate 57 multiplied by 67 and add that as the final earnings for 2024'
+              - role: user
+                content: 'you are an AI assistant, which excels in answering any finance-based questions'
+        raw_response:
+          type: boolean
+          default: false
+        response_format:
+          type: object
+          description: |
+            The JSON schema format for getting a structured output format. This is only applicable when generation_model is set to gpt-4o. 
+          example:
+            - type: json_schema
+              json_schema:
+                name: math_response
+                strict: true
+                schema:
+                  type: object
+                  properties:
+                    steps:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          explanation:
+                            type: string
+                          output:
+                            type: string
+                        required:
+                          - explanation
+                          - output
+                        additionalProperties: false
+                    final_answer:
+                      type: string
+                  required:
+                    - steps
+                    - final_answer
+                  additionalProperties: false
+        system_prompt:
+          oneOf:
+            - type: integer
+            - type: string
+          description: 'If specified, we will use the prompt specified in our system prompt catalog corresponding to this integer value with the role as system when sending the request to Azure OpenAI otherwise customized system prompt can also be entered'
+          example:
+            '1 (integer) or You are helpful assistant (String)'
+        image_url:
+          type: string
+          description: Users can provide the image url (including a blob SAS URL) along with custom_prompt to get image description and insights
+          example:
+            'url of image (Applicable for selected openAI models)'
+            
+        base64_image:
+          type: string
+          description: |
+            Raw base64-encoded image data (without data URL prefix). The backend will auto-detect the image type and convert it to a data URL. If both image_url and base64_image are provided, a 400 error will be returned.
+          example:
+            'Base64 image as string (Applicable for selected openAI models)'
+        
+            
+        verbosity:
+          type: string
+          description: |
+            Lets you hint the model to be more or less expansive in its replies. Keep prompts stable and use the parameter instead of re-writing. low → terse UX, minimal prose.medium (default) → balanced detail.high → verbose, great for audits, teaching, or hand-offs.
+          example:
+            'low, medium or high as string and applicable for gpt-5 models only except gpt-5-chat'
+        reasoning_effort:
+          type: string
+          description: |
+            Runs GPT-5 with few or no reasoning tokens to minimize latency and speed time-to-first-token. Ideal for deterministic, lightweight tasks (extraction, formatting, short rewrites, simple classification) where explanations aren’t needed. If not specified, effort defaults to medium. Set reasoning effort: "minimal". Avoid for multi-step planning or tool-heavy workflows.
+          example:
+            'minimal, medium and high as string and applicable for gpt-5 models only except gpt-5-chat'
+        pii_category_filter:
+          type: object
+          example:
+            - PERSON: false
+              PERSONTYPE: false
+              PHONE_NUMBER: false
+              ORGANIZATION: false
+              ADDRESS: false
+              EMAIL: false
+              URL: false
+              IP_ADDRESS: false
+              DATETIME: false
+              QUANTITY: false
+              ABA_ROUTING_NUMBER: true
+              SWIFT_CODE: true
+              CREDIT_CARD_NUMBER: true
+              INTERNATIONAL_BANKING_ACCOUNT_NUMBER: true
+        content_safety_category_filter:
+          type: object
+          properties:
+            CONTENT_SAFETY_CATEGORY_HATE:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_SELFHARM:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_SEXUAL:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_VIOLENCE:
+              type: integer
+      required:
+        - custom_prompt
+    GenerateReasonResponseRequestv2:
+      type: object
+      title: GenerateReasonResponseRequestv2
+      properties:
+        generation_model:
+          type: string
+          description: |
+            This is the mandatory parameter to pass the LLM model name to be used. This list will be updated once new models are onboarded.
+          enum:
+            - o1
+            - o1-mini
+            - o3
+            - o3-mini
+            - o4-mini
+            - claude-4-opus
+        reasoning_effort:
+          type: string
+          description: |
+            This is needed for applying reasoning probability on the particular model. Does not exist for o3-mini.
+          enum:
+            - medium
+            - high
+            - low
+        max_completion_tokens:
+          type: integer
+          description: |
+            The maximum number of completion or output tokens used by the reasoning model. 
+          example: 100
+        stream:
+          type: boolean
+          default: false
+        custom_prompt:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    description: 'The role of the entity in the conversation (e.g., "assistant", "user").'
+                  content:
+                    type: string
+                    description: The content of the message.
+                required:
+                  - role
+                  - content
+          description: |
+            The prompt or prompts to generate completions for, encoded as a string, or array of strings. <|endoftext|> is the document separator that the model sees during training, so if a prompt isn't specified, the model generates as if from the beginning of a new document. If this is provided, then the prompt parameter is ignored.
+          example:
+            - role: assistant
+              content: 'Generate finance report for abc company in Q42024, and also calculate 57 multiplied by 67 and add that as the final earnings for 2024'
+            - role: user
+              content: 'you are an AI assistant, which excels in answering any finance-based questions'
+        raw_response:
+          type: boolean
+          default: false
+        response_format:
+          type: object
+          description: |
+            The JSON schema format for getting a structured output format.
+          example:
+            type: json_schema
+            json_schema:
+              name: math_response
+              strict: true
+              schema:
+                type: object
+                properties:
+                  steps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        explanation:
+                          type: string
+                        output:
+                          type: string
+                      required:
+                        - explanation
+                        - output
+                      additionalProperties: false
+                  final_answer:
+                    type: string
+                required:
+                  - steps
+                  - final_answer
+                additionalProperties: false
+        system_prompt:
+          type: integer
+          description: |
+            If specified, we will use the prompt specified in our system prompt catalog corresponding to this integer value with the role as system when sending the request to Azure OpenAI.
+          example: 1
+        pii_category_filter:
+          type: object
+          example:
+            PERSON: false
+            PERSONTYPE: false
+            PHONE_NUMBER: false
+            ORGANIZATION: false
+            ADDRESS: false
+            EMAIL: false
+            URL: false
+            IP_ADDRESS: false
+            DATETIME: false
+            QUANTITY: false
+            ABA_ROUTING_NUMBER: true
+            SWIFT_CODE: true
+            CREDIT_CARD_NUMBER: true
+            INTERNATIONAL_BANKING_ACCOUNT_NUMBER: true
+        content_safety_category_filter:
+          type: object
+          properties:
+            CONTENT_SAFETY_CATEGORY_HATE:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_SELFHARM:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_SEXUAL:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_VIOLENCE:
+              type: integer
+      required:
+        - custom_prompt
+    GenerateResponseResponse:
+      type: object
+      title: GenerateResponseResponse
+      properties:
+        response:
+          type: string
+          example:
+            - |-
+              Subject Line: "Exclusive: Discover PepsiCo's New, Healthy and Refreshing Beverage Options Just for You!"
+
+              ---
+
+              Hello [Customer's Name],
+
+              We trust this message finds you well and in good spirits. At PepsiCo, we believe in the power of joy - the joy that comes from savoring a flavorful drink that not only quenches your thirst but also satisfies your pursuit for a healthy lifestyle. Our line of beverage options does just that and we're incredibly eager to share
+        prompt:
+          type: string
+          example:
+            - |-
+              generate an email template to significantly enhance customer outreach for pepsico's beverage products. the intended audience is diverse, encompassing health-conscious consumers seeking refreshing beverage options. the communication tone should be both informative and inclusive.
+
+              1. suggest an attention-grabbing subject line that not only boosts email open rates but also sparks curiosity and interest among recipients.
+              2. develop the main body of the email with a focus on highlighting the health benefits, unique flavor offerings, and the convenient availability of pepsico products in local stores. craft the content to resonate strongly with a broad consumer base, ensuring inclusivity in the messaging.
+        functions:
+          type: array
+          description: |
+            If no tool call is made by the model, the answer will contain an empty array.
+          items:
+            type: object
+            properties:
+              arguments:
+                type: object
+                description: |
+                  The arguments to be passed to the function that was recognized to be called by the model.
+                example:
+                  - prompt: 'Generate an image of a dog floating in space. The dog is trying to catch a bright, multi-colored ball that is also floating. The background should depict a vast, starry expanse of space. The dog should be of a breed like a Golden Retriever or a Labrador and be in a playful, energetic pose. The ball should be glowing and reflect off the dog''s eager, anticipating eyes.'
+              name:
+                type: string
+                description: |
+                  The name of the function that was recognized to be called by the model.
+                example:
+                  - my_function
+      required:
+        - response
+        - prompt
+        - functions
+    GenerateRawResponseResponse:
+      type: object
+      title: GenerateRawResponseResponse
+      properties:
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              content_filter_results:
+                type: object
+                additionalProperties: true
+              finish_reason:
+                type: string
+              index:
+                type: integer
+              message:
+                type: object
+                properties:
+                  content:
+                    type: string
+                  role:
+                    type: string
+        created:
+          type: integer
+        id:
+          type: integer
+        model:
+          type: string
+        object:
+          type: string
+        prompt_filter_results:
+          type: array
+          items:
+            type: object
+            properties:
+              prompt_index:
+                type: integer
+              content_filter_results:
+                type: object
+                additionalProperties: true
+        usage:
+          type: object
+          properties:
+            completion_tokens:
+              type: integer
+            prompt_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+    PromptSafetyRequest:
+      type: object
+      title: PromptSafetyRequest
+      properties:
+        prompt:
+          type: string
+          description: |
+            The prompt or prompts to generate completions for, encoded as a string, or array of strings. <|endoftext|> is the document separator that the model sees during training, so if a prompt isn't specified, the model generates as if from the beginning of a new document. If this is provided, then the prompt parameter is ignored.
+          example:
+            - what's the distance between the sun and the last planet in the solar system?
+        pii_category_filter:
+          type: object
+          example:
+            - PERSON: false
+              PERSONTYPE: false
+              PHONE_NUMBER: false
+              ORGANIZATION: false
+              ADDRESS: false
+              EMAIL: false
+              URL: false
+              IP_ADDRESS: false
+              DATETIME: false
+              QUANTITY: false
+              ABA_ROUTING_NUMBER: true
+              SWIFT_CODE: true
+              CREDIT_CARD_NUMBER: true
+              INTERNATIONAL_BANKING_ACCOUNT_NUMBER: true
+        content_safety_category_filter:
+          type: object
+          properties:
+            CONTENT_SAFETY_CATEGORY_HATE:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_SELFHARM:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_SEXUAL:
+              type: integer
+            CONTENT_SAFETY_CATEGORY_VIOLENCE:
+              type: integer
+      required:
+        - prompt
+    PromptSafetyResponse:
+      type: object
+      title: PromptSafetyResponse
+      properties:
+        prompt:
+          type: string
+          description: |
+            The prompt or prompts to generate completions for, encoded as a string, or array of strings. <|endoftext|> is the document separator that the model sees during training, so if a prompt isn't specified, the model generates as if from the beginning of a new document. If this is provided, then the prompt parameter is ignored.
+          example:
+            - what's the distance between the sun and the last planet in the solar system?
+        safe:
+          type: boolean
+          description: |
+            If a prompt is found to be safe after HAP verification.
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              blocklistsMatch:
+                type: array
+              categoriesAnalysis:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                      example:
+                        - Hate
+                        - SelfHarm
+                        - Sexual
+                        - Violence
+                    severity:
+                      type: integer
+                      example:
+                        - 0
+                        - 1
+                        - 2
+                        - 3
+                        - 4
+                        - 5
+                        - 6
+                        - 7
+                    safe:
+                      type: boolean
+    PromptCatalogResponse:
+      type: object
+      title: PromptCatalogResponse
+      properties:
+        PROMPT_CATALOG:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+                example:
+                  - Optimize client engagement communication
+              prompt:
+                type: string
+                example:
+                  - |-
+                    craft a communication strategy email for pepsico to enhance client engagement and satisfaction. the target audience includes retailers and distributors in the beverage industry. the tone should be professional and collaborative. 
+                     1. what impactful subject line will grab the attention of our clients? 
+                     2. develop the main content of the email, highlighting key product features, exclusive offers, and collaborative opportunities.
+              tag:
+                type: string
+                example:
+                  - ibm
+    SystemPromptCatalogResponse:
+      type: object
+      title: SystemPromptCatalogResponse
+      properties:
+        details:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      description: List of system prompt templates.
+      example:
+        - details:
+            - '1': |-
+                Please provide an analysis of the user's prompt based on these rules:
+
+                1. The user's prompt may not reference the intellectual property of others, including companies, i.e., brand names.
+                2. The user's prompt may not include specific professional, collegiate, or high school sports team names, logos, or official mascots.
+                - Generic sports themes, fictional mascots, or animals playing sports are acceptable, as long as they don't reference specific teams or official mascots.
+                - If the user's prompt contains any elements that violate the guidelines, you must reject it.
+            - '2': |-
+                Please refine the user's prompt in a way that would be ideal for Adobe's Firefly text-to-image model to generate clear and minimalistic designs.
+
+                Guidelines:
+
+                - Respect the User's Original Intent: Preserve the core idea and key elements of the user's original prompt. Emphasize the main concept without altering the intended meaning.
+                - Incorporate Recommended Colors: Use the provided recommended colors as the primary color palette.
+    HTTPValidationError:
+      type: object
+      title: HTTPValidationError
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+    ValidationError:
+      type: object
+      title: ValidationError
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      required:
+        - loc
+        - msg
+        - type
+    ServerError:
+      type: object
+      title: ServerError
+      properties:
+        error_code:
+          type: integer
+          title: Error Code
+        error_message:
+          type: string
+          title: Error Message
+      required:
+        - error_code
+        - error_message
