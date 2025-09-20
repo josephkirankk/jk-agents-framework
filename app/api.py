@@ -505,6 +505,74 @@ class ErrorResponse(BaseModel):
     details: Optional[Dict[str, str]] = Field(None, description="Additional error details")
 
 
+class ConsolidatedResponsesRequest(BaseModel):
+    """Request model for consolidated responses endpoint."""
+    start_date: Optional[str] = Field(
+        None,
+        description="Start date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). "
+                    "If not provided, returns all submissions."
+    )
+    end_date: Optional[str] = Field(
+        None,
+        description="End date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). "
+                    "If not provided, returns all submissions."
+    )
+
+    @field_validator('start_date', 'end_date')
+    @classmethod
+    def validate_date_format(cls, v):
+        """Validate that the date is in proper ISO 8601 format."""
+        if v is None:
+            return v
+        try:
+            # Try to parse the date to validate format
+            datetime.fromisoformat(v.replace('Z', '+00:00'))
+            return v
+        except ValueError:
+            raise ValueError(
+                "Date must be in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)"
+            )
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        """Validate that start_date is before end_date if both provided."""
+        if self.start_date and self.end_date:
+            try:
+                start = datetime.fromisoformat(
+                    self.start_date.replace('Z', '+00:00')
+                )
+                end = datetime.fromisoformat(
+                    self.end_date.replace('Z', '+00:00')
+                )
+                if start > end:
+                    raise ValueError(
+                        "start_date must be before or equal to end_date"
+                    )
+            except ValueError as e:
+                if "start_date must be before" in str(e):
+                    raise e
+                # Re-raise date format errors
+                raise ValueError(
+                    "Invalid date format in date range validation"
+                )
+        return self
+
+
+class ConsolidatedResponsesResponse(BaseModel):
+    """Response model for consolidated responses endpoint."""
+    status: str = Field(..., description="Response status")
+    message: str = Field(..., description="Response message")
+    query_metadata: Dict[str, Any] = Field(
+        ..., description="Metadata about the query"
+    )
+    submissions: List[Dict[str, Any]] = Field(
+        ..., description="List of all matching submissions"
+    )
+    total_count: int = Field(
+        ..., description="Total number of submissions returned"
+    )
+
+
 async def extract_human_response(result: Dict[str, Any]) -> str:
     """
     Extract the human responder's final answer from the execution result.
@@ -746,6 +814,10 @@ async def root():
             "worker": "/worker - Direct agent execution endpoint",
             "worker_upload": "/worker/upload - Agent execution with files",
             "submit_selection": "/submit-selection - Submit defect analysis selections",
+            "consolidated_responses": (
+                "/consolidated-responses - "
+                "Get consolidated user responses with date filtering"
+            ),
             "docs": "/docs - Interactive API documentation",
             "redoc": "/redoc - Alternative API documentation"
         },
@@ -1387,6 +1459,195 @@ async def submit_selection_endpoint(request: SubmitSelectionRequest):
                 "timestamp": datetime.utcnow().isoformat() + "Z"
             }
         )
+
+
+@app.post(
+    "/consolidated-responses",
+    response_model=ConsolidatedResponsesResponse
+)
+async def consolidated_responses_endpoint(
+    request: ConsolidatedResponsesRequest
+):
+    """
+    Consolidated Responses API endpoint that returns all user submissions
+    from the user_responses directory with optional date filtering.
+
+    Args:
+        request: ConsolidatedResponsesRequest containing optional date filters
+
+    Returns:
+        ConsolidatedResponsesResponse with all matching submissions
+
+    Raises:
+        HTTPException: For various error conditions (400, 500)
+    """
+    try:
+        log.info(f"Processing consolidated responses request: {request}")
+        # Force reload test
+
+        # Initialize response metadata
+        query_start_time = datetime.utcnow()
+        user_responses_dir = Path("user_responses")
+
+        # Check if directory exists
+        if not user_responses_dir.exists():
+            log.warning("user_responses directory does not exist")
+            return ConsolidatedResponsesResponse(
+                status="success",
+                message="No submissions found - directory does not exist",
+                query_metadata={
+                    "query_timestamp": query_start_time.isoformat() + "Z",
+                    "start_date_filter": request.start_date,
+                    "end_date_filter": request.end_date,
+                    "directory_exists": False,
+                    "files_processed": 0,
+                    "processing_time_ms": 0
+                },
+                submissions=[],
+                total_count=0
+            )
+
+        # Parse date filters if provided
+        start_datetime = None
+        end_datetime = None
+
+        if request.start_date:
+            start_datetime = datetime.fromisoformat(
+                request.start_date.replace('Z', '+00:00')
+            )
+
+        if request.end_date:
+            end_datetime = datetime.fromisoformat(
+                request.end_date.replace('Z', '+00:00')
+            )
+
+        # Get all JSON files in the directory
+        json_files = list(user_responses_dir.glob("submit_*.json"))
+        log.info(
+            f"Found {len(json_files)} JSON files in user_responses directory"
+        )
+
+        submissions = []
+        files_processed = 0
+        files_skipped = 0
+
+        for file_path in json_files:
+            try:
+                # Extract timestamp from filename for initial filtering
+                filename = file_path.name
+                if (not filename.startswith("submit_") or
+                    not filename.endswith(".json")):
+                    files_skipped += 1
+                    continue
+
+                # Extract timestamp from filename: submit_YYYYMMDDHHMMSS.json
+                timestamp_str = filename[7:21]  # Extract YYYYMMDDHHMMSS
+                try:
+                    file_datetime = datetime.strptime(
+                        timestamp_str, "%Y%m%d%H%M%S"
+                    )
+                    # Make naive for comparison
+                    file_datetime = file_datetime.replace(tzinfo=None)
+                except ValueError:
+                    log.warning(
+                        f"Could not parse timestamp from filename: {filename}"
+                    )
+                    files_skipped += 1
+                    continue
+
+                # Apply date filtering based on filename timestamp
+                if start_datetime:
+                    start_naive = start_datetime.replace(tzinfo=None)
+                    if file_datetime < start_naive:
+                        files_skipped += 1
+                        continue
+
+                if end_datetime:
+                    end_naive = end_datetime.replace(tzinfo=None)
+                    if file_datetime > end_naive:
+                        files_skipped += 1
+                        continue
+
+                # Read and parse the JSON file
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    submission_data = json.load(f)
+
+                submissions.append(submission_data)
+                files_processed += 1
+
+            except json.JSONDecodeError as e:
+                log.error(f"Failed to parse JSON file {file_path}: {e}")
+                files_skipped += 1
+                continue
+            except Exception as e:
+                log.error(f"Error processing file {file_path}: {e}")
+                files_skipped += 1
+                continue
+
+        # Sort submissions by timestamp (most recent first)
+        submissions.sort(
+            key=lambda x: x.get('timestamp', ''),
+            reverse=True
+        )
+
+        # Calculate processing time
+        query_end_time = datetime.utcnow()
+        processing_time_ms = int(
+            (query_end_time - query_start_time).total_seconds() * 1000
+        )
+
+        log.info(
+            f"Processed {files_processed} files, skipped {files_skipped} files"
+        )
+
+        return ConsolidatedResponsesResponse(
+            status="success",
+            message=f"Successfully retrieved {len(submissions)} submissions",
+            query_metadata={
+                "query_timestamp": query_start_time.isoformat() + "Z",
+                "start_date_filter": request.start_date,
+                "end_date_filter": request.end_date,
+                "directory_exists": True,
+                "total_files_found": len(json_files),
+                "files_processed": files_processed,
+                "files_skipped": files_skipped,
+                "processing_time_ms": processing_time_ms
+            },
+            submissions=submissions,
+            total_count=len(submissions)
+        )
+
+    except ValueError as e:
+        # Handle validation errors (already handled by Pydantic,
+        # but just in case)
+        log.error(f"Validation error in consolidated responses: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "status": "error",
+                "error_code": "VALIDATION_ERROR",
+                "message": str(e),
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+        )
+    except Exception as e:
+        log.error(f"Error processing consolidated responses request: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "error_code": "INTERNAL_ERROR",
+                "message": "Failed to process consolidated responses request",
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+        )
+
+
+# Test endpoint to verify server is working
+@app.post("/test-endpoint")
+async def test_endpoint():
+    """Simple test endpoint."""
+    return {"status": "success", "message": "Test endpoint works"}
 
 
 # Legacy endpoint for backward compatibility
