@@ -992,7 +992,8 @@
     {"root_cause_code": "RC.VOLTAGE.DROP", "root_cause_text": "Significant drop in supply voltage under load"},
     {"root_cause_code": "RC.WEAR.NORMAL", "root_cause_text": "Normal operational wear over time"},
     {"root_cause_code": "RC.WELD.POOR_QUALITY", "root_cause_text": "Poor quality weld with insufficient penetration or defects"},
-    {"root_cause_code": "RC.WIRING.DAMAGE", "root_cause_text": "Damage to wiring insulation or conductors"}
+    {"root_cause_code": "RC.WIRING.DAMAGE", "root_cause_text": "Damage to wiring insulation or conductors"},
+    {"root_cause_code": "RC.INVALID.ISSUE", "root_cause_text": "Invalid Issue"}
   ],
   "corrective_actions": [
     {"action_code": "CA.ALIGN.ADJUST", "action_text": "Adjust alignment of components to specifications"},
@@ -1079,7 +1080,8 @@
     {"action_code": "CA.VIBRATION.MONITOR", "action_text": "Monitor and analyze vibration levels"},
     {"action_code": "CA.VOLTAGE.CHECK", "action_text": "Check for stable and correct supply voltage"},
     {"action_code": "CA.WIRING.PROTECT", "action_text": "Add protective conduit or reroute wiring away from hazards"},
-    {"action_code": "CA.WIRING.REPAIR", "action_text": "Repair damaged wiring"}
+    {"action_code": "CA.WIRING.REPAIR", "action_text": "Repair damaged wiring"},
+    {"action_code": "CA.INVALID.ISSUE", "action_text": "Invalid Issue"}
   ],
   "meta": {
     "machine": "Pilger Machine",
