@@ -19,22 +19,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .config import AppConfig, AgentConfig
-from .main import load_app_config, build_agents_map
-from .supervisor_builder import build_supervisor_compiled
-from .planner_executor import execute_plan
-from .mcp_loader import close_mcp_client
-from .agent_builder import build_react_agent
-from .direct_agent_logger import create_direct_agent_logger
-from .thread_manager import get_or_create_thread_id
-from .checkpointer_manager import get_memory_stats, clear_thread_memory, reset_all_memory
+from app.config import AppConfig, AgentConfig
+from app.main import load_app_config, build_agents_map
+from app.supervisor_builder import build_supervisor_compiled
+from app.planner_executor import execute_plan
+from app.mcp_loader import close_mcp_client
+from app.agent_builder import build_react_agent
+from app.direct_agent_logger import create_direct_agent_logger
+from app.thread_manager import get_or_create_thread_id
+from app.checkpointer_manager import get_memory_stats, clear_thread_memory, reset_all_memory
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="[%(levelname)s] %(name)s: %(message)s",
 )
-log = logging.getLogger("app.api")
+log = logging.getLogger("api")
 
 # FastAPI app instance
 app = FastAPI(
@@ -505,6 +505,74 @@ class ErrorResponse(BaseModel):
     details: Optional[Dict[str, str]] = Field(None, description="Additional error details")
 
 
+class ConsolidatedResponsesRequest(BaseModel):
+    """Request model for consolidated responses endpoint."""
+    start_date: Optional[str] = Field(
+        None,
+        description="Start date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). "
+                    "If not provided, returns all submissions."
+    )
+    end_date: Optional[str] = Field(
+        None,
+        description="End date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ). "
+                    "If not provided, returns all submissions."
+    )
+
+    @field_validator('start_date', 'end_date')
+    @classmethod
+    def validate_date_format(cls, v):
+        """Validate that the date is in proper ISO 8601 format."""
+        if v is None:
+            return v
+        try:
+            # Try to parse the date to validate format
+            datetime.fromisoformat(v.replace('Z', '+00:00'))
+            return v
+        except ValueError:
+            raise ValueError(
+                "Date must be in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)"
+            )
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        """Validate that start_date is before end_date if both provided."""
+        if self.start_date and self.end_date:
+            try:
+                start = datetime.fromisoformat(
+                    self.start_date.replace('Z', '+00:00')
+                )
+                end = datetime.fromisoformat(
+                    self.end_date.replace('Z', '+00:00')
+                )
+                if start > end:
+                    raise ValueError(
+                        "start_date must be before or equal to end_date"
+                    )
+            except ValueError as e:
+                if "start_date must be before" in str(e):
+                    raise e
+                # Re-raise date format errors
+                raise ValueError(
+                    "Invalid date format in date range validation"
+                )
+        return self
+
+
+class ConsolidatedResponsesResponse(BaseModel):
+    """Response model for consolidated responses endpoint."""
+    status: str = Field(..., description="Response status")
+    message: str = Field(..., description="Response message")
+    query_metadata: Dict[str, Any] = Field(
+        ..., description="Metadata about the query"
+    )
+    submissions: List[Dict[str, Any]] = Field(
+        ..., description="List of all matching submissions"
+    )
+    total_count: int = Field(
+        ..., description="Total number of submissions returned"
+    )
+
+
 async def extract_human_response(result: Dict[str, Any]) -> str:
     """
     Extract the human responder's final answer from the execution result.
@@ -746,6 +814,10 @@ async def root():
             "worker": "/worker - Direct agent execution endpoint",
             "worker_upload": "/worker/upload - Agent execution with files",
             "submit_selection": "/submit-selection - Submit defect analysis selections",
+            "consolidated_responses": (
+                "/consolidated-responses - "
+                "Get consolidated user responses with date filtering"
+            ),
             "docs": "/docs - Interactive API documentation",
             "redoc": "/redoc - Alternative API documentation"
         },
@@ -830,7 +902,7 @@ async def query_endpoint(request: QueryRequest):
                 app_cfg = load_app_config(Path(request.config_path))
             except Exception as e:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"Failed to load config from {request.config_path}: {str(e)}"
                 )
         else:
@@ -840,7 +912,7 @@ async def query_endpoint(request: QueryRequest):
                     detail="No default configuration available. Please provide config_path."
                 )
             app_cfg = _app_config
-        
+
         # Get or create thread ID
         thread_id = get_or_create_thread_id(request.thread_id)
         log.info(f"Using thread ID: {thread_id}")
@@ -914,6 +986,137 @@ async def query_endpoint(request: QueryRequest):
         )
 
 
+@app.post("/worker", response_model=WorkerResponse)
+async def worker_endpoint(request: WorkerRequest):
+    """
+    Direct worker endpoint that executes a specific agent without planning.
+
+    Args:
+        request: WorkerRequest containing agent name, input, and optional config
+
+    Returns:
+        WorkerResponse with the agent's direct response
+    """
+    try:
+        # Load configuration
+        if request.config_path:
+            try:
+                app_cfg = load_app_config(Path(request.config_path))
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to load config from {request.config_path}: {str(e)}"
+                )
+        else:
+            if _app_config is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="No default configuration available. Please provide config_path."
+                )
+            app_cfg = _app_config
+
+        # Validate agent exists
+        agent_names = [agent.name for agent in app_cfg.agents]
+        if request.agent_name not in agent_names:
+            # Check if agent exists in other config files
+            config_suggestions = []
+            config_dir = Path("config")
+            if config_dir.exists():
+                for config_file in config_dir.glob("*.yaml"):
+                    try:
+                        other_cfg = load_app_config(config_file)
+                        other_agent_names = [a.name for a in other_cfg.agents]
+                        if request.agent_name in other_agent_names:
+                            config_suggestions.append(str(config_file))
+                    except Exception:
+                        continue
+
+            error_msg = (f"Agent '{request.agent_name}' not found in current config. "
+                         f"Available agents: {', '.join(agent_names)}")
+            if config_suggestions:
+                error_msg += (f". However, '{request.agent_name}' was found in: "
+                              f"{', '.join(config_suggestions)}")
+
+            raise HTTPException(status_code=400, detail=error_msg)
+
+        # Get or create thread ID
+        thread_id = get_or_create_thread_id(request.thread_id)
+        log.info(f"Using thread ID: {thread_id}")
+
+        # Execute the agent directly
+        log.info(f"Executing agent '{request.agent_name}' with input: {request.input[:100]}...")
+        result = await run_direct_agent_api(
+            request.agent_name, request.input, app_cfg, request.config_path, thread_id
+        )
+
+        # Prepare metadata
+        metadata = {
+            "agent_name": request.agent_name,
+            "model_used": app_cfg.models.get("default", "unknown"),
+            "business_context": bool(app_cfg.business_context)
+        }
+
+        if request.raw_output:
+            # Return raw text content only - no JSON wrapping
+            log.info("Returning raw text content without JSON wrapping")
+            # For direct agents, return the response text directly
+            agent_response_text = result.get("response", "")
+            return PlainTextResponse(
+                content=agent_response_text, media_type="text/plain"
+            )
+        else:
+            # Return formatted response
+            return WorkerResponse(
+                success=True,
+                response=result["response"],
+                agent_name=request.agent_name,
+                error=None,
+                metadata=metadata,
+                raw_data=None,
+                thread_id=thread_id
+            )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except BaseExceptionGroup as e:
+        # Handle Python 3.11+ TaskGroup exceptions
+        log.error(f"TaskGroup error executing worker '{request.agent_name}': {e}")
+        # Extract underlying exceptions for better error messages
+        underlying_errors = []
+        if hasattr(e, 'exceptions'):
+            for exc in e.exceptions:
+                underlying_errors.append(str(exc))
+
+        if underlying_errors:
+            error_msg = ("Worker execution failed: " +
+                         "; ".join(underlying_errors))
+        else:
+            error_msg = ("Worker execution failed with TaskGroup error: " +
+                         str(e))
+
+        return WorkerResponse(
+            success=False,
+            response="",
+            agent_name=request.agent_name,
+            error=error_msg,
+            metadata=None,
+            raw_data=None,
+            thread_id=thread_id if 'thread_id' in locals() else get_or_create_thread_id()
+        )
+    except Exception as e:
+        log.error(f"Error executing worker '{request.agent_name}': {e}")
+        return WorkerResponse(
+            success=False,
+            response="",
+            agent_name=request.agent_name,
+            error=str(e),
+            metadata=None,
+            raw_data=None,
+            thread_id=thread_id if 'thread_id' in locals() else get_or_create_thread_id()
+        )
+
+
 @app.post("/worker/upload")
 async def worker_upload_endpoint(
     agent_name: str = Form(..., description="Name of the agent to execute"),
@@ -977,7 +1180,6 @@ async def worker_upload_endpoint(
         # Process uploaded files
         file_ids = []
         file_info = []
-
         csv_data_sections = []
 
         # Handle optional files parameter
@@ -1010,11 +1212,11 @@ async def worker_upload_endpoint(
                         csv_preview = csv_text
 
                     csv_data_sections.append(f"""
-**CSV File: {file.filename}**
-```csv
-{csv_preview}
-```
-""")
+                                        **CSV File: {file.filename}**
+                                        ```csv
+                                        {csv_preview}
+                                        ```
+                                        """)
 
                     # Add to file info without uploading
                     file_info.append({
@@ -1151,242 +1353,11 @@ Attached files:
         }
 
 
-@app.post("/worker", response_model=WorkerResponse)
-async def worker_endpoint(request: WorkerRequest):
-    """
-    Direct worker endpoint that executes a specific agent without planning.
-
-    Args:
-        request: WorkerRequest containing agent name, input, and optional config
-
-    Returns:
-        WorkerResponse with the agent's direct response
-    """
-    try:
-        # Load configuration
-        if request.config_path:
-            try:
-                app_cfg = load_app_config(Path(request.config_path))
-            except Exception as e:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Failed to load config from {request.config_path}: {str(e)}"
-                )
-        else:
-            if _app_config is None:
-                raise HTTPException(
-                    status_code=500,
-                    detail="No default configuration available. Please provide config_path."
-                )
-            app_cfg = _app_config
-
-        # Validate agent exists
-        agent_names = [agent.name for agent in app_cfg.agents]
-        if request.agent_name not in agent_names:
-            # Check if agent exists in other config files
-            config_suggestions = []
-            config_dir = Path("config")
-            if config_dir.exists():
-                for config_file in config_dir.glob("*.yaml"):
-                    try:
-                        other_cfg = load_app_config(config_file)
-                        other_agent_names = [a.name for a in other_cfg.agents]
-                        if request.agent_name in other_agent_names:
-                            config_suggestions.append(str(config_file))
-                    except Exception:
-                        continue
-
-            error_msg = (f"Agent '{request.agent_name}' not found in current config. "
-                         f"Available agents: {', '.join(agent_names)}")
-            if config_suggestions:
-                error_msg += (f". However, '{request.agent_name}' was found in: "
-                              f"{', '.join(config_suggestions)}")
-
-            raise HTTPException(status_code=400, detail=error_msg)
-
-        # Get or create thread ID
-        thread_id = get_or_create_thread_id(request.thread_id)
-        log.info(f"Using thread ID: {thread_id}")
-
-        # Execute the agent directly
-        log.info(f"Executing agent '{request.agent_name}' with input: {request.input[:100]}...")
-        result = await run_direct_agent_api(
-            request.agent_name, request.input, app_cfg, request.config_path, thread_id
-        )
-
-        # Prepare metadata
-        metadata = {
-            "agent_name": request.agent_name,
-            "model_used": app_cfg.models.get("default", "unknown"),
-            "business_context": bool(app_cfg.business_context)
-        }
-
-        if request.raw_output:
-            # Return raw text content only - no JSON wrapping
-            log.info("Returning raw text content without JSON wrapping")
-            # For direct agents, return the response text directly
-            agent_response_text = result.get("response", "")
-            return PlainTextResponse(
-                content=agent_response_text, media_type="text/plain"
-            )
-        else:
-            # Return formatted response
-            return WorkerResponse(
-                success=True,
-                response=result["response"],
-                agent_name=request.agent_name,
-                error=None,
-                metadata=metadata,
-                raw_data=None,
-                thread_id=thread_id
-            )
-
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except BaseExceptionGroup as e:
-        # Handle Python 3.11+ TaskGroup exceptions
-        log.error(f"TaskGroup error executing worker '{request.agent_name}': {e}")
-        # Extract underlying exceptions for better error messages
-        underlying_errors = []
-        if hasattr(e, 'exceptions'):
-            for exc in e.exceptions:
-                underlying_errors.append(str(exc))
-
-        if underlying_errors:
-            error_msg = ("Worker execution failed: " +
-                         "; ".join(underlying_errors))
-        else:
-            error_msg = ("Worker execution failed with TaskGroup error: " +
-                         str(e))
-
-        return WorkerResponse(
-            success=False,
-            response="",
-            agent_name=request.agent_name,
-            error=error_msg,
-            metadata=None,
-            raw_data=None,
-            thread_id=thread_id if 'thread_id' in locals() else get_or_create_thread_id()
-        )
-    except Exception as e:
-        log.error(f"Error executing worker '{request.agent_name}': {e}")
-        return WorkerResponse(
-            success=False,
-            response="",
-            agent_name=request.agent_name,
-            error=str(e),
-            metadata=None,
-            raw_data=None,
-            thread_id=thread_id if 'thread_id' in locals() else get_or_create_thread_id()
-        )
-
-
-@app.post("/submit-selection", response_model=SubmitSelectionResponse)
-async def submit_selection_endpoint(request: SubmitSelectionRequest):
-    """
-    Submit Selection API endpoint that receives user selections from the Enhanced Defect Analysis Page.
-
-    Args:
-        request: SubmitSelectionRequest containing user selections and metadata
-
-    Returns:
-        SubmitSelectionResponse with submission confirmation
-    """
-    try:
-        # Validate timestamp format
-        try:
-            datetime.fromisoformat(request.timestamp.replace('Z', '+00:00'))
-        except ValueError:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "status": "error",
-                    "error_code": "INVALID_REQUEST",
-                    "message": "Invalid timestamp format. Must be ISO 8601 format.",
-                    "details": {
-                        "field": "timestamp",
-                        "issue": "Invalid ISO 8601 format"
-                    }
-                }
-            )
-
-        # Generate submission ID and timestamp
-        submission_timestamp = datetime.utcnow()
-        submission_id = f"submit_{submission_timestamp.strftime('%Y%m%d%H%M%S')}"
-
-        # Create user_responses directory if it doesn't exist
-        user_responses_dir = Path("user_responses")
-        user_responses_dir.mkdir(exist_ok=True)
-
-        # Generate filename with timestamp
-        filename = f"submit_{submission_timestamp.strftime('%Y%m%d%H%M%S')}.json"
-        file_path = user_responses_dir / filename
-
-        # Prepare data for saving
-        submission_data = request.dict()
-        submission_data["submission_metadata"] = {
-            "submission_id": submission_id,
-            "submission_timestamp": submission_timestamp.isoformat() + "Z",
-            "filename": filename
-        }
-
-        # Save to JSON file
-        try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(submission_data, f, indent=2, ensure_ascii=False)
-            log.info(f"Saved submission to {file_path}")
-        except Exception as e:
-            log.error(f"Failed to save submission to file: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "status": "error",
-                    "error_code": "INTERNAL_ERROR",
-                    "message": "Failed to save submission data",
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
-                }
-            )
-
-        # Return success response
-        return SubmitSelectionResponse(
-            status="success",
-            message="Selection submitted successfully",
-            submission_id=submission_id,
-            timestamp=submission_timestamp.isoformat() + "Z",
-            processed_pairs=len(request.selected_pairs)
-        )
-
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except ValueError as e:
-        # Handle validation errors
-        log.error(f"Validation error in submit-selection: {e}")
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "status": "error",
-                "error_code": "INVALID_REQUEST",
-                "message": str(e),
-                "details": {
-                    "field": "validation",
-                    "issue": str(e)
-                }
-            }
-        )
-    except Exception as e:
-        # Handle unexpected errors
-        log.error(f"Unexpected error in submit-selection: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "status": "error",
-                "error_code": "INTERNAL_ERROR",
-                "message": "Internal server error occurred",
-                "timestamp": datetime.utcnow().isoformat() + "Z"
-            }
-        )
+# Test endpoint to verify server is working
+@app.post("/test-endpoint")
+async def test_endpoint():
+    """Simple test endpoint."""
+    return {"status": "success", "message": "Test endpoint works"}
 
 
 # Legacy endpoint for backward compatibility

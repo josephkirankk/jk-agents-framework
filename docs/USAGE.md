@@ -38,10 +38,10 @@ python -m app.main "Analyze this data" --agent analysis_agent --config config/da
 #### Start the Server
 ```bash
 # Start on default port 8000
-python -m app.api
+python -m api
 
 # Start on custom port
-uvicorn app.api:app --host 0.0.0.0 --port 8001
+uvicorn api:app --host 0.0.0.0 --port 8001
 ```
 
 #### API Endpoints

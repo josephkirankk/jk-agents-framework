@@ -432,4 +432,8 @@ Your ONLY role is to:
 
 ---
 
+IMPORTANT :
+- Always include at least 1–2 new entry suggestions at the end intelligently based on the pilger machine context and user input. ensure you check the existing entries to suggest a new entry. the new entry should folow the same schema and pattern as ontology items.
+- New defect code format - PLG.<AREA>.<COMPONENT>.<MODE>
+
 ### USER INPUT:

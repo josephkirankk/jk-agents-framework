@@ -17,7 +17,7 @@ This directory contains comprehensive testing scripts for the JK-Agents API with
 
 1. **Start the FastAPI server:**
    ```bash
-   uvicorn app.api:app --reload
+   uvicorn api:app --reload
    ```
 
 2. **Set your Google API key in `.env`:**
