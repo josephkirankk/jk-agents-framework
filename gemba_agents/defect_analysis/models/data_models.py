@@ -6,6 +6,40 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 
+class RootCause(BaseModel):
+    """
+    Model for a structured root cause with code and descriptive text.
+
+    This represents the structured format expected by the ontology:
+    {"root_cause_code": "RC.ABRASION.EXTERNAL", "root_cause_text": "Abrasion from external contact..."}
+    """
+    root_cause_code: str = Field(..., description="Root cause code from ontology")
+    root_cause_text: str = Field(..., description="Descriptive text for the root cause")
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid"
+    )
+
+
+class CorrectiveAction(BaseModel):
+    """
+    Model for a structured corrective action with code and descriptive text.
+
+    This represents the structured format expected by the ontology:
+    {"action_code": "CA.ALIGN.ADJUST", "action_text": "Adjust alignment of components..."}
+    """
+    action_code: str = Field(..., description="Action code from ontology")
+    action_text: str = Field(..., description="Descriptive text for the corrective action")
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid"
+    )
+
+
 class IntentData(BaseModel):
     """
     Model for extracted intent data from the intent extraction stage.
@@ -72,10 +106,10 @@ class AggregatedResults(BaseModel):
     intent_data: IntentData = Field(..., description="Extracted intent data")
     total_unique_results: int = Field(..., ge=0, description="Number of unique results after deduplication")
     defects: List[DefectResult] = Field(default_factory=list, description="Deduplicated defect results")
-    root_causes: List[str] = Field(default_factory=list, description="Consolidated root causes")
-    corrective_actions: List[str] = Field(default_factory=list, description="Consolidated corrective actions")
+    root_causes: List[RootCause] = Field(default_factory=list, description="Consolidated root causes with structured format")
+    corrective_actions: List[CorrectiveAction] = Field(default_factory=list, description="Consolidated corrective actions with structured format")
     processing_time_ms: float = Field(..., ge=0, description="Total processing time in milliseconds")
-    
+
     model_config = ConfigDict(
         validate_assignment=True,
         extra="forbid"

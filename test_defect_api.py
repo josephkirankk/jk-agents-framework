@@ -8,6 +8,7 @@ This script tests both the JSON and form-based endpoints.
 import asyncio
 import json
 from api import app, DefectAnalysisRequest, DefectAnalysisResponse
+from gemba_agents.defect_analysis.models.data_models import RootCause, CorrectiveAction
 
 async def test_defect_analysis_endpoint():
     """Test the defect analysis endpoint directly."""
@@ -149,8 +150,12 @@ def test_response_structure():
                     "sub_component": "Blade"
                 }
             ],
-            root_causes=["Low suction pressure"],
-            corrective_actions=["Check suction line"],
+            root_causes=[
+                RootCause(root_cause_code="RC.PRESSURE.LOW", root_cause_text="Low suction pressure")
+            ],
+            corrective_actions=[
+                CorrectiveAction(action_code="CA.INSPECT.SUCTION", action_text="Check suction line")
+            ],
             processing_time_ms=1500.0
         )
         print("✅ Response structure validation passed")

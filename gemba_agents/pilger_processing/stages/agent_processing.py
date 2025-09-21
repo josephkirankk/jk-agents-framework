@@ -42,8 +42,8 @@ def format_defect_analysis_for_agent(
             f"Sub-component: {defect_analysis.intent_data.sub_component}\n"
             f"Issue: {defect_analysis.intent_data.issue}\n"
             f"Found {defect_analysis.total_unique_results} related defects\n"
-            f"Root Causes: {', '.join(defect_analysis.root_causes)}\n"
-            f"Corrective Actions: {', '.join(defect_analysis.corrective_actions)}"
+            f"Root Causes: {', '.join([rc.root_cause_text for rc in defect_analysis.root_causes])}\n"
+            f"Corrective Actions: {', '.join([ca.action_text for ca in defect_analysis.corrective_actions])}"
         )
     else:
         # Structured JSON format
@@ -52,8 +52,8 @@ def format_defect_analysis_for_agent(
             "intent_data": defect_analysis.intent_data.model_dump(),
             "total_unique_results": defect_analysis.total_unique_results,
             "defects": [defect.model_dump() for defect in defect_analysis.defects[:5]],  # Top 5 defects
-            "root_causes": defect_analysis.root_causes,
-            "corrective_actions": defect_analysis.corrective_actions,
+            "root_causes": [rc.model_dump() for rc in defect_analysis.root_causes],
+            "corrective_actions": [ca.model_dump() for ca in defect_analysis.corrective_actions],
             "processing_time_ms": defect_analysis.processing_time_ms
         }, indent=2)
 
@@ -138,8 +138,8 @@ async def process_with_pilger_agent(
         # {{ontology}} - DefectAnalysisPipeline results as structured data
         ontology_data = {
             "defects": [defect.model_dump() for defect in defect_analysis.defects],
-            "root_causes": defect_analysis.root_causes,
-            "corrective_actions": defect_analysis.corrective_actions,
+            "root_causes": [rc.model_dump() for rc in defect_analysis.root_causes],
+            "corrective_actions": [ca.model_dump() for ca in defect_analysis.corrective_actions],
             "intent_data": defect_analysis.intent_data.model_dump(),
             "total_unique_results": defect_analysis.total_unique_results
         }

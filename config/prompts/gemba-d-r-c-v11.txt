@@ -148,11 +148,41 @@ CONFIDENCE SCORING RULES:
 * If no direct mapping exists, **propose a new prefix/code** consistent with the schema and extend `subsystem_descriptions` dynamically with a short explanation.
 * Each defect must follow this exact JSON schema:
 
+REFERENCE JSON SCHEMA:
   ```json
   {
-    "defects": [],
-    "root_causes": [],
-    "corrective_actions": [],
+    "defects": [{
+      "defect_code": "PLG.AUX.DIEHEATER.FAIL.NO_HEAT",
+      "defect_text": "Die Heating Induction: System is not heating.",
+      "likely_root_causes": ["RC.INDUCTION_COIL.FAILURE", "RC.POWER_SUPPLY.FAILURE", "RC.CONTROLLER.FAULT", "RC.WIRING.DAMAGE"],
+      "recommended_actions": ["CA.REPLACE.COMPONENT", "CA.POWER_SUPPLY.CHECK", "CA.CONTROLLER.DIAGNOSE", "CA.WIRING.REPAIR"],
+      "subsystem": "AUX",
+      "symptoms": ["Die does not reach temperature", "fault light on controller", "no power to unit"],
+      "detection_methods": ["Check controller status", "measure output of power supply", "inspect induction coil"],
+      "early_warning_signals": ["Intermittent heating", "longer time to reach temperature"],
+      "severity": "Medium",
+      "typical_frequency": "Low",
+      "tags": ["auxiliary", "heater", "induction"]
+    },
+    {
+      "defect_code": "PLG.AUX.TURNING.FAIL.JAMMED",
+      "defect_text": "Turning System: Mechanism is jammed or not rotating.",
+      "likely_root_causes": ["RC.MECHANICAL.OBSTRUCTION", "RC.LUBE.INSUFFICIENT", "RC.BEARING.FAILURE", "RC.MOTOR.FAIL"],
+      "recommended_actions": ["CA.OBSTRUCTION.REMOVE", "CA.LUBE.REPLENISH", "CA.BEARING.REPLACE", "CA.MOTOR.REPLACE"],
+      "subsystem": "AUX",
+      "symptoms": ["Tube does not rotate between strokes", "motor overload", "grinding noises"],
+      "detection_methods": ["Visual inspection for foreign objects", "check lubrication points", "test motor operation"],
+      "early_warning_signals": ["Jerky or hesitant rotation", "increased noise during turning"],
+      "severity": "Medium",
+      "typical_frequency": "Medium",
+      "tags": ["auxiliary", "turning", "jammed"]
+    }],
+    "root_causes": [{"root_cause_code": "RC.WELD.POOR_QUALITY", "root_cause_text": "Poor quality weld with insufficient penetration or defects"},
+    {"root_cause_code": "RC.WIRING.DAMAGE", "root_cause_text": "Damage to wiring insulation or conductors"},
+    {"root_cause_code": "RC.INVALID.ISSUE", "root_cause_text": "Invalid Issue"}],
+    "corrective_actions": [ {"action_code": "CA.WIRING.PROTECT", "action_text": "Add protective conduit or reroute wiring away from hazards"},
+    {"action_code": "CA.WIRING.REPAIR", "action_text": "Repair damaged wiring"},
+    {"action_code": "CA.INVALID.ISSUE", "action_text": "Invalid Issue"}],
     "meta": {}
   }
   ```
@@ -178,6 +208,12 @@ CONFIDENCE SCORING RULES:
 - ≥ 0.90 → "AUTO_ACCEPT"
 - 0.60–0.89 → "REVIEW_REQUIRED"
 - < 0.60 → "HUMAN_DECISION"
+
+IMPORTANT:
+- Only provide near matches or exact matches based on the ontology provided. DO NOT MAKE IT UP. 
+- Suggest NEW_ENTRY records based on the context and user input.
+- NEVER PROVIDE NEAR MATCH TO DEFECT CODE WHICH IS NOT IN THE ONTOLOGY.
+- ALWAYS PROVIDE DEFECT CODE IN THE PATTERN LIKE PLG.HYD.CYLINDER.FAIL , PLG.HYD.VLV.LEAK - FOLLOW Coding rules (strict) PROVIDED ABOVE.
 
 
 ONTOLOGY :

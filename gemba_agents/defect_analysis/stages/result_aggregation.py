@@ -5,16 +5,76 @@ This stage consolidates vector search results, removes duplicates, and creates
 a structured final output with consolidated root causes and corrective actions.
 """
 
+import json
 import logging
+import os
 import time
-from typing import List, Set
+from typing import List, Set, Dict
 from collections import Counter
 
 from pipefunc import pipefunc
 
-from ..models.data_models import IntentData, VectorSearchResults, AggregatedResults, DefectAnalysisConfig
+from ..models.data_models import (
+    IntentData,
+    VectorSearchResults,
+    AggregatedResults,
+    DefectAnalysisConfig,
+    RootCause,
+    CorrectiveAction
+)
 
 logger = logging.getLogger(__name__)
+
+# Cache for ontology mappings to avoid repeated file reads
+_ontology_cache = None
+
+
+def _load_ontology_mappings() -> Dict[str, Dict[str, str]]:
+    """
+    Load root cause and corrective action mappings from the ontology file.
+
+    Returns:
+        Dictionary with 'root_causes' and 'corrective_actions' mappings
+    """
+    global _ontology_cache
+
+    if _ontology_cache is not None:
+        return _ontology_cache
+
+    try:
+        # Get the path to the ontology file relative to the project root
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.join(current_dir, "..", "..", "..")
+        ontology_path = os.path.join(project_root, "config", "prompts", "ontology_merged_detailed_v8.json")
+
+        with open(ontology_path, 'r', encoding='utf-8') as f:
+            ontology_data = json.load(f)
+
+        # Create mappings from code to text
+        root_cause_mapping = {}
+        for rc in ontology_data.get('root_causes', []):
+            root_cause_mapping[rc['root_cause_code']] = rc['root_cause_text']
+
+        corrective_action_mapping = {}
+        for ca in ontology_data.get('corrective_actions', []):
+            corrective_action_mapping[ca['action_code']] = ca['action_text']
+
+        _ontology_cache = {
+            'root_causes': root_cause_mapping,
+            'corrective_actions': corrective_action_mapping
+        }
+
+        logger.info(f"Loaded ontology mappings: {len(root_cause_mapping)} root causes, {len(corrective_action_mapping)} corrective actions")
+        return _ontology_cache
+
+    except Exception as e:
+        logger.error(f"Failed to load ontology mappings: {str(e)}")
+        # Return empty mappings on failure
+        _ontology_cache = {
+            'root_causes': {},
+            'corrective_actions': {}
+        }
+        return _ontology_cache
 
 
 async def _aggregate_results_async(
@@ -104,59 +164,85 @@ async def _aggregate_results_async(
         )
 
 
-def _consolidate_root_causes(defects: List) -> List[str]:
+def _consolidate_root_causes(defects: List) -> List[RootCause]:
     """
-    Consolidate root causes from all defect results.
-    
+    Consolidate root causes from all defect results into structured format.
+
     Args:
         defects: List of DefectResult objects
-        
+
     Returns:
-        List of consolidated root causes, sorted by frequency
+        List of consolidated RootCause objects with code and text, sorted by frequency
     """
     all_causes = []
-    
+
     for defect in defects:
         if hasattr(defect, 'likely_root_causes') and defect.likely_root_causes:
             all_causes.extend(defect.likely_root_causes)
-    
+
     if not all_causes:
         return []
-    
+
     # Count frequency and remove duplicates
     cause_counts = Counter(all_causes)
-    
-    # Sort by frequency (most common first) and return unique causes
-    consolidated_causes = [cause for cause, count in cause_counts.most_common()]
-    
+
+    # Load ontology mappings
+    ontology_mappings = _load_ontology_mappings()
+    root_cause_mapping = ontology_mappings['root_causes']
+
+    # Convert codes to structured objects
+    consolidated_causes = []
+    for cause_code, count in cause_counts.most_common():
+        # Get the descriptive text from ontology, fallback to code if not found
+        cause_text = root_cause_mapping.get(cause_code, f"Unknown root cause: {cause_code}")
+
+        root_cause = RootCause(
+            root_cause_code=cause_code,
+            root_cause_text=cause_text
+        )
+        consolidated_causes.append(root_cause)
+
     return consolidated_causes
 
 
-def _consolidate_corrective_actions(defects: List) -> List[str]:
+def _consolidate_corrective_actions(defects: List) -> List[CorrectiveAction]:
     """
-    Consolidate corrective actions from all defect results.
-    
+    Consolidate corrective actions from all defect results into structured format.
+
     Args:
         defects: List of DefectResult objects
-        
+
     Returns:
-        List of consolidated corrective actions, sorted by frequency
+        List of consolidated CorrectiveAction objects with code and text, sorted by frequency
     """
     all_actions = []
-    
+
     for defect in defects:
         if hasattr(defect, 'recommended_actions') and defect.recommended_actions:
             all_actions.extend(defect.recommended_actions)
-    
+
     if not all_actions:
         return []
-    
+
     # Count frequency and remove duplicates
     action_counts = Counter(all_actions)
-    
-    # Sort by frequency (most common first) and return unique actions
-    consolidated_actions = [action for action, count in action_counts.most_common()]
-    
+
+    # Load ontology mappings
+    ontology_mappings = _load_ontology_mappings()
+    corrective_action_mapping = ontology_mappings['corrective_actions']
+
+    # Convert codes to structured objects
+    consolidated_actions = []
+    for action_code, count in action_counts.most_common():
+        # Get the descriptive text from ontology, fallback to code if not found
+        action_text = corrective_action_mapping.get(action_code, f"Unknown corrective action: {action_code}")
+
+        corrective_action = CorrectiveAction(
+            action_code=action_code,
+            action_text=action_text
+        )
+        consolidated_actions.append(corrective_action)
+
     return consolidated_actions
 
 

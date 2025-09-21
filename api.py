@@ -18,7 +18,7 @@ from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 from app.config import AppConfig, AgentConfig
 from app.main import load_app_config, build_agents_map
@@ -28,6 +28,9 @@ from app.mcp_loader import close_mcp_client
 from app.agent_builder import build_react_agent
 from app.direct_agent_logger import create_direct_agent_logger
 from app.thread_manager import get_or_create_thread_id
+
+# Import structured models for defect analysis
+from gemba_agents.defect_analysis.models.data_models import RootCause, CorrectiveAction
 from app.checkpointer_manager import get_memory_stats, clear_thread_memory, reset_all_memory
 
 # Import defect analysis pipeline
@@ -424,14 +427,14 @@ class WorkerResponse(BaseModel):
 
 
 # Submit Selection API Models
-class RootCause(BaseModel):
+class SubmitRootCause(BaseModel):
     """Root cause model for submit selection."""
     root_cause_code: str = Field(..., description="Unique identifier for the root cause")
     root_cause_text: str = Field(..., description="Human-readable description of the root cause")
     is_primary: bool = Field(..., description="Boolean indicating if this is the primary/recommended root cause")
 
 
-class CorrectiveAction(BaseModel):
+class SubmitCorrectiveAction(BaseModel):
     """Corrective action model for submit selection."""
     action_code: str = Field(..., description="Unique identifier for the corrective action")
     action_text: str = Field(..., description="Human-readable description of the corrective action")
@@ -440,8 +443,8 @@ class CorrectiveAction(BaseModel):
 
 class SelectedPair(BaseModel):
     """Selected pair model containing root cause and corrective action."""
-    root_cause: RootCause = Field(..., description="Root cause object")
-    corrective_action: CorrectiveAction = Field(..., description="Corrective action object")
+    root_cause: SubmitRootCause = Field(..., description="Root cause object")
+    corrective_action: SubmitCorrectiveAction = Field(..., description="Corrective action object")
     pair_id: str = Field(..., description="Unique identifier for the pair")
 
 
@@ -646,11 +649,11 @@ class DefectAnalysisResponse(BaseModel):
     defects: List[Dict[str, Any]] = Field(
         ..., description="List of matching defects with details"
     )
-    root_causes: List[str] = Field(
-        ..., description="Consolidated root causes"
+    root_causes: List[RootCause] = Field(
+        ..., description="Consolidated root causes with structured format"
     )
-    corrective_actions: List[str] = Field(
-        ..., description="Consolidated corrective actions"
+    corrective_actions: List[CorrectiveAction] = Field(
+        ..., description="Consolidated corrective actions with structured format"
     )
     processing_time_ms: float = Field(
         ..., description="Total processing time in milliseconds"
@@ -660,6 +663,11 @@ class DefectAnalysisResponse(BaseModel):
     )
     metadata: Optional[Dict[str, Any]] = Field(
         None, description="Additional metadata about the analysis"
+    )
+
+    model_config = ConfigDict(
+        validate_assignment=True,
+        extra="forbid"
     )
 
 
@@ -1739,14 +1747,14 @@ async def enhanced_defect_analysis_endpoint(request: EnhancedDefectAnalysisReque
             },
             "total_unique_results": defect_result.total_unique_results,
             "defects": [defect.model_dump() for defect in defect_result.defects],
-            "root_causes": defect_result.root_causes,
-            "corrective_actions": defect_result.corrective_actions,
+            "root_causes": [rc.model_dump() for rc in defect_result.root_causes],
+            "corrective_actions": [ca.model_dump() for ca in defect_result.corrective_actions],
             "processing_time_ms": defect_result.processing_time_ms
         }
 
         # Initialize combined results with defect analysis data
         total_insights = []
-        total_recommended_actions = list(defect_result.corrective_actions)
+        total_recommended_actions = [ca.action_text for ca in defect_result.corrective_actions]
 
         # Stage 2: Pilger Processing Pipeline (if not skipped)
         pilger_processing_data = None
