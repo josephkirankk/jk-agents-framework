@@ -9,4 +9,4 @@ echo OPENAI_BASE_URL=%OPENAI_BASE_URL%
 echo OPENAI_API_KEY=%OPENAI_API_KEY%
 
 echo Starting JK-Agents API server...
-uvicorn app.api:app --host 0.0.0.0 --port 8001 --reload
+uvicorn api:app --host 0.0.0.0 --port 8001 --reload

@@ -96,7 +96,7 @@ python start.py
 # Terminal 2: Set environment and start JK-Agents
 export OPENAI_BASE_URL="http://127.0.0.1:8080/v1"
 export OPENAI_API_KEY="sk-test-key1"
-uvicorn app.api:app --host 0.0.0.0 --port 8001 --reload
+uvicorn api:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 ## Testing the Integration

@@ -149,7 +149,7 @@ print_test "System Configuration Check" \
   }"'
 
 echo -e "\n${GREEN}📝 Usage Instructions:${NC}"
-echo "1. Start the FastAPI server: uvicorn app.api:app --reload"
+echo "1. Start the FastAPI server: uvicorn api:app --reload"
 echo "2. Ensure your GOOGLE_API_KEY is set in the .env file"
 echo "3. Copy and paste the curl commands above to test different scenarios"
 echo "4. Replace file paths (@file.csv, @image.jpg) with your actual files"

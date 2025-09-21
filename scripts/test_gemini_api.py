@@ -275,7 +275,7 @@ def main():
     tester = GeminiAPITester()
     
     print("📋 Prerequisites:")
-    print("1. FastAPI server should be running: uvicorn app.api:app --reload")
+    print("1. FastAPI server should be running: uvicorn api:app --reload")
     print("2. GOOGLE_API_KEY should be set in your .env file")
     print("3. Test files should be available (customer_data.csv, sample_sales_data.csv)")
     print("4. Optional: Add test images (test_image.jpg, chart.png, document.jpg)")

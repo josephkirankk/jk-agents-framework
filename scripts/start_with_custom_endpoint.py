@@ -191,7 +191,7 @@ def main():
             "JK-Agents API",
             [
                 sys.executable, "-m", "uvicorn", 
-                "app.api:app", 
+                "api:app",
                 "--host", "0.0.0.0", 
                 "--port", str(args.api_port),
                 "--reload"

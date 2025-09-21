@@ -35,7 +35,7 @@ python -m app.main "Analyze the benefits of renewable energy"
 python -m app.main "What is machine learning?" --agent research_agent
 
 # Start API server
-python -m app.api
+python -m api
 ```
 
 ## 🏗️ Architecture

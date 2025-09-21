@@ -15,7 +15,7 @@ The JK-Agents system now provides a FastAPI web interface that allows you to int
 source .venv/bin/activate  # Linux/Mac
 
 # Start the FastAPI server
-python -m uvicorn app.api:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 2. Start Required MCP Servers

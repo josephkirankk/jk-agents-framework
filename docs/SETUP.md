@@ -136,7 +136,7 @@ For detailed multi-provider configuration, see [MULTI_PROVIDER_SETUP.md](MULTI_P
 python -m app.main "Hello, test the system" --config config/simple_test.yaml
 
 # Test API server
-python -m app.api
+python -m api
 # In another terminal: curl http://localhost:8000/health
 ```
 
@@ -185,7 +185,7 @@ source .venv/bin/activate  # macOS/Linux
 #### 3. Port Already in Use
 ```bash
 # If port 8000 is in use, specify a different port
-python -m app.api --port 8001
+python -m api --port 8001
 ```
 
 #### 4. Memory Issues
