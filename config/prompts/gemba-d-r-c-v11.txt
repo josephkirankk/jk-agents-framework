@@ -214,6 +214,8 @@ IMPORTANT:
 - Suggest NEW_ENTRY records based on the context and user input.
 - NEVER PROVIDE NEAR MATCH TO DEFECT CODE WHICH IS NOT IN THE ONTOLOGY.
 - ALWAYS PROVIDE DEFECT CODE IN THE PATTERN LIKE PLG.HYD.CYLINDER.FAIL , PLG.HYD.VLV.LEAK - FOLLOW Coding rules (strict) PROVIDED ABOVE.
+- Alway try to keep the existing prefix and code as it is. Do not change the prefix or code unless it is a new entry.
+- Only change the prefix if the new entry is in different category.
 
 
 ONTOLOGY :
