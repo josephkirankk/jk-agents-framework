@@ -332,6 +332,11 @@ class QueryRequest(BaseModel):
         description="Optional thread ID for conversation continuity. "
                     "If not provided, a new thread will be created."
     )
+    custom_placeholders: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Optional custom placeholders to use in agent prompts. "
+                    "These will be available as {{placeholder_name}} in templates."
+    )
 
 
 class QueryResponse(BaseModel):
@@ -379,6 +384,11 @@ class WorkerRequest(BaseModel):
         None,
         description="Optional thread ID for conversation continuity. "
                     "If not provided, a new thread will be created."
+    )
+    custom_placeholders: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Optional custom placeholders to use in agent prompts. "
+                    "These will be available as {{placeholder_name}} in templates."
     )
 
 

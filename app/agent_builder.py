@@ -14,7 +14,8 @@ from .python_tool_loader import (
     validate_python_tools
 )
 from .config import AgentConfig
-from .template_utils import render_prompt
+from .template_utils import render_prompt, render_prompt_with_placeholders
+from .placeholder_system import PlaceholderContext
 from .gemini_schema_filter import apply_gemini_schema_filtering
 from .prompt_loader import load_prompt_content, get_config_directory
 from .llm_payload_logger import LoggingModelWrapper, LLMPayloadLogger
@@ -111,6 +112,7 @@ async def build_react_agent(
     config_path: Optional[str] = None,
     enable_llm_payload_logging: bool = True,
     llm_payload_logger: Optional[LLMPayloadLogger] = None,
+    custom_placeholders: Optional[Dict[str, Any]] = None,
 ):
     # Use global checkpointer for memory persistence across API calls
     if checkpointer is None:
@@ -177,27 +179,53 @@ async def build_react_agent(
         )
         raise
 
-    # Render prompt with Jinja2 so templates can use variables like
-    # {{ mcpservers }}, {{ businessContext }}, {{ original_user_question }},
-    # {{ agent_name }}, {{ dependent_request_responses }}
-    ctx = {
-        "mcpservers": summary,
-        "businessContext": business_context or "",
-        "original_user_question": original_user_question or "",
-        "agent_name": agent_cfg.name,
-        "dependent_request_responses": dependent_request_responses or "",
-    }
+    # Use enhanced placeholder system for template rendering
     try:
-        prompt_filled = render_prompt(prompt_content, ctx)
+        # Create placeholder context
+        placeholder_context = PlaceholderContext()
+
+        # Add custom placeholders if provided
+        if custom_placeholders:
+            placeholder_context.add_custom_placeholders(custom_placeholders)
+
+        # Render prompt with enhanced placeholder support
+        prompt_filled = render_prompt_with_placeholders(
+            prompt_content,
+            placeholder_context=placeholder_context,
+            agent_name=agent_cfg.name,
+            agent_description=agent_cfg.description or "",
+            agent_model=model_id,
+            business_context=business_context or "",
+            original_user_question=original_user_question or "",
+            dependent_request_responses=dependent_request_responses or "",
+            mcpservers=summary,
+        )
     except Exception as e:
         log.exception(
-            "Failed to render prompt for agent %s with Jinja2: %s. "
-            "Falling back to raw prompt.",
+            "Failed to render prompt for agent %s with enhanced placeholders: %s. "
+            "Falling back to legacy rendering.",
             agent_cfg.name,
             e,
         )
-        # Fallback to simple replacement for mcpservers
-        prompt_filled = prompt_content.replace("{{mcpservers}}", summary)
+        # Fallback to legacy rendering
+        ctx = {
+            "mcpservers": summary,
+            "businessContext": business_context or "",
+            "original_user_question": original_user_question or "",
+            "agent_name": agent_cfg.name,
+            "dependent_request_responses": dependent_request_responses or "",
+        }
+        try:
+            prompt_filled = render_prompt(prompt_content, ctx)
+        except Exception as fallback_e:
+            log.error(
+                "Legacy rendering also failed for agent %s: %s. "
+                "Using raw prompt with simple replacement.",
+                agent_cfg.name,
+                fallback_e,
+            )
+            # Final fallback to simple replacement
+            prompt_filled = prompt_content.replace("{{mcpservers}}", summary)
 
     # Create actual model instance and bind tools with parallel_tool_calls=False
     try:
@@ -210,8 +238,12 @@ async def build_react_agent(
 
         # Bind tools first, then wrap with logging
         if tools:
-            model_with_tools = actual_model.bind_tools(tools, parallel_tool_calls=False)
-            log.info("Disabled parallel tool calls for agent %s", agent_cfg.name)
+            model_with_tools = actual_model.bind_tools(
+                tools, parallel_tool_calls=False
+            )
+            log.info(
+                "Disabled parallel tool calls for agent %s", agent_cfg.name
+            )
         else:
             model_with_tools = actual_model
 
@@ -219,11 +251,18 @@ async def build_react_agent(
         if enable_llm_payload_logging:
             if llm_payload_logger is None:
                 llm_payload_logger = LLMPayloadLogger(agent_cfg.name)
-            model_with_tools = LoggingModelWrapper(model_with_tools, llm_payload_logger)
-            log.info("Enabled LLM payload logging for agent %s", agent_cfg.name)
+            model_with_tools = LoggingModelWrapper(
+                model_with_tools, llm_payload_logger
+            )
+            log.info(
+                "Enabled LLM payload logging for agent %s", agent_cfg.name
+            )
 
     except Exception as e:
-        log.warning("Failed to create model instance or bind tools with parallel_tool_calls=False: %s. Using default.", e)
+        log.warning(
+            "Failed to create model instance or bind tools with "
+            "parallel_tool_calls=False: %s. Using default.", e
+        )
         import traceback
         log.warning("Full traceback: %s", traceback.format_exc())
         model_with_tools = model_instance

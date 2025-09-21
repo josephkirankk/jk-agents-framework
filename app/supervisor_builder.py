@@ -6,7 +6,8 @@ from pathlib import Path
 from langgraph.prebuilt import create_react_agent
 from .checkpointer_manager import get_global_checkpointer
 from .config import SupervisorConfig, AgentConfig
-from .template_utils import render_prompt
+from .template_utils import render_prompt, render_prompt_with_placeholders
+from .placeholder_system import PlaceholderContext
 from .agent_builder import create_model_instance
 from .prompt_loader import load_prompt_content, get_config_directory
 
@@ -54,21 +55,44 @@ def build_supervisor_compiled(
         )
         raise
 
-    # Render with Jinja2 so templates can use:
-    # {{ agents }}, {{ business_context }}, {{ original_user_question }}
-    ctx = {
-        "agents": agents_list,
-        "business_context": business_context or "",
-        "original_user_question": original_user_question or "",
-    }
+    # Use enhanced placeholder system for template rendering
     try:
-        prompt_filled = render_prompt(prompt_content, ctx)
-    except Exception:
-        # Fall back to simple replacements
-        prompt_filled = prompt_content.replace("{{agents}}", agents_list)
-        prompt_filled = prompt_filled.replace(
-            "{{business_context}}", business_context
+        # Create placeholder context
+        placeholder_context = PlaceholderContext()
+
+        # Render prompt with enhanced placeholder support
+        prompt_filled = render_prompt_with_placeholders(
+            prompt_content,
+            placeholder_context=placeholder_context,
+            business_context=business_context or "",
+            original_user_question=original_user_question or "",
+            agents=agents_list,
         )
+    except Exception as e:
+        log.exception(
+            "Failed to render supervisor prompt with enhanced placeholders: %s. "
+            "Falling back to legacy rendering.",
+            e,
+        )
+        # Fallback to legacy rendering
+        ctx = {
+            "agents": agents_list,
+            "business_context": business_context or "",
+            "original_user_question": original_user_question or "",
+        }
+        try:
+            prompt_filled = render_prompt(prompt_content, ctx)
+        except Exception as fallback_e:
+            log.error(
+                "Legacy rendering also failed for supervisor: %s. "
+                "Using simple replacement.",
+                fallback_e,
+            )
+            # Final fallback to simple replacements
+            prompt_filled = prompt_content.replace("{{agents}}", agents_list)
+            prompt_filled = prompt_filled.replace(
+                "{{business_context}}", business_context
+            )
 
     supervisor_model = supervisor_cfg.model or default_model
     # Create the appropriate model instance (handles google: prefix)
