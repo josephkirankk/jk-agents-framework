@@ -18,7 +18,7 @@ class PilgerProcessingConfig(BaseModel):
     """
     # Agent configuration
     agent_name: str = Field(
-        default="jk_pilger_new_entries_agent", 
+        default="jk_pilger_new_entries_agent_v2", 
         description="Name of the Pilger processing agent"
     )
     config_path: str = Field(

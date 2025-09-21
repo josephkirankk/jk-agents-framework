@@ -1785,5 +1785,11 @@ agents:
     prompt_file: "prompts/gemba-d-r-c-v11.txt"
     mcp_servers: {}
 
+  - name: "jk_pilger_new_entries_agent_v2"
+    description: "Expert Pilger Machine Issue Predictor"
+    model: "google:gemini-2.5-flash-lite"
+    prompt_file: "prompts/gemba-d-r-c-v14.txt"
+    mcp_servers: {}
+
 
       

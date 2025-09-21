@@ -79,7 +79,7 @@ async def test_basic_pipeline_creation():
         
         # Test custom configuration
         custom_config = PilgerProcessingConfig(
-            agent_name="jk_pilger_new_entries_agent",
+            agent_name="jk_pilger_new_entries_agent_v2",
             timeout_seconds=180,
             format_for_agent="text",
             enable_caching=False
