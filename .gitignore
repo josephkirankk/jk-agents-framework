@@ -91,3 +91,5 @@ node_modules/
 
 okta_token.json
 user_responses
+vectordb_wrapper/vectorlogs
+agentlog/

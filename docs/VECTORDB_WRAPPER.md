@@ -440,7 +440,11 @@ The test suite includes:
 
 ## Logging
 
-Configure logging for the VectorDB wrapper:
+The VectorDB wrapper includes two types of logging:
+
+### Standard Application Logging
+
+Configure standard logging for the VectorDB wrapper:
 
 ```python
 from vectordb_wrapper.utils import setup_logging
@@ -451,6 +455,73 @@ setup_logging("INFO")
 # Or use DEBUG for more detailed logs
 setup_logging("DEBUG")
 ```
+
+### Vector Operations Logging
+
+**NEW**: Comprehensive logging for all vector operations (search and upsert) with detailed performance metrics.
+
+#### Features
+- **Automatic logging** of all search and upsert operations
+- **Timestamped log files** in format: `vector_<YYYYMMDDHHMMSS>.json`
+- **Detailed performance metrics** including execution time and API response time
+- **Cross-platform compatibility** with proper encoding for Windows/macOS
+- **JSON format** for easy parsing and analysis
+
+#### Log Directory Structure
+```
+vectordb_wrapper/
+├── vectorlogs/
+│   ├── vector_20250921110907.json
+│   ├── vector_20250921111205.json
+│   └── ...
+└── [other files]
+```
+
+#### Configuration
+```bash
+# Enable/disable vector logging (default: enabled)
+export VECTORDB_VECTOR_LOGGING=true
+```
+
+#### Example Log Entry
+```json
+{
+  "timestamp": "2025-09-21T11:09:07.123456",
+  "operation_type": "search",
+  "operation_start": "2025-09-21T11:09:07.123456",
+  "operation_end": "2025-09-21T11:09:07.234567",
+  "execution_time_ms": 111.111,
+  "input_parameters": {
+    "query": "hydraulic pump failure",
+    "top_n": 5,
+    "min_score": 0.7
+  },
+  "success": true,
+  "result": {
+    "query": "hydraulic pump failure",
+    "results_count": 3,
+    "results": [...]
+  },
+  "performance_metrics": {
+    "api_response_time_ms": 95.5,
+    "results_count": 3
+  }
+}
+```
+
+#### Usage
+Vector logging is automatic - no code changes required:
+
+```python
+from vectordb_wrapper import VectorDBClient, SearchRequest
+
+async with VectorDBClient() as client:
+    # This operation will be automatically logged
+    request = SearchRequest(query="pump failure", top_n=5)
+    response = await client.search(request)
+```
+
+For detailed information, see [Vector Logging Documentation](VECTOR_LOGGING.md).
 
 ## Utilities
 

@@ -1,5 +1,5 @@
 models:
-  default: "azure_openai:gpt-4.1"
+  default: "google:gemini-2.5-flash-lite"
   supervisor: "google:gemini-2.0-flash-lite-001"
   temperature: 0.0
 
@@ -1777,6 +1777,12 @@ agents:
     description: "Expert Pilger Machine Issue Predictor"
     model: "google:gemini-2.5-flash-lite"
     prompt_file: "prompts/latest/gemba_convert-to-english-v1.txt"
+    mcp_servers: {}
+
+  - name: "jk_pilger_new_entries_agent"
+    description: "Expert Pilger Machine Issue Predictor"
+    model: "google:gemini-2.5-flash-lite"
+    prompt_file: "prompts/gemba-d-r-c-v11.txt"
     mcp_servers: {}
 
 

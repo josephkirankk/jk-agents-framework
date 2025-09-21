@@ -1,0 +1,25 @@
+# Defect Analysis Pipeline Requirements
+
+# Core pipeline orchestration
+pipefunc>=0.15.0
+
+# Data validation and modeling
+pydantic>=2.0.0
+
+# Async HTTP client for vector search
+aiohttp>=3.8.0
+
+# Logging and utilities
+python-dateutil>=2.8.0
+
+# Testing (optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Visualization (optional)
+matplotlib>=3.5.0
+
+# Development dependencies (optional)
+black>=22.0.0
+isort>=5.10.0
+mypy>=1.0.0

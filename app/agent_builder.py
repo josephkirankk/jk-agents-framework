@@ -229,12 +229,24 @@ async def build_react_agent(
 
     # Create actual model instance and bind tools with parallel_tool_calls=False
     try:
-        # Import the init_chat_model function from LangChain
-        from langchain.chat_models import init_chat_model
-
-        # Create the actual model instance using LangChain's init_chat_model
-        actual_model = init_chat_model(model_instance)
-        log.info("Created model instance: %s", type(actual_model).__name__)
+        # Check if model_instance is already a model object or a string
+        if isinstance(model_instance, str):
+            # Import the init_chat_model function from LangChain
+            from langchain.chat_models import init_chat_model
+            # Create the actual model instance using LangChain's init_chat_model
+            actual_model = init_chat_model(model_instance)
+            log.info(
+                "Created model instance from string: %s",
+                type(actual_model).__name__
+            )
+        else:
+            # model_instance is already a model object
+            # (e.g., ChatGoogleGenerativeAI)
+            actual_model = model_instance
+            log.info(
+                "Using existing model instance: %s",
+                type(actual_model).__name__
+            )
 
         # Bind tools first, then wrap with logging
         if tools:

@@ -15,3 +15,4 @@ SUPER IMPORTANT :
 - check the current system (Windows or macos) and adjust the terminal commands correctly.
 - Never mock up anything to make something work
 - when you need to use a new library - do deep reserach and ensure this the best fit for the task
+- Always move the fixes docs to fixes_docs folder and other docs in docs folder

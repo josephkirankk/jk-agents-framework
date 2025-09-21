@@ -111,11 +111,11 @@ Your job: **take `<user_input>`** (plain text, keywords, and any attachments) an
 
 ## Coding rules (strict)
 
-- **Defect codes**: `{{PREFIX}}.{{SUBSYS}}.{{COMPONENT}}.{{DEFECT}}`
+- **Defect codes**: `{{"{{PREFIX}}.{{SUBSYS}}.{{COMPONENT}}.{{DEFECT}}"}}`
   - Example: `HSP.GBX.GEARBOLT.LOOSE`
-- **Root cause codes**: `RC.{{CATEGORY}}.{{CAUSE}}`
+- **Root cause codes**: `RC.{{"{{CATEGORY}}.{{CAUSE}}"}}`
   - Example: `RC.LUBE.INSUFFICIENT`
-- **Corrective action codes**: `CA.{{CATEGORY}}.{{ACTION}}`
+- **Corrective action codes**: `CA.{{"{{CATEGORY}}.{{ACTION}}"}}`
   - Example: `CA.TORQUE.RETIGHTEN`
 - All codes UPPERCASE, segments separated by `.`, segment words by `_` only, ASCII, max 60 chars.
 - **Uniqueness required** across each list. No duplicate codes.
@@ -158,14 +158,30 @@ CONFIDENCE SCORING RULES:
   ```
 * Ordering, validation, defaults, citations, and refusal handling remain as specified.
 
----
+CLASSIFICATION LOGIC:
+- For each candidate, include:
+  • "defect_code" (from ontology, or NEW_ENTRY if not found)
+  • "defect_text" (incorporating specific location/component details from input)
+  • "confidence_score" (float, 0.0–1.0)
+  • "mapping_status":
+       - "EXACT_MATCH" if ontology contains direct match
+       - "NEAR_MATCH:<existing_id>" if approximate match found
+       - "NEW_ENTRY" if no match exists
+  • "root_cause_code" and "root_cause_text" for the **most likely** cause
+  • "corrective_action_code" and "corrective_action_text" for the **most likely** corrective action
+  • "possible_root_causes": list of all ontology root causes linked to the defect
+  • "possible_corrective_actions": list of all ontology corrective actions linked to the defect
+  • "curator_action": must follow thresholds below
+  • "rationale": short, 1–2 sentence insight explaining why this defect was suggested based on the input, including how specific location/component details were used.
+
+CONFIDENCE SCORING RULES:
+- ≥ 0.90 → "AUTO_ACCEPT"
+- 0.60–0.89 → "REVIEW_REQUIRED"
+- < 0.60 → "HUMAN_DECISION"
 
 
-EXISTING ONTOLOGY FROM VECTOR SEARCH :
+ONTOLOGY :
 {{ontology}}
 
-user input : 
+USER INPUT:
 {{user_input}}
-
-
-

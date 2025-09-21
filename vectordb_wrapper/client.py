@@ -7,6 +7,8 @@ It handles HTTP requests, response validation, and error handling.
 
 import os
 import logging
+import time
+from datetime import datetime
 from typing import Optional, Dict, Any
 from urllib.parse import urljoin
 
@@ -22,6 +24,7 @@ from .models import (
     ErrorResponse
 )
 from .exceptions import VectorDBError, VectorDBConnectionError, VectorDBValidationError
+from .vector_logger import log_vector_operation
 
 
 logger = logging.getLogger(__name__)
@@ -204,24 +207,76 @@ class VectorDBClient:
             VectorDBError: If the search fails
             VectorDBValidationError: If request/response validation fails
         """
+        operation_start = datetime.now()
+        error_msg = None
+        result_data = None
+
         try:
             # Validate request
             if not isinstance(request, SearchRequest):
                 request = SearchRequest.model_validate(request)
 
             # Make API request
+            api_start = datetime.now()
             response = await self._make_request(
                 "POST",
                 "/search",
                 data=request.model_dump()
             )
+            api_end = datetime.now()
 
             # Parse and validate response
             data = response.json()
-            return SearchResponse.model_validate(data)
+            search_response = SearchResponse.model_validate(data)
+
+            # Prepare result data for logging
+            result_data = {
+                "query": request.query,
+                "results_count": len(search_response.results),
+                "results": [
+                    {
+                        "defect_code": result.defect.defect_code,
+                        "score": result.score,
+                        "subsystem": result.defect.subsystem
+                    } for result in search_response.results
+                ]
+            }
+
+            # Log the operation
+            operation_end = datetime.now()
+            log_vector_operation(
+                operation_type="search",
+                operation_start=operation_start,
+                operation_end=operation_end,
+                input_parameters=request.model_dump(),
+                result=result_data,
+                performance_metrics={
+                    "api_response_time_ms": (api_end - api_start).total_seconds() * 1000,
+                    "results_count": len(search_response.results),
+                    "min_score": request.min_score,
+                    "top_n": request.top_n
+                }
+            )
+
+            return search_response
 
         except ValidationError as e:
-            raise VectorDBValidationError(f"Invalid search request/response: {str(e)}") from e
+            error_msg = f"Invalid search request/response: {str(e)}"
+            raise VectorDBValidationError(error_msg) from e
+        except Exception as e:
+            error_msg = str(e)
+            raise
+        finally:
+            # Log error if operation failed
+            if error_msg:
+                operation_end = datetime.now()
+                log_vector_operation(
+                    operation_type="search",
+                    operation_start=operation_start,
+                    operation_end=operation_end,
+                    input_parameters=request.model_dump() if isinstance(request, SearchRequest) else {},
+                    error=error_msg
+                )
 
     async def search_get(
         self,
@@ -243,8 +298,13 @@ class VectorDBClient:
         Raises:
             VectorDBError: If the search fails
         """
+        operation_start = datetime.now()
+        error_msg = None
+        result_data = None
+
         try:
             # Make API request with query parameters
+            api_start = datetime.now()
             response = await self._make_request(
                 "GET",
                 "/search",
@@ -254,13 +314,67 @@ class VectorDBClient:
                     "min_score": min_score
                 }
             )
+            api_end = datetime.now()
 
             # Parse and validate response
             data = response.json()
-            return SearchResponse.model_validate(data)
+            search_response = SearchResponse.model_validate(data)
+
+            # Prepare result data for logging
+            result_data = {
+                "query": query,
+                "results_count": len(search_response.results),
+                "results": [
+                    {
+                        "defect_code": result.defect.defect_code,
+                        "score": result.score,
+                        "subsystem": result.defect.subsystem
+                    } for result in search_response.results
+                ]
+            }
+
+            # Log the operation
+            operation_end = datetime.now()
+            log_vector_operation(
+                operation_type="search_get",
+                operation_start=operation_start,
+                operation_end=operation_end,
+                input_parameters={
+                    "query": query,
+                    "top_n": top_n,
+                    "min_score": min_score
+                },
+                result=result_data,
+                performance_metrics={
+                    "api_response_time_ms": (api_end - api_start).total_seconds() * 1000,
+                    "results_count": len(search_response.results),
+                    "method": "GET"
+                }
+            )
+
+            return search_response
 
         except ValidationError as e:
-            raise VectorDBValidationError(f"Invalid search response: {str(e)}") from e
+            error_msg = f"Invalid search response: {str(e)}"
+            raise VectorDBValidationError(error_msg) from e
+        except Exception as e:
+            error_msg = str(e)
+            raise
+        finally:
+            # Log error if operation failed
+            if error_msg:
+                operation_end = datetime.now()
+                log_vector_operation(
+                    operation_type="search_get",
+                    operation_start=operation_start,
+                    operation_end=operation_end,
+                    input_parameters={
+                        "query": query,
+                        "top_n": top_n,
+                        "min_score": min_score
+                    },
+                    error=error_msg
+                )
 
     async def upsert(self, request: UpsertRequest) -> UpsertResponse:
         """
@@ -276,24 +390,71 @@ class VectorDBClient:
             VectorDBError: If the upsert fails
             VectorDBValidationError: If request/response validation fails
         """
+        operation_start = datetime.now()
+        error_msg = None
+        result_data = None
+
         try:
             # Validate request
             if not isinstance(request, UpsertRequest):
                 request = UpsertRequest.model_validate(request)
 
             # Make API request
+            api_start = datetime.now()
             response = await self._make_request(
                 "POST",
                 "/upsert",
                 data=request.model_dump()
             )
+            api_end = datetime.now()
 
             # Parse and validate response
             data = response.json()
-            return UpsertResponse.model_validate(data)
+            upsert_response = UpsertResponse.model_validate(data)
+
+            # Prepare result data for logging
+            result_data = {
+                "defect_code": upsert_response.defect_code,
+                "operation": upsert_response.operation,
+                "success": upsert_response.success,
+                "message": upsert_response.message
+            }
+
+            # Log the operation
+            operation_end = datetime.now()
+            log_vector_operation(
+                operation_type="upsert",
+                operation_start=operation_start,
+                operation_end=operation_end,
+                input_parameters=request.model_dump(),
+                result=result_data,
+                performance_metrics={
+                    "api_response_time_ms": (api_end - api_start).total_seconds() * 1000,
+                    "defect_code": request.defect_code,
+                    "subsystem": request.subsystem,
+                    "operation_type": upsert_response.operation
+                }
+            )
+
+            return upsert_response
 
         except ValidationError as e:
-            raise VectorDBValidationError(f"Invalid upsert request/response: {str(e)}") from e
+            error_msg = f"Invalid upsert request/response: {str(e)}"
+            raise VectorDBValidationError(error_msg) from e
+        except Exception as e:
+            error_msg = str(e)
+            raise
+        finally:
+            # Log error if operation failed
+            if error_msg:
+                operation_end = datetime.now()
+                log_vector_operation(
+                    operation_type="upsert",
+                    operation_start=operation_start,
+                    operation_end=operation_end,
+                    input_parameters=request.model_dump() if isinstance(request, UpsertRequest) else {},
+                    error=error_msg
+                )
 
     async def upsert_json_defects(self, json_string: str) -> Dict[str, Any]:
         """
@@ -314,6 +475,10 @@ class VectorDBClient:
             VectorDBValidationError: If JSON structure is invalid
         """
         import json
+
+        operation_start = datetime.now()
+        error_msg = None
+        result_data = None
 
         try:
             # Parse JSON string
@@ -382,9 +547,51 @@ class VectorDBClient:
                 f"{results['failed_upserts']} failed"
             )
 
+            # Prepare result data for logging
+            result_data = {
+                "total_defects": results["total_defects"],
+                "successful_upserts": results["successful_upserts"],
+                "failed_upserts": results["failed_upserts"],
+                "success_rate": results["successful_upserts"] / results["total_defects"] if results["total_defects"] > 0 else 0
+            }
+
+            # Log the batch operation
+            operation_end = datetime.now()
+            log_vector_operation(
+                operation_type="upsert_json_batch",
+                operation_start=operation_start,
+                operation_end=operation_end,
+                input_parameters={
+                    "total_defects": len(defects),
+                    "json_size_chars": len(json_string)
+                },
+                result=result_data,
+                performance_metrics={
+                    "total_defects": results["total_defects"],
+                    "successful_upserts": results["successful_upserts"],
+                    "failed_upserts": results["failed_upserts"],
+                    "success_rate_percent": round(result_data["success_rate"] * 100, 2)
+                }
+            )
+
             return results
 
         except json.JSONDecodeError as e:
-            raise VectorDBValidationError(f"Invalid JSON format: {str(e)}") from e
+            error_msg = f"Invalid JSON format: {str(e)}"
+            raise VectorDBValidationError(error_msg) from e
         except Exception as e:
-            raise VectorDBError(f"Failed to process JSON defects: {str(e)}") from e
+            error_msg = f"Failed to process JSON defects: {str(e)}"
+            raise VectorDBError(error_msg) from e
+        finally:
+            # Log error if operation failed
+            if error_msg:
+                operation_end = datetime.now()
+                log_vector_operation(
+                    operation_type="upsert_json_batch",
+                    operation_start=operation_start,
+                    operation_end=operation_end,
+                    input_parameters={
+                        "json_size_chars": len(json_string) if 'json_string' in locals() else 0
+                    },
+                    error=error_msg
+                )
