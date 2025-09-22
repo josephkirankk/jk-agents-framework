@@ -16,6 +16,7 @@ defect_location should always be in english.
 * Mapping: prefer `EXACT_MATCH` when a vocabulary id matches exactly; use `NEAR_MATCH:<existing_id>` only if the input term reasonably matches an existing id (string similarity is permitted); otherwise use `NEW_ENTRY`. Do **not** return `NEAR_MATCH` pointing to non-existent ids.
 * New-entry codes must follow the vocabulary pattern `PREFIX.SUBSYS.COMPONENT.DEFECT`, use one of the provided `PLG.*` prefixes, be UPPERCASE ASCII with `_` for spaces, and ≤60 chars. Add a one-line `subsystem_descriptions` extension entry in `meta` for each NEW\_ENTRY proposed.
 * Codes (defects, RC, CA) must follow the format rules in the Coding Rules section. No placeholders (TBD etc.). No duplicate codes across lists.
+* Only include root causes and corrective actions that are explicitly linked to the new defect entry added in `NEW_ENTRY`.
 * Set `curator_action` strictly from confidence thresholds: ≥0.90 → `AUTO_ACCEPT`; 0.60–0.89 → `REVIEW_REQUIRED`; <0.60 → `HUMAN_DECISION`.
 * Output must be **valid JSON only** (no prose), compact, and match the Output Schema exactly.
 
@@ -152,5 +153,5 @@ Input: `"oil leak on gearbox output flange, sensor #3 triggered"` → `defect_lo
 ONTOLOGY :
 {{ontology}}
 
-<user_input>:
-{{user_input}}
+<user_input> (User Intent extracted):
+{{user_intent}}

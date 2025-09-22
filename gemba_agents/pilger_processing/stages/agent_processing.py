@@ -136,25 +136,31 @@ async def process_with_pilger_agent(
         
         # Prepare custom placeholders for the agent
         # {{ontology}} - DefectAnalysisPipeline results as structured data
-        ontology_data = {
-            "defects": [defect.model_dump() for defect in defect_analysis.defects],
-            "root_causes": [rc.model_dump() for rc in defect_analysis.root_causes],
-            "corrective_actions": [ca.model_dump() for ca in defect_analysis.corrective_actions],
-            "intent_data": defect_analysis.intent_data.model_dump(),
-            "total_unique_results": defect_analysis.total_unique_results
-        }
+        ontology_text = ""
+        
+        if defect_analysis.defects is None or defect_analysis.defects == []:
+            ontology_text = "No defects found. Creating new entry."
+            defect_analysis.intent_data.model_dump()
+        else:
+            ontology_text = json.dumps({
+                "defects": [defect.model_dump() for defect in defect_analysis.defects],
+                "root_causes": [rc.model_dump() for rc in defect_analysis.root_causes],
+                "corrective_actions": [ca.model_dump() for ca in defect_analysis.corrective_actions],
+                "total_unique_results": defect_analysis.total_unique_results
+            }, indent=2, ensure_ascii=False)
+       
 
         # {{user_input}} - Original user input text
         user_input_text = defect_analysis.original_input
 
         # Create custom placeholders dictionary
         custom_placeholders = {
-            "ontology": json.dumps(ontology_data, indent=2, ensure_ascii=False),
-            "user_input": user_input_text
+            "ontology": ontology_text,
+            "user_intent": defect_analysis.intent_data.model_dump()
         }
 
         if config.enable_logging:
-            logger.debug(f"Prepared custom placeholders: ontology data with {len(ontology_data['defects'])} defects, user_input: {user_input_text[:100]}...")
+            logger.debug(f"Prepared custom placeholders: ontology data with {ontology_text[:100]} defects, user_input: {user_input_text[:100]}...")
 
         # Load and build the agent with custom placeholders
         agent, mcp_client, direct_logger = await load_and_build_agent_with_placeholders(
