@@ -29,7 +29,7 @@ def test_api_unicode():
         form_data = {
             'user_input': test_input,
             'top_n': '5',
-            'min_score': '0.7'
+            'min_score': '0.2'
         }
         
         print("🔄 Sending request to API endpoint...")

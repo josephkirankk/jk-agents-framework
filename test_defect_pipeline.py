@@ -40,7 +40,7 @@ def test_basic_functionality():
     try:
         config = DefectAnalysisConfig(
             top_n=5,
-            min_score=0.7,
+            min_score=0.2,
             enable_logging=True,
             enable_caching=True
         )

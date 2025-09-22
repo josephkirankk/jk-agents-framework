@@ -7,12 +7,24 @@ the VectorDB wrapper for search and upsert operations.
 
 import asyncio
 import logging
+import sys
+import os
 from typing import List, Dict, Any
 
-from .client import VectorDBClient
-from .models import SearchRequest, UpsertRequest
-from .decorators import vectordb_wrapper, log_vectordb_operations
-from .utils import format_search_results, setup_logging
+try:
+    # Try relative imports first (when run as module)
+    from .client import VectorDBClient
+    from .models import SearchRequest, UpsertRequest
+    from .decorators import vectordb_wrapper, log_vectordb_operations
+    from .utils import format_search_results, setup_logging
+except ImportError:
+    # Fall back to absolute imports (when run directly)
+    # Add parent directory to Python path
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from vectordb_wrapper.client import VectorDBClient
+    from vectordb_wrapper.models import SearchRequest, UpsertRequest
+    from vectordb_wrapper.decorators import vectordb_wrapper, log_vectordb_operations
+    from vectordb_wrapper.utils import format_search_results, setup_logging
 
 
 # Setup logging
@@ -222,7 +234,7 @@ if __name__ == "__main__":
     print()
     
     # Run decorated example
-    result = asyncio.run(decorated_search_example("pump failure"))
+    result = asyncio.run(decorated_search_example("Air compressor Not operating smoothly"))
     print(f"Decorated search found {result.total_results} results")
     print()
     

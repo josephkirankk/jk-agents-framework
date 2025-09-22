@@ -126,7 +126,7 @@ class DefectAnalysisConfig(BaseModel):
     
     # Vector search configuration
     top_n: int = Field(default=10, ge=1, le=50, description="Number of results to return from vector search")
-    min_score: float = Field(default=0.6, ge=0.0, le=1.0, description="Minimum similarity score for vector search")
+    min_score: float = Field(default=0.2, ge=0.0, le=1.0, description="Minimum similarity score for vector search")
     vectordb_base_url: Optional[str] = Field(default=None, description="Base URL for VectorDB API")
     
     # Pipeline configuration

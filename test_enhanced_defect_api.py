@@ -36,7 +36,7 @@ async def test_enhanced_defect_analysis_basic():
         request = EnhancedDefectAnalysisRequest(
             user_input="The pump's loading/unloading piston is not operating smoothly",
             top_n=5,
-            min_score=0.7,
+            min_score=0.2,
             enable_logging=True,
             enable_caching=True,
             parallel_search=True,

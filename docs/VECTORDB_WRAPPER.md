@@ -255,7 +255,7 @@ print(f"Upserted {result['successful_upserts']} defects")
 class SearchRequest(BaseModel):
     query: str  # Search query (required)
     top_n: int = 5  # Number of results (1-50)
-    min_score: float = 0.7  # Minimum similarity score (0.0-1.0)
+    min_score: float = 0.1  # Minimum similarity score (0.0-1.0)
 ```
 
 #### SearchResponse

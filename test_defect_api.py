@@ -25,19 +25,19 @@ async def test_defect_analysis_endpoint():
             "description": "Basic pump issue",
             "user_input": "The pump piston is not operating smoothly",
             "top_n": 5,
-            "min_score": 0.7
+            "min_score": 0.2
         },
         {
             "description": "Motor bearing problem",
             "user_input": "Motor bearing overheating",
             "top_n": 10,
-            "min_score": 0.6
+            "min_score": 0.1
         },
         {
             "description": "Hydraulic system issue",
             "user_input": "Hydraulic system leak detected",
             "top_n": 8,
-            "min_score": 0.5
+            "min_score": 0.0
         }
     ]
     
@@ -88,7 +88,7 @@ def test_request_validation():
         request = DefectAnalysisRequest(
             user_input="Valid pump issue description",
             top_n=10,
-            min_score=0.6
+            min_score=0.2
         )
         print("   ✅ Valid request created successfully")
     except Exception as e:
@@ -98,12 +98,12 @@ def test_request_validation():
     invalid_cases = [
         {
             "description": "Empty user input",
-            "data": {"user_input": "", "top_n": 10, "min_score": 0.6},
+            "data": {"user_input": "", "top_n": 10, "min_score": 0.2},
             "expected_error": "min_length"
         },
         {
             "description": "Invalid top_n (too high)",
-            "data": {"user_input": "Test", "top_n": 100, "min_score": 0.6},
+            "data": {"user_input": "Test", "top_n": 100, "min_score": 0.2},
             "expected_error": "le=50"
         },
         {

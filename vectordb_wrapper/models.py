@@ -33,10 +33,10 @@ class DefectData(BaseModel):
 
 class SearchRequest(BaseModel):
     """Model for search request payload."""
-    
+
     query: str = Field(..., min_length=1, description="Search query in natural language")
     top_n: int = Field(default=5, ge=1, le=50, description="Number of results to return")
-    min_score: float = Field(default=0.7, ge=0.0, le=1.0, description="Minimum similarity score")
+    min_score: float = Field(default=0.1, ge=0.0, le=1.0, description="Minimum similarity score")
 
     model_config = ConfigDict(
         str_strip_whitespace=True,

@@ -31,7 +31,7 @@ async def test_encoding():
         # Create pipeline with minimal configuration
         config = DefectAnalysisConfig(
             top_n=3,
-            min_score=0.7,
+            min_score=0.2,
             enable_logging=True,
             enable_caching=False,
             parallel_search=False

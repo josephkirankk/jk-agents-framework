@@ -610,7 +610,7 @@ class DefectAnalysisRequest(BaseModel):
         le=50
     )
     min_score: Optional[float] = Field(
-        0.6,
+        0.2,
         description="Minimum similarity score for vector search results",
         ge=0.0,
         le=1.0
@@ -689,7 +689,7 @@ class EnhancedDefectAnalysisRequest(BaseModel):
         le=50
     )
     min_score: Optional[float] = Field(
-        0.6,
+        0.2,
         description="Minimum similarity score for vector search results",
         ge=0.0,
         le=1.0
@@ -1585,7 +1585,7 @@ async def defect_analysis_endpoint(request: DefectAnalysisRequest):
         # Create configuration from request parameters
         config = DefectAnalysisConfig(
             top_n=request.top_n or 10,
-            min_score=request.min_score or 0.6,
+            min_score=request.min_score or 0.2,
             enable_logging=request.enable_logging if request.enable_logging is not None else True,
             enable_caching=request.enable_caching if request.enable_caching is not None else True,
             parallel_search=request.parallel_search if request.parallel_search is not None else True
@@ -1662,7 +1662,7 @@ async def defect_analysis_endpoint(request: DefectAnalysisRequest):
 async def defect_analysis_form_endpoint(
     user_input: str = Form(..., description="Equipment issue description", min_length=1),
     top_n: int = Form(10, description="Number of top results to return", ge=1, le=50),
-    min_score: float = Form(0.6, description="Minimum similarity score", ge=0.0, le=1.0),
+    min_score: float = Form(0.2, description="Minimum similarity score", ge=0.0, le=1.0),
     enable_logging: bool = Form(True, description="Enable detailed logging"),
     enable_caching: bool = Form(True, description="Enable caching"),
     parallel_search: bool = Form(True, description="Enable parallel search")
@@ -1723,7 +1723,7 @@ async def enhanced_defect_analysis_endpoint(request: EnhancedDefectAnalysisReque
         # Create defect analysis configuration from request parameters
         defect_config = DefectAnalysisConfig(
             top_n=request.top_n or 10,
-            min_score=request.min_score or 0.6,
+            min_score=request.min_score or 0.2,
             enable_logging=request.enable_logging if request.enable_logging is not None else True,
             enable_caching=request.enable_caching if request.enable_caching is not None else True,
             parallel_search=request.parallel_search if request.parallel_search is not None else True
@@ -1921,7 +1921,7 @@ async def enhanced_defect_analysis_endpoint(request: EnhancedDefectAnalysisReque
 async def enhanced_defect_analysis_form_endpoint(
     user_input: str = Form(..., description="Equipment issue description", min_length=1),
     top_n: int = Form(10, description="Number of top results to return", ge=1, le=50),
-    min_score: float = Form(0.6, description="Minimum similarity score", ge=0.0, le=1.0),
+    min_score: float = Form(0.2, description="Minimum similarity score", ge=0.0, le=1.0),
     enable_logging: bool = Form(True, description="Enable detailed logging"),
     enable_caching: bool = Form(True, description="Enable caching"),
     parallel_search: bool = Form(True, description="Enable parallel search"),
