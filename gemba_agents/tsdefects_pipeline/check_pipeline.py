@@ -59,7 +59,7 @@ async def custom_config_example():
     pipeline = TsDefectsPipeline(config)
     
     # Test input
-    user_input = "फीड स्क्रू, शाफ्ट तु टत आहे."
+    user_input ="ऑयल लिकिंग प्रॉब्लम . सिलेंडर प्रॉ ब्लम. ब्लो मोल्डिंग में हो रहा है." #"बिल्डर पे चेयर का नीचे जो ए लम शीट था, वो खराब हो गया है, टूट गया, बदलना पड़ेगा।"
     
     print(f"Input: {user_input}")
     print("Running pipeline with custom config...")
@@ -77,10 +77,9 @@ async def custom_config_example():
             defect = result.enhanced_defects[0]
             print(f"- Code: {defect.defect_code}")
             print(f"- Text: {defect.defect_text}")
-            print(f"- Machine: {defect.machine}")
-            print(f"- Subsystem: {defect.subsystem}")
-            print(f"- Component: {defect.component}")
-            print(f"- Score: {defect.score:.3f}")
+            print(f"- Location: {defect.defect_location}")
+            print(f"- Confidence: {defect.confidence_score:.3f}")
+            print(f"- Mapping Status: {defect.mapping_status}")
             print(f"- Curator Action: {defect.curator_action}")
             print(f"- Rationale: {defect.rationale}")
 

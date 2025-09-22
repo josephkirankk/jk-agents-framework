@@ -1,21 +1,22 @@
 """
 Agent enhancement stage for the TsDefects pipeline.
 
-This stage takes processed TsDefectResult objects and enhances each one
-with curator_action and rationale fields using the jk_pilger_new_entries_agent.
-This is adapted from the pilger_processing pipeline.
+This stage processes user intent through jk_pilger_new_entries_only_defects_agent
+to generate defect suggestions with curator_action and rationale fields.
+The agent can either suggest new entries or provide nearest matching results.
 """
 
 import json
 import logging
 import time
+import uuid
 from typing import List, Dict, Any
 
 from pipefunc import pipefunc
 from vectordb_wrapper.ts_models import TsDefectResult
 
 from gemba_agents.defect_analysis.models.data_models import IntentData
-from ..models.data_models import TsDefectsConfig, EnhancedTsDefectResult
+from ..models.data_models import TsDefectsConfig, AgentDefectResult
 from ..utils.agent_utils import load_and_build_agent_with_placeholders, invoke_agent_async, parse_json_response
 
 logger = logging.getLogger(__name__)
@@ -25,64 +26,78 @@ async def _enhance_with_agent_async(
     processed_results: List[TsDefectResult],
     intent_data: IntentData,
     config: TsDefectsConfig = TsDefectsConfig()
-) -> List[EnhancedTsDefectResult]:
+) -> List[AgentDefectResult]:
     """
-    Enhance each TsDefectResult with curator_action and rationale using the agent.
-    
-    This function processes each defect result through the jk_pilger_new_entries_agent
-    to generate curator actions and rationale for each defect.
-    
+    Process user intent through jk_pilger_new_entries_only_defects_agent to get defect suggestions.
+
+    This function focuses solely on processing the agent's direct output, which can either:
+    1. Suggest new entries for defect analysis, OR
+    2. Provide nearest matching results from search operations
+
     Args:
-        processed_results: List of processed TsDefectResult objects
-        intent_data: Extracted intent data for context
+        processed_results: List of processed TsDefectResult objects (used for ontology context)
+        intent_data: Extracted intent data for the agent
         config: Configuration for the TsDefects pipeline
-        
+
     Returns:
-        List of EnhancedTsDefectResult objects with curator actions
-        
+        List of AgentDefectResult objects from agent suggestions
+
     Raises:
         Exception: If agent enhancement fails
     """
     start_time = time.time()
-    
+
     try:
         if config.enable_logging:
-            logger.info(f"Starting agent enhancement for {len(processed_results)} defect results")
-        
-        if not processed_results:
-            logger.info("No results to enhance, returning empty list")
-            return []
-        
-        # Prepare data for the agent
-        # Format all defects and intent data for agent processing
-        defects_data = [result.model_dump() for result in processed_results]
-        
-        # Create custom placeholders for the agent
-        custom_placeholders = {
-            "ontology": json.dumps({
+            logger.info(f"Starting agent enhancement with intent: {intent_data.interpreted_meaning}")
+
+        # Prepare ontology data for the agent
+        # Include existing search results as context if available
+        if processed_results:
+            defects_data = [result.model_dump() for result in processed_results]
+            ontology_content = json.dumps({
                 "defects": defects_data,
                 "total_results": len(defects_data)
-            }, indent=2, ensure_ascii=False),
-            "user_intent": intent_data.model_dump()
+            }, indent=2, ensure_ascii=False)
+            if config.enable_logging:
+                logger.info(f"Providing {len(defects_data)} existing defects as ontology context")
+        else:
+            ontology_content = "no ontology search results for this user intent"
+            if config.enable_logging:
+                logger.info("No existing search results, agent will suggest new entries")
+
+        # Prepare user intent for the agent
+        user_intent_content = json.dumps(intent_data.model_dump(), indent=2, ensure_ascii=False)
+
+        # Create custom placeholders for the agent
+        custom_placeholders = {
+            "ontology": ontology_content,
+            "user_intent": user_intent_content
         }
 
         if config.enable_logging:
-            logger.debug(f"Prepared custom placeholders with {len(defects_data)} defects")
+            logger.debug("Prepared custom placeholders for agent")
 
         # Load and build the agent with custom placeholders
-        agent, mcp_client, direct_logger = await load_and_build_agent_with_placeholders(
-            agent_name=config.processing_agent_name,
-            custom_placeholders=custom_placeholders,
-            config_path=config.config_path
+        agent, mcp_client, direct_logger = (
+            await load_and_build_agent_with_placeholders(
+                agent_name=config.processing_agent_name,
+                custom_placeholders=custom_placeholders,
+                config_path=config.config_path
+            )
         )
-        
+
         try:
-            # Invoke the agent with a trigger message
-            trigger_message = "Analyze the provided defect search results and generate curator actions with rationale for each defect based on the user intent."
+            # Use a simple trigger message since the real data is in placeholders
+            trigger_message = "Process the user intent and provide defect analysis recommendations."
 
             # Log the agent request
-            system_context = f"Business context:\n\nPrevious step results:\n(none)"
-            direct_logger.log_agent_request(agent, system_context, trigger_message)
+            system_context = (
+                "Business context:\n\nPrevious step results:\n(none)"
+            )
+            direct_logger.log_agent_request(
+                agent, system_context, trigger_message
+            )
 
             agent_response = await invoke_agent_async(
                 compiled_agent=agent,
@@ -92,30 +107,29 @@ async def _enhance_with_agent_async(
 
             # Log the agent response
             direct_logger.log_agent_response(agent_response, {"messages": []})
-            
+
             if config.enable_logging:
                 logger.debug(f"Agent response: {agent_response[:200]}...")
-            
+
             # Parse the agent response
             parsed_response = parse_json_response(agent_response)
-            
-            # Create enhanced results
-            enhanced_results = _create_enhanced_results(
-                processed_results, 
-                parsed_response, 
+
+            # Create enhanced results directly from agent output
+            enhanced_results = _create_enhanced_results_from_agent(
+                parsed_response,
                 config
             )
-            
+
             processing_time = (time.time() - start_time) * 1000
-            
+
             if config.enable_logging:
                 logger.info(
                     f"Agent enhancement completed in {processing_time:.2f}ms. "
-                    f"Enhanced {len(enhanced_results)} defect results"
+                    f"Generated {len(enhanced_results)} defect suggestions"
                 )
-            
+
             return enhanced_results
-            
+
         finally:
             # Clean up MCP client if it exists
             if mcp_client:
@@ -123,156 +137,79 @@ async def _enhance_with_agent_async(
                     await mcp_client.close()
                 except Exception as e:
                     logger.warning(f"Failed to close MCP client: {e}")
-        
+
     except Exception as e:
         processing_time = (time.time() - start_time) * 1000
-        error_msg = f"Agent enhancement failed after {processing_time:.2f}ms: {str(e)}"
+        error_msg = (
+            f"Agent enhancement failed after {processing_time:.2f}ms: "
+            f"{str(e)}"
+        )
         logger.error(error_msg)
-        
-        # Return enhanced results with error information
-        return _create_fallback_enhanced_results(processed_results, str(e))
+
+        # Return empty results on failure
+        return []
 
 
-def _create_enhanced_results(
-    original_results: List[TsDefectResult],
+def _create_enhanced_results_from_agent(
     agent_response: Dict[str, Any],
     config: TsDefectsConfig
-) -> List[EnhancedTsDefectResult]:
+) -> List[AgentDefectResult]:
     """
-    Create enhanced results from original results and agent response.
-    
+    Create enhanced results directly from agent response.
+
+    This function processes the agent's output which contains defect suggestions
+    with all required fields including curator_action and rationale.
+
     Args:
-        original_results: Original TsDefectResult objects
-        agent_response: Parsed agent response
+        agent_response: Parsed agent response containing defects and metadata
         config: Pipeline configuration
-        
+
     Returns:
-        List of EnhancedTsDefectResult objects
+        List of AgentDefectResult objects from agent suggestions
     """
     enhanced_results = []
-    
-    try:
-        # Try to extract enhancement data from agent response
-        # The agent response should contain curator actions and rationale for each defect
-        enhancements = _extract_enhancements_from_response(agent_response, len(original_results))
-        
-        for i, original_result in enumerate(original_results):
-            # Get enhancement data for this result (if available)
-            enhancement = enhancements.get(i, {})
-            
-            # Create enhanced result
-            enhanced_result = EnhancedTsDefectResult(
-                **original_result.model_dump(),
-                curator_action=enhancement.get("curator_action", "REVIEW_REQUIRED"),
-                rationale=enhancement.get("rationale", "Automated analysis completed")
-            )
-            
-            enhanced_results.append(enhanced_result)
-            
-    except Exception as e:
-        logger.warning(f"Error creating enhanced results: {e}")
-        # Fallback: create enhanced results with default values
-        enhanced_results = _create_fallback_enhanced_results(original_results, str(e))
-    
-    return enhanced_results
-
-
-def _extract_enhancements_from_response(
-    agent_response: Dict[str, Any],
-    expected_count: int
-) -> Dict[int, Dict[str, str]]:
-    """
-    Extract enhancement data from curator agent response.
-
-    Args:
-        agent_response: Parsed curator agent response
-        expected_count: Expected number of enhancements
-
-    Returns:
-        Dictionary mapping result index to enhancement data
-    """
-    enhancements = {}
 
     try:
-        # Handle new curator agent response format
-        if "defect_enhancements" in agent_response and isinstance(agent_response["defect_enhancements"], list):
-            # New format: {"defect_enhancements": [{"defect_code": "...", "curator_action": "...", "rationale": "..."}, ...]}
-            defect_enhancements = agent_response["defect_enhancements"]
-            for i, enhancement in enumerate(defect_enhancements):
-                if i < expected_count:
-                    enhancements[i] = {
-                        "curator_action": enhancement.get("curator_action", "REVIEW_REQUIRED"),
-                        "rationale": enhancement.get("rationale", "Automated analysis completed")
-                    }
+        # Extract defects from agent response
+        agent_defects = agent_response.get("defects", [])
 
-        # Legacy formats for backward compatibility
-        elif "enhancements" in agent_response and isinstance(agent_response["enhancements"], list):
-            # Format: {"enhancements": [{"curator_action": "...", "rationale": "..."}, ...]}
-            for i, enhancement in enumerate(agent_response["enhancements"]):
-                if i < expected_count:
-                    enhancements[i] = enhancement
+        if not agent_defects:
+            if config.enable_logging:
+                logger.info("No defects found in agent response")
+            return enhanced_results
 
-        elif "results" in agent_response and isinstance(agent_response["results"], list):
-            # Format: {"results": [{"curator_action": "...", "rationale": "..."}, ...]}
-            for i, result in enumerate(agent_response["results"]):
-                if i < expected_count:
-                    enhancements[i] = result
+        if config.enable_logging:
+            logger.info(f"Processing {len(agent_defects)} defects from agent")
 
-        elif "curator_action" in agent_response:
-            # Single enhancement for all results
-            single_enhancement = {
-                "curator_action": agent_response.get("curator_action", "REVIEW_REQUIRED"),
-                "rationale": agent_response.get("rationale", "Automated analysis completed")
-            }
-            for i in range(expected_count):
-                enhancements[i] = single_enhancement
+        # Extract subsystems and components data for descriptions
+        subsystems_data = agent_response.get("subsystems", [])
+        components_data = agent_response.get("components", [])
 
-        else:
-            # Default enhancement for all results
-            default_enhancement = {
-                "curator_action": "REVIEW_REQUIRED",
-                "rationale": "Agent response format not recognized"
-            }
-            for i in range(expected_count):
-                enhancements[i] = default_enhancement
+        for agent_defect in agent_defects:
+            try:
+                # KISS: Return agent data exactly as provided
+                result = AgentDefectResult(
+                    defect_code=agent_defect.get("defect_code", ""),
+                    defect_text=agent_defect.get("defect_text", ""),
+                    defect_location=agent_defect.get("defect_location", "null"),
+                    confidence_score=agent_defect.get("confidence_score", 0.8),
+                    mapping_status=agent_defect.get("mapping_status", "NEW_ENTRY"),
+                    curator_action=agent_defect.get("curator_action", "REVIEW_REQUIRED"),
+                    rationale=agent_defect.get("rationale", "Agent-generated defect")
+                )
+
+                enhanced_results.append(result)
+
+                if config.enable_logging:
+                    logger.debug(f"Created result for defect: {agent_defect.get('defect_code', 'Unknown')}")
+
+            except Exception as e:
+                logger.warning(f"Error processing agent defect: {e}")
+                continue
 
     except Exception as e:
-        logger.warning(f"Error extracting enhancements: {e}")
-        # Fallback to default enhancements
-        default_enhancement = {
-            "curator_action": "REVIEW_REQUIRED",
-            "rationale": f"Enhancement extraction failed: {str(e)}"
-        }
-        for i in range(expected_count):
-            enhancements[i] = default_enhancement
+        logger.error(f"Error creating enhanced results from agent: {e}")
 
-    return enhancements
-
-
-def _create_fallback_enhanced_results(
-    original_results: List[TsDefectResult],
-    error_message: str
-) -> List[EnhancedTsDefectResult]:
-    """
-    Create fallback enhanced results when agent processing fails.
-    
-    Args:
-        original_results: Original TsDefectResult objects
-        error_message: Error message to include in rationale
-        
-    Returns:
-        List of EnhancedTsDefectResult objects with fallback values
-    """
-    enhanced_results = []
-    
-    for result in original_results:
-        enhanced_result = EnhancedTsDefectResult(
-            **result.model_dump(),
-            curator_action="REVIEW_REQUIRED",
-            rationale=f"Agent enhancement failed: {error_message}"
-        )
-        enhanced_results.append(enhanced_result)
-    
     return enhanced_results
 
 
@@ -281,7 +218,7 @@ def enhance_with_agent(
     processed_results: List[TsDefectResult],
     intent_data: IntentData,
     config: TsDefectsConfig = TsDefectsConfig()
-) -> List[EnhancedTsDefectResult]:
+) -> List[AgentDefectResult]:
     """
     Synchronous wrapper for agent enhancement.
 
@@ -294,7 +231,7 @@ def enhance_with_agent(
         config: Configuration for the TsDefects pipeline
 
     Returns:
-        List of EnhancedTsDefectResult objects with curator actions
+        List of AgentDefectResult objects with curator actions
     """
     import asyncio
 

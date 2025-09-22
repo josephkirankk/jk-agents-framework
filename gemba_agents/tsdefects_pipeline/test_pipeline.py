@@ -30,7 +30,7 @@ class TestTsDefectsConfig:
         config = TsDefectsConfig()
         
         assert config.intent_agent_name == "jk_pilger_extract_intent_agent"
-        assert config.processing_agent_name == "jk_pilger_new_entries_agent_v2"
+        assert config.processing_agent_name == "jk_pilger_new_entries_only_defects_agent"
         assert config.search_limit == 10
         assert config.min_similarity_score == 0.2
         assert config.collection == "defects"
@@ -230,23 +230,39 @@ class TestPipelineIntegration:
     @patch('gemba_agents.tsdefects_pipeline.stages.agent_enhancement.load_and_build_agent_with_placeholders')
     @patch('gemba_agents.tsdefects_pipeline.stages.agent_enhancement.invoke_agent_async')
     async def test_agent_enhancement_stage(self, mock_invoke, mock_load, mock_intent_data, mock_ts_defect_results):
-        """Test agent enhancement stage."""
+        """Test agent enhancement stage with new defect suggestions."""
         # Mock agent loading and invocation
         mock_load.return_value = (Mock(), Mock(), Mock())
         mock_invoke.return_value = json.dumps({
-            "enhancements": [
-                {"curator_action": "APPROVED", "rationale": "Standard maintenance"},
-                {"curator_action": "REVIEW_REQUIRED", "rationale": "Needs inspection"}
-            ]
+            "defects": [
+                {
+                    "defect_code": "PLG.MOLD.COOLING.UNEVEN_COOLING",
+                    "defect_text": "Uneven cooling in the mold.",
+                    "defect_location": "Mold",
+                    "confidence_score": 0.85,
+                    "mapping_status": "NEW_ENTRY",
+                    "curator_action": "REVIEW_REQUIRED",
+                    "rationale": "Input describes uneven cooling in the Mold related to the Cooling system."
+                }
+            ],
+            "subsystems": [
+                {"abbr": "MOLD", "description": "Mold assembly."},
+                {"abbr": "COOLING", "description": "Cooling system."}
+            ],
+            "components": [
+                {"abbr": "MOLD", "description": "Mold."}
+            ],
+            "meta": {}
         })
-        
+
         config = TsDefectsConfig()
         result = enhance_with_agent(mock_ts_defect_results, mock_intent_data, config)
-        
-        assert len(result) == 2
+
+        assert len(result) == 1
         assert isinstance(result[0], EnhancedTsDefectResult)
-        assert result[0].curator_action == "APPROVED"
-        assert result[1].curator_action == "REVIEW_REQUIRED"
+        assert result[0].curator_action == "REVIEW_REQUIRED"
+        assert result[0].defect_code == "PLG.MOLD.COOLING.UNEVEN_COOLING"
+        assert result[0].mapping_status == "NEW_ENTRY"
     
     @patch('gemba_agents.tsdefects_pipeline.pipeline.Pipeline')
     async def test_full_pipeline_success(self, mock_pipeline_class):

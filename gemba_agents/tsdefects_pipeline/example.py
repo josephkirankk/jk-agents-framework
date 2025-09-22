@@ -54,7 +54,7 @@ async def basic_example():
             for i, defect in enumerate(result.enhanced_defects[:3], 1):  # Show top 3
                 print(f"{i}. {defect.defect_code}")
                 print(f"   Text: {defect.defect_text[:100]}...")
-                print(f"   Score: {defect.score:.3f}")
+                print(f"   Confidence: {defect.confidence_score:.3f}")
                 print(f"   Curator Action: {defect.curator_action}")
                 print(f"   Rationale: {defect.rationale[:100]}...")
                 print()
@@ -105,10 +105,9 @@ async def custom_config_example():
             defect = result.enhanced_defects[0]
             print(f"- Code: {defect.defect_code}")
             print(f"- Text: {defect.defect_text}")
-            print(f"- Machine: {defect.machine}")
-            print(f"- Subsystem: {defect.subsystem}")
-            print(f"- Component: {defect.component}")
-            print(f"- Score: {defect.score:.3f}")
+            print(f"- Location: {defect.defect_location}")
+            print(f"- Confidence: {defect.confidence_score:.3f}")
+            print(f"- Mapping Status: {defect.mapping_status}")
             print(f"- Curator Action: {defect.curator_action}")
             print(f"- Rationale: {defect.rationale}")
 

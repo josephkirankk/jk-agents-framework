@@ -149,22 +149,24 @@ def _construct_search_queries(intent_data: IntentData) -> List[str]:
     queries = []
 
     # Query 1: Component + Sub-component + Issue (skip null fields)
-    query_parts = []
-    if intent_data.component and intent_data.component != "null":
-        query_parts.append(intent_data.component)
-    if intent_data.sub_component and intent_data.sub_component != "null":
-        query_parts.append(intent_data.sub_component)
-    if intent_data.issue and intent_data.issue != "null":
-        query_parts.append(intent_data.issue)
+    # query_parts = []
+    # if intent_data.component and intent_data.component != "null":
+    #     query_parts.append(intent_data.component)
+    # if intent_data.sub_component and intent_data.sub_component != "null":
+    #     query_parts.append(intent_data.sub_component)
+    # if intent_data.issue and intent_data.issue != "null":
+    #     query_parts.append(intent_data.issue)
 
-    if query_parts:
-        queries.append(" ".join(query_parts))
+    # if query_parts:
+    #     queries.append(" ".join(query_parts))
 
-    # Query 2: Related component + Issue (if related_component is not null)
-    if (intent_data.related_component and
-            intent_data.related_component != "null" and
-            intent_data.issue and intent_data.issue != "null"):
-        queries.append(f"{intent_data.related_component} {intent_data.issue}")
+    # # Query 2: Related component + Issue (if related_component is not null)
+    # if (intent_data.related_component and
+    #         intent_data.related_component != "null" and
+    #         intent_data.issue and intent_data.issue != "null"):
+    #     queries.append(f"{intent_data.related_component} {intent_data.issue}")
+        
+    queries.append(intent_data.interpreted_meaning)
 
     return queries
 
