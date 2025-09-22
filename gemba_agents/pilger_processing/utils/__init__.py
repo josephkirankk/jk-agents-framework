@@ -81,7 +81,8 @@ async def load_and_build_agent_with_placeholders(
             config_path=config_path,
             enable_llm_payload_logging=True,
             llm_payload_logger=direct_logger.get_llm_payload_logger(),
-            custom_placeholders=custom_placeholders
+            custom_placeholders=custom_placeholders,
+            default_temperature=app_config.temperature,
         )
 
         logger.info(

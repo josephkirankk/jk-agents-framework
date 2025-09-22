@@ -1,0 +1,81 @@
+models:
+  # Examples of different temperature configurations
+  default: "google:gemini-2.5-flash-lite:0.2"
+  supervisor: "google:gemini-2.0-flash-lite-001:0.1"
+  
+  # Additional model configurations with different temperatures
+  creative: "google:gemini-2.5-flash-lite:0.8"
+  analytical: "google:gemini-2.5-flash-lite:0.1"
+  balanced: "google:gemini-2.5-flash-lite:0.5"
+  
+  # Global fallback temperature for models without explicit temperature
+  temperature: 0.2
+
+business_context: |
+  Example configuration demonstrating temperature control for different AI models.
+  This shows how to configure models with varying levels of creativity and determinism.
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "google:gemini-2.0-flash-lite-001:0.1"  # Low temperature for focused planning
+  prompt: |
+    You are a planning supervisor with precise, analytical thinking.
+    
+    Available agents: {{agents}}
+    
+    Create step-by-step plans using available agents. Be methodical and focused.
+    
+    Return JSON only:
+    {
+      "goal": "<brief goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific task", "depends_on": [], "verify": "verification step"}
+      ]
+    }
+
+agents:
+  - name: "analytical_agent"
+    description: "Precise analytical tasks with low creativity"
+    model: "google:gemini-2.5-flash-lite:0.1"  # Very focused, deterministic
+    prompt: |
+      You are an analytical agent focused on precision and accuracy.
+      Provide detailed, methodical analysis with minimal creativity.
+      
+      Task: {{task}}
+      
+      Be thorough, systematic, and fact-based in your response.
+
+  - name: "creative_agent"
+    description: "Creative tasks requiring high variability"
+    model: "google:gemini-2.5-flash-lite:0.8"  # High creativity
+    prompt: |
+      You are a creative agent designed for innovative thinking.
+      Generate diverse, imaginative solutions and ideas.
+      
+      Task: {{task}}
+      
+      Be creative, explore multiple possibilities, and think outside the box.
+
+  - name: "balanced_agent"
+    description: "General purpose agent with balanced approach"
+    model: "google:gemini-2.5-flash-lite:0.4"  # Balanced creativity
+    prompt: |
+      You are a balanced agent combining analytical thinking with creative insights.
+      Provide well-reasoned responses with appropriate creativity.
+      
+      Task: {{task}}
+      
+      Balance accuracy with innovation in your response.
+
+  - name: "default_temp_agent"
+    description: "Agent using global default temperature"
+    model: "google:gemini-2.5-flash-lite"  # Uses global temperature (0.2)
+    prompt: |
+      You are a general purpose agent using the default temperature setting.
+      
+      Task: {{task}}
+      
+      Provide helpful, accurate responses.

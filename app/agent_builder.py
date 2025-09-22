@@ -23,13 +23,19 @@ from .llm_payload_logger import LoggingModelWrapper, LLMPayloadLogger
 log = logging.getLogger("agent_builder")
 
 
-def create_model_instance(model_id: str) -> Any:
+def create_model_instance(
+    model_id: str, default_temperature: float = 0.2
+) -> Any:
     """
     Create a model instance based on the model ID prefix.
 
     Args:
         model_id: Model ID string like "google:gemini-2.0-flash-exp",
                  "openai:gpt-4o", "anthropic:claude-sonnet-4", etc.
+                 Can also include temperature like
+                 "google:gemini-2.5-flash-lite:0.2"
+        default_temperature: Default temperature to use if not specified
+                           in model_id
 
     Returns:
         Either the original model_id string (for LangGraph built-in support)
@@ -38,13 +44,41 @@ def create_model_instance(model_id: str) -> Any:
     if not isinstance(model_id, str):
         return model_id
 
+    # Parse temperature from model_id if present
+    # Format: "provider:model:temperature" or "provider:model"
+    parts = model_id.split(":")
+    temperature = default_temperature
+
+    if len(parts) >= 3:
+        try:
+            # Try to parse the last part as temperature
+            temperature = float(parts[-1])
+            # Reconstruct model_id without temperature for processing
+            model_id_without_temp = ":".join(parts[:-1])
+            log.info(
+                "Parsed temperature %s from model ID %s", temperature, model_id
+            )
+        except ValueError:
+            # Last part is not a valid float, treat as part of model name
+            model_id_without_temp = model_id
+            log.debug(
+                "No temperature found in model ID %s, using default %s",
+                model_id, default_temperature
+            )
+    else:
+        model_id_without_temp = model_id
+        log.debug(
+            "Using default temperature %s for model ID %s",
+            default_temperature, model_id
+        )
+
     # Handle Google Gemini models
-    if model_id.startswith("google:"):
+    if model_id_without_temp.startswith("google:"):
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
 
             # Extract the model name after the prefix
-            model_name = model_id.split("google:", 1)[1]
+            model_name = model_id_without_temp.split("google:", 1)[1]
 
             # Get API key from environment
             api_key = os.getenv("GOOGLE_API_KEY")
@@ -57,14 +91,17 @@ def create_model_instance(model_id: str) -> Any:
                 # Return the original string and let LangGraph handle the error
                 return model_id
 
-            # Create and return the Google Gemini model instance
+            # Create and return the Google Gemini model instance with temperature
             model_instance = ChatGoogleGenerativeAI(
                 model=model_name,
                 google_api_key=api_key,
-                temperature=0.0,  # Default temperature, can be overridden
+                temperature=temperature,
             )
 
-            log.info("Created Google Gemini model instance: %s", model_name)
+            log.info(
+                "Created Google Gemini model instance: %s with temperature %s",
+                model_name, temperature
+            )
             return model_instance
 
         except ImportError:
@@ -83,7 +120,9 @@ def create_model_instance(model_id: str) -> Any:
 
     # For all other model types (openai:, azure_openai:, anthropic:, etc.)
     # return the original string - LangGraph handles these natively
-    return model_id
+    # Note: Temperature for these providers is typically handled by
+    # LangGraph/LangChain
+    return model_id_without_temp
 
 
 def _format_mcp_summary(servers_cfg: Dict[str, Dict]) -> str:
@@ -113,6 +152,7 @@ async def build_react_agent(
     enable_llm_payload_logging: bool = True,
     llm_payload_logger: Optional[LLMPayloadLogger] = None,
     custom_placeholders: Optional[Dict[str, Any]] = None,
+    default_temperature: float = 0.2,
 ):
     # Use global checkpointer for memory persistence across API calls
     if checkpointer is None:
@@ -121,7 +161,7 @@ async def build_react_agent(
 
     model_id = agent_cfg.model or default_model
     # Create the appropriate model instance (handles google: prefix)
-    model_instance = create_model_instance(model_id)
+    model_instance = create_model_instance(model_id, default_temperature)
 
     servers_raw = {
         k: v.dict(exclude_none=True)

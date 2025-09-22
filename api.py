@@ -228,6 +228,7 @@ async def run_direct_agent_with_files(
             config_path=config_path,
             enable_llm_payload_logging=True,
             llm_payload_logger=logger.get_llm_payload_logger(),
+            default_temperature=app_cfg.temperature,
         )
 
         try:
@@ -862,6 +863,7 @@ async def run_direct_agent_api(
             config_path=config_path,
             enable_llm_payload_logging=True,
             llm_payload_logger=logger.get_llm_payload_logger(),
+            default_temperature=app_cfg.temperature,
         )
 
         try:
@@ -945,6 +947,7 @@ async def run_supervised_api(
         app_cfg.business_context or "",
         original_user_question=user_input,
         config_path=config_path,
+        default_temperature=app_cfg.temperature,
     )
 
     # Build workers

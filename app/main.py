@@ -132,6 +132,7 @@ async def build_agents_map(
             dependent_request_responses="",
             config_path=config_path,
             enable_llm_payload_logging=False,  # Disable for supervisor mode to avoid log clutter
+            default_temperature=app_cfg.temperature,
         )
         agents_map[a.name] = compiled
         if mcp_client:
@@ -170,6 +171,7 @@ async def run_direct_agent(
             config_path=None,  # Direct agent calls don't have config path
             enable_llm_payload_logging=True,
             llm_payload_logger=logger.get_llm_payload_logger(),
+            default_temperature=app_cfg.temperature,
         )
 
         try:
@@ -242,6 +244,7 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
         app_cfg.business_context or "",
         original_user_question=user_input,
         config_path=None,  # CLI calls don't have config path
+        default_temperature=app_cfg.temperature,
     )
     # Build workers
     agents_map, mcp_clients = await build_agents_map(

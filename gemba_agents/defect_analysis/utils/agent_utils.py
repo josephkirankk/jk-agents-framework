@@ -76,7 +76,8 @@ async def load_and_build_agent(
             dependent_request_responses="",
             config_path=config_path,
             enable_llm_payload_logging=True,
-            llm_payload_logger=direct_logger.get_llm_payload_logger()
+            llm_payload_logger=direct_logger.get_llm_payload_logger(),
+            default_temperature=app_config.temperature,
         )
         
         logger.info(f"Successfully built agent: {agent_name}")

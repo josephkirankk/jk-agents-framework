@@ -152,5 +152,5 @@ Input: `"oil leak on gearbox output flange, sensor #3 triggered"` → `defect_lo
 ONTOLOGY :
 {{ontology}}
 
-USER INPUT:
+<user_input>:
 {{user_input}}

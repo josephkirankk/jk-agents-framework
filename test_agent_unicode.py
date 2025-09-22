@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.abspath('.'))
 from app.agent_builder import build_react_agent
 from app.config import AppConfig
 from app.direct_agent_logger import create_direct_agent_logger
+from app.main import load_app_config
 
 async def test_agent_unicode():
     """Test Unicode handling in the agent system."""
@@ -47,16 +48,26 @@ async def test_agent_unicode():
         )
         
         # Build agent with custom placeholders
+        # First need to get the agent config
+        app_config = load_app_config("config/jk-gemba.yaml")
+        target_agent_config = next(
+            (a for a in app_config.agents if a.name == "jk_pilger_new_entries_agent"),
+            None
+        )
+        if not target_agent_config:
+            raise ValueError("Agent 'jk_pilger_new_entries_agent' not found")
+
         compiled_agent, mcp_client = await build_react_agent(
-            target_agent="jk_pilger_new_entries_agent",
-            default_model="google:gemini-2.5-flash-lite",
+            target_agent_config,
+            "google:gemini-2.5-flash-lite",
             business_context="Testing Unicode handling",
             original_user_question="",
             dependent_request_responses="",
             config_path=None,
             enable_llm_payload_logging=True,
             llm_payload_logger=direct_logger.get_llm_payload_logger(),
-            custom_placeholders=custom_placeholders
+            custom_placeholders=custom_placeholders,
+            default_temperature=0.2,
         )
         
         print("✅ Agent built successfully!")

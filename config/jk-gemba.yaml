@@ -1,7 +1,7 @@
 models:
   default: "google:gemini-2.5-flash-lite"
   supervisor: "google:gemini-2.0-flash-lite-001"
-  temperature: 0.0
+  temperature: 0.2
 
 business_context: |
   You are an AI assistant powered by Google Gemini models with advanced multimodal capabilities.
@@ -1771,6 +1771,12 @@ agents:
     description: "Expert Pilger Machine Issue Predictor"
     model: "google:gemini-2.5-flash-lite"
     prompt_file: "prompts/latest/gemba-single_new_entry_v1.txt"
+    mcp_servers: {}
+
+  - name: "jk_pilger_extract_intent_agent_v2"
+    description: "Expert Pilger Machine Issue Predictor"
+    model: "google:gemini-2.5-flash-lite"
+    prompt_file: "prompts/latest/gemba_convert-to-english-v2.txt"
     mcp_servers: {}
 
   - name: "jk_pilger_extract_intent_agent"

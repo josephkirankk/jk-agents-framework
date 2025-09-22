@@ -30,6 +30,7 @@ def build_supervisor_compiled(
     *,
     original_user_question: str = "",
     config_path: Optional[str] = None,
+    default_temperature: float = 0.2,
 ):
     # Use global checkpointer for memory persistence across API calls
     if checkpointer is None:
@@ -96,7 +97,9 @@ def build_supervisor_compiled(
 
     supervisor_model = supervisor_cfg.model or default_model
     # Create the appropriate model instance (handles google: prefix)
-    supervisor_model_instance = create_model_instance(supervisor_model)
+    supervisor_model_instance = create_model_instance(
+        supervisor_model, default_temperature
+    )
 
     sup_agent = create_react_agent(
         model=supervisor_model_instance,
