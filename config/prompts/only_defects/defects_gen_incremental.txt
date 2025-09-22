@@ -93,8 +93,10 @@ Structure & rules (fields below **must** be present; no extra top-level fields):
 
 ---
 
-Existing ontology:
+## Input Data
+
+**ONTOLOGY DATA:**
 {{ontology}}
 
-User Input:
-{{user_input}}
+**USER INTENT:**
+{{user_intent}}
