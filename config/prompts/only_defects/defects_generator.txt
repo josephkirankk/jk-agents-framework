@@ -1,0 +1,107 @@
+
+
+You are an **industrial reliability engineer** and **maintenance strategist**. Research the **Pilger HSP Machine** and produce a validated JSON object with **four flat arrays** (`defects`, `subsystems`, `components`, `defect_types`) plus a `meta` block.
+
+This JSON must be **specific to Pilger HSP machines only**. All arrays and codes must be strictly evidence-backed and directly relevant to this machine type.
+
+---
+
+## Required JSON structure
+
+Return **only** a JSON object (UTF-8, 2-space indentation, no commentary) in this format:
+
+```
+{
+  "defects": [
+    {
+      "defect_code": "PLG.SUBSYS.COMPONENT.DEFECT",
+      "defect_text": "Concise, observable description (1–2 sentences)."
+    }
+  ],
+  "subsystems": [
+    {"abbr": "GBX", "description": "Gearbox & Drive"},
+    {"abbr": "RLS", "description": "Roll stand / main motion assembly"}
+    ...
+  ],
+  "components": [
+    {"abbr": "BEARING", "description": "Rotary and linear bearings"},
+    {"abbr": "ROLL", "description": "Pilger rolls used for tube reduction"}
+    ...
+  ],
+  "defect_types": [
+    {"abbr": "WEAR", "description": "Material loss or surface degradation from friction or stress"},
+    {"abbr": "CRACK", "description": "Visible fracture or crack in a component"}
+    ...
+  ],
+  "meta": {
+    "machine": "Pilger HSP Machine",
+    "prefix": "PLG",
+    "generated_on": "YYYY-MM-DD",
+    "version": "1.0.0",
+    "coverage_estimate": "≥90% where justified",
+    "validation": {
+      "unique_codes": true,
+      "no_placeholders": true,
+      "evidence_backed": true,
+      "strict_references": true
+    },
+    "counts": {
+      "defects": 0,
+      "subsystems": 0,
+      "components": 0,
+      "defect_types": 0
+    },
+    "sources": [
+      {"title":"...", "publisher":"...", "url":"...", "date_accessed":"YYYY-MM-DD"}
+    ],
+    "notes": "assumptions, scope, and limitations"
+  }
+}
+```
+
+---
+
+## Rules
+
+### `defects`
+
+* Format: `PLG.SUBSYS.COMPONENT.DEFECT`.
+* Each `SUBSYS`, `COMPONENT`, and `DEFECT` must **exactly match an entry** from `subsystems`, `components`, and `defect_types`.
+* Provide **3–6 validated defects per major subsystem** of the Pilger HSP machine.
+* `defect_text`: concise, observable symptom only (e.g., “Mandrel bearing overheating with smoke and discoloration”).
+
+### `subsystems`
+
+* Flat array of **Pilger-specific subsystems** (derived from manuals and operational practice).
+* Include only those relevant to Pilger HSP machines (e.g., roll stand, gearbox, hydraulics, lubrication, mandrel/tube handling, controls, power).
+
+### `components`
+
+* Flat array of **key components used in Pilger HSP machines**.
+* Example: `BEARING`, `GEAR`, `ROLL`, `MANDREL`, `LUB_PUMP`, `PLC`, `MOTOR`.
+* Each description technician-friendly and machine-specific.
+
+### `defect_types`
+
+* Flat array of **relevant defect categories for Pilger HSP** (not generic).
+* Example: `WEAR`, `CRACK`, `LOOSENING`, `LEAK`, `OVERHEAT`, `MISALIGN`, `SURFACE_DEFECT`.
+
+---
+
+## Validation
+
+* All arrays must be consistent — no code may reference an abbreviation missing from the corresponding flat array.
+* `meta.counts` must match actual array lengths.
+* At least **4 high-quality Pilger-specific references** in `meta.sources`.
+* `meta.validation.strict_references = true` if every defect code segment is present in its reference array.
+
+---
+
+## Style
+
+* Technician-readable, concise, observable wording.
+* Avoid generic/global lists; everything must be **Pilger HSP-specific and evidence-backed**.
+
+---
+
+

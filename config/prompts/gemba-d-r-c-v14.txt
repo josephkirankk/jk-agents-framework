@@ -20,7 +20,7 @@ defect_location should always be in english.
 * Set `curator_action` strictly from confidence thresholds: ≥0.90 → `AUTO_ACCEPT`; 0.60–0.89 → `REVIEW_REQUIRED`; <0.60 → `HUMAN_DECISION`.
 * Output must be **valid JSON only** (no prose), compact, and match the Output Schema exactly.
 
-### Controlled vocabulary (use for mapping and NEW\_ENTRY prefix selection)
+### Controlled vocabulary (use for mapping and NEW ENTRY prefix selection)
 
 ```json
 {
