@@ -132,50 +132,39 @@ async def _search_vectors_async(
 def _construct_search_queries(intent_data: IntentData) -> List[str]:
     """
     Construct search queries from intent data.
-    
+
+    Creates a maximum of 2 queries based on the following logic:
+    1. If component, sub_component, and issue are not null,
+       add "<component> <sub-component> <issue>"
+    2. If related_component is not null, add "<related_component> <issue>"
+
     Args:
         intent_data: Extracted intent data
-        
+
     Returns:
-        List of search query strings
+        List of search query strings (max 2 queries)
     """
     queries = []
-    
-    # Primary query using the interpreted meaning
-    if intent_data.interpreted_meaning and intent_data.interpreted_meaning != "Unknown":
-        queries.append(intent_data.interpreted_meaning)
-    
-    # Component-based queries
-    if intent_data.component and intent_data.component != "Unknown":
-        if intent_data.issue and intent_data.issue != "Unknown":
-            queries.append(f"{intent_data.component} {intent_data.issue}")
-        
-        if intent_data.sub_component and intent_data.sub_component != "Unknown":
-            queries.append(f"{intent_data.component} {intent_data.sub_component}")
-            
-            if intent_data.issue and intent_data.issue != "Unknown":
-                queries.append(f"{intent_data.component} {intent_data.sub_component} {intent_data.issue}")
-    
-    # Related component queries
-    if intent_data.related_component and intent_data.related_component != "Unknown":
-        queries.append(intent_data.related_component)
-        
-        if intent_data.issue and intent_data.issue != "Unknown":
-            queries.append(f"{intent_data.related_component} {intent_data.issue}")
-    
-    # Issue-based query
-    if intent_data.issue and intent_data.issue != "Unknown":
-        queries.append(intent_data.issue)
-    
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_queries = []
-    for query in queries:
-        if query not in seen:
-            seen.add(query)
-            unique_queries.append(query)
-    
-    return unique_queries
+
+    # Query 1: Component + Sub-component + Issue (skip null fields)
+    query_parts = []
+    if intent_data.component and intent_data.component != "null":
+        query_parts.append(intent_data.component)
+    if intent_data.sub_component and intent_data.sub_component != "null":
+        query_parts.append(intent_data.sub_component)
+    if intent_data.issue and intent_data.issue != "null":
+        query_parts.append(intent_data.issue)
+
+    if query_parts:
+        queries.append(" ".join(query_parts))
+
+    # Query 2: Related component + Issue (if related_component is not null)
+    if (intent_data.related_component and
+            intent_data.related_component != "null" and
+            intent_data.issue and intent_data.issue != "null"):
+        queries.append(f"{intent_data.related_component} {intent_data.issue}")
+
+    return queries
 
 
 async def _perform_single_search(client: VectorDBClient, query: str, config: DefectAnalysisConfig):
