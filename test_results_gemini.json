@@ -1,0 +1,133 @@
+{
+  "test_suite": "Advanced Memory Agent API Tests",
+  "total_tests": 9,
+  "successful_tests": 9,
+  "failed_tests": 0,
+  "success_rate": 1.0,
+  "total_time_seconds": 95.49,
+  "config_path": "config/advanced_memory_agent_test.yaml",
+  "base_url": "http://localhost:8000",
+  "timestamp": "2025-09-24 02:20:58",
+  "detailed_results": [
+    {
+      "test_name": "API Health Check",
+      "success": true,
+      "root_status": 200,
+      "health_status": 200,
+      "available_agents": [],
+      "config_status": "not_loaded",
+      "endpoints": {
+        "health": "/health - Health check endpoint",
+        "query": "/query - Main multi-agent query endpoint",
+        "query_form": "/query/form - Form-based query endpoint",
+        "worker": "/worker - Direct agent execution endpoint",
+        "worker_upload": "/worker/upload - Agent execution with files",
+        "issue_analysis": "/issue-analysis - Issue analysis pipeline endpoint",
+        "issue_analysis_form": "/issue-analysis/form - Form-based issue analysis endpoint",
+        "enhanced_issue_analysis": "/issue-analysis-enhanced - Enhanced issue analysis processing",
+        "enhanced_issue_analysis_form": "/issue-analysis-enhanced/form - Form-based enhanced issue analysis",
+        "submit_selection": "/submit-selection - Submit issue analysis selections",
+        "consolidated_responses": "/consolidated-responses - Get consolidated user responses with date filtering",
+        "consolidated_responses_form": "/consolidated-responses/form - Form-based consolidated responses endpoint",
+        "docs": "/docs - Interactive API documentation",
+        "redoc": "/redoc - Alternative API documentation"
+      },
+      "health_info": {
+        "status": "healthy",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "test_name": "Configuration Loading",
+      "success": true,
+      "status_code": 200,
+      "config_path": "config/advanced_memory_agent_test.yaml",
+      "agent_response": "Acknowledged. My advanced memory system is active and ready to assist with configuration loading. This system allows me to recall previous interactions, preferred configuration formats (e.g., JSON, YA...",
+      "agent_name": "coding_assistant",
+      "thread_id": "thread-7045605b-cbf2-4444-8003-1fd3d5e8935c",
+      "metadata": {
+        "agent_name": "coding_assistant",
+        "model_used": "google:gemini-2.5-flash",
+        "business_context": true
+      }
+    },
+    {
+      "test_name": "Agent Test - coding_assistant",
+      "agent_name": "coding_assistant",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 9027.65,
+      "agent_response": "Hello! I'm glad to demonstrate my advanced memory capabilities and share my current performance metrics with you.\n\n**Advanced Memory System Overview:**\n\nMy memory system is designed to provide a highly contextual and efficient coding assistance experience. Here's how it works:\n\n*   **Persistent Conv...",
+      "thread_id": "thread-07a21bb1-3d87-4b4f-8990-05f25806bb02",
+      "metadata": {
+        "agent_name": "coding_assistant",
+        "model_used": "google:gemini-2.5-flash",
+        "business_context": true
+      }
+    },
+    {
+      "test_name": "Agent Test - architecture_advisor",
+      "agent_name": "architecture_advisor",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 15060.71,
+      "agent_response": "Hello! I'd be glad to demonstrate my capabilities.\n\nAs TechCorp's senior architecture advisor, my advanced memory system is designed to provide highly contextual and efficient guidance.\n\n### Advanced Memory Capabilities Demonstration\n\nMy memory system operates on several key principles:\n\n1.  **Remem...",
+      "thread_id": "thread-e380b459-f6ed-4b47-a90a-b16ac8d42623",
+      "metadata": {
+        "agent_name": "architecture_advisor",
+        "model_used": "google:gemini-2.5-flash",
+        "business_context": true
+      }
+    },
+    {
+      "test_name": "Agent Test - documentation_helper",
+      "agent_name": "documentation_helper",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 6463.14,
+      "agent_response": "As an AI assistant, I don't have \"memory capabilities\" or \"performance metrics\" in the traditional sense that a human or a physical system would. My \"advanced memory capabilities\" are demonstrated through my ability to retain context from our conversations, recall previously established documentatio...",
+      "thread_id": "thread-8b9342e9-3a8c-4108-a5ed-a99d9a4284ce",
+      "metadata": {
+        "agent_name": "documentation_helper",
+        "model_used": "google:gemini-2.5-flash",
+        "business_context": true
+      }
+    },
+    {
+      "test_name": "Memory Persistence",
+      "success": true,
+      "thread_id": "test_persistence_1758660605",
+      "first_response_status": 200,
+      "second_response_status": 200,
+      "first_response": "Understood. I've noted that you're working on a **microservices architecture project**. I will keep this context in mind for our future discussions.\n\nPlease feel free to ask any questions or discuss s...",
+      "second_response": "In our previous conversation, you mentioned that you are working on a **microservices architecture project**....",
+      "memory_test_passed": true
+    },
+    {
+      "test_name": "Performance Under Load",
+      "concurrent_requests": 5,
+      "successful_requests": 5,
+      "success_rate": 1.0,
+      "total_time_seconds": 40.3,
+      "average_time_per_request": 8.06,
+      "success": true
+    },
+    {
+      "test_name": "Memory Metrics API",
+      "success": true,
+      "status_code": 200,
+      "memory_stats": {},
+      "timestamp": "2025-09-24T02:20:54.029146",
+      "status": null
+    },
+    {
+      "test_name": "Supervised Query",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 4126.25,
+      "response": "...",
+      "metadata": null,
+      "thread_id": "thread-ff432dc0-7967-4572-beca-fa278121ab78"
+    }
+  ]
+}

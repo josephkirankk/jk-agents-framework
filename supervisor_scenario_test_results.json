@@ -1,0 +1,158 @@
+{
+  "test_suite": "Supervisor Real-World Scenario Test",
+  "project_context": "ShopSmart E-commerce Platform",
+  "total_scenarios": 8,
+  "successful_scenarios": 8,
+  "success_rate": 1.0,
+  "memory_test": {
+    "test_name": "Memory Persistence Test",
+    "success": true,
+    "response_time_ms": 29539.46,
+    "response": "Alright, let's consolidate all the architectural decisions we've made for the ShopSmart E-commerce Platform so far. This comprehensive summary will serve as our architectural blueprint.\n\n---\n\n## ShopSmart E-commerce Platform: Architectural Decisions Summary\n\n**Project Context:** Microservices architecture for an e-commerce platform, using Docker containers and Kubernetes orchestration.\n\n### 1. Overall Architecture & Core Principles\n\n*   **Architecture Style:** Microservices\n*   **Containerizatio...",
+    "memory_indicators_found": 9,
+    "memory_effectiveness": 1.0,
+    "thread_id": "shopsmart_project_1758661332",
+    "full_response_length": 7622
+  },
+  "total_time_seconds": 270.37,
+  "thread_id": "shopsmart_project_1758661332",
+  "timestamp": "2025-09-24 02:36:43",
+  "scenario_results": [
+    {
+      "scenario_name": "Initial Architecture Planning",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 24862.8,
+      "expected_agent": "senior_architect",
+      "context": "Project kickoff - architecture design phase",
+      "response": "Alright, let's lay the foundational architecture for ShopSmart's microservices. This is a critical step in our \"Architecture design and initial development\" phase.\n\nBased on our project context (e-commerce, microservices, Node.js, PostgreSQL, Redis, Kubernetes), we'll design for clear service bounda...",
+      "metadata": {
+        "total_steps": 1,
+        "execution_time": null,
+        "model_used": "google:gemini-2.5-flash"
+      },
+      "thread_id": "shopsmart_project_1758661332",
+      "full_response_length": 7767,
+      "keyword_relevance_score": 1.0
+    },
+    {
+      "scenario_name": "Database Design Follow-up",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 23507.48,
+      "expected_agent": "senior_architect",
+      "context": "Following up on architecture - database design",
+      "response": "Excellent question! This brings us directly to the implementation details of our \"Database per Service\" strategy.\n\n### 1. Separate Databases (or Schemas)\n\n**Yes, we will use separate databases (or at least separate schemas within a shared PostgreSQL instance) for the User Service and Order Service.*...",
+      "metadata": {
+        "total_steps": 1,
+        "execution_time": null,
+        "model_used": "google:gemini-2.5-flash"
+      },
+      "thread_id": "shopsmart_project_1758661332",
+      "full_response_length": 7963,
+      "keyword_relevance_score": 0.6666666666666666
+    },
+    {
+      "scenario_name": "User Authentication Implementation",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 25569.45,
+      "expected_agent": "lead_developer",
+      "context": "Implementation phase - authentication code",
+      "response": "Okay, let's design and implement JWT-based authentication for our **User Service** in Node.js. This is a crucial security component for ShopSmart, ensuring only authenticated users can access protected resources.\n\nWe'll use the `jsonwebtoken` library for JWT handling and `bcrypt` for secure password...",
+      "metadata": {
+        "total_steps": 1,
+        "execution_time": null,
+        "model_used": "google:gemini-2.5-flash"
+      },
+      "thread_id": "shopsmart_project_1758661332",
+      "full_response_length": 10093,
+      "keyword_relevance_score": 0.7142857142857143
+    },
+    {
+      "scenario_name": "Docker Containerization",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 28909.01,
+      "expected_agent": "devops_engineer",
+      "context": "Deployment preparation - containerization",
+      "response": "Great! Containerizing our microservices with Docker is fundamental to our microservices architecture and deployment on Kubernetes. This is a core part of our \"Architecture design and initial development\" phase.\n\nFor Node.js services, the \"best approach\" typically involves **multi-stage Docker builds...",
+      "metadata": {
+        "total_steps": 1,
+        "execution_time": null,
+        "model_used": "google:gemini-2.5-flash"
+      },
+      "thread_id": "shopsmart_project_1758661332",
+      "full_response_length": 8586,
+      "keyword_relevance_score": 0.8333333333333334
+    },
+    {
+      "scenario_name": "API Documentation",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 20708.2,
+      "expected_agent": "tech_writer",
+      "context": "Documentation phase - API specs",
+      "response": "Absolutely! Comprehensive API documentation is crucial for developer onboarding, maintaining consistency, and ensuring our frontend and other microservices can interact correctly with the User Service.\n\nHere's a detailed API documentation for the User Service, focusing on the authentication and prof...",
+      "metadata": {
+        "total_steps": 1,
+        "execution_time": null,
+        "model_used": "google:gemini-2.5-flash"
+      },
+      "thread_id": "shopsmart_project_1758661332",
+      "full_response_length": 6855,
+      "keyword_relevance_score": 0.5
+    },
+    {
+      "scenario_name": "Performance Optimization",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 32297.23,
+      "expected_agent": "lead_developer",
+      "context": "Performance tuning - optimization",
+      "response": "You've hit on a critical area for performance in any microservices architecture: authentication and data access. Slow response times in the User Service, especially under load, can quickly become a bottleneck for the entire ShopSmart platform.\n\nLet's break down how to optimize both JWT validation an...",
+      "metadata": {
+        "total_steps": 1,
+        "execution_time": null,
+        "model_used": "google:gemini-2.5-flash"
+      },
+      "thread_id": "shopsmart_project_1758661332",
+      "full_response_length": 8083,
+      "keyword_relevance_score": 0.8571428571428571
+    },
+    {
+      "scenario_name": "Kubernetes Deployment",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 31950.79,
+      "expected_agent": "devops_engineer",
+      "context": "Production deployment - Kubernetes",
+      "response": "Excellent! Deploying to Kubernetes is where our microservices architecture truly shines, providing scalability, resilience, and efficient resource management. This is a core part of our \"Current Phase: Architecture design and initial development.\"\n\nWe'll create Kubernetes manifests for our **User Se...",
+      "metadata": {
+        "total_steps": 1,
+        "execution_time": null,
+        "model_used": "google:gemini-2.5-flash"
+      },
+      "thread_id": "shopsmart_project_1758661332",
+      "full_response_length": 11340,
+      "keyword_relevance_score": 0.6666666666666666
+    },
+    {
+      "scenario_name": "Architecture Review",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 36984.41,
+      "expected_agent": "senior_architect",
+      "context": "Architecture review - best practices validation",
+      "response": "This is an excellent time to review our ShopSmart microservices architecture. We've made significant progress in defining services, communication, data strategy, and deployment.\n\nOverall, our current architecture is **well-aligned with microservices best practices** and provides a strong foundation ...",
+      "metadata": {
+        "total_steps": 1,
+        "execution_time": null,
+        "model_used": "google:gemini-2.5-flash"
+      },
+      "thread_id": "shopsmart_project_1758661332",
+      "full_response_length": 7989,
+      "keyword_relevance_score": 0.6666666666666666
+    }
+  ]
+}
