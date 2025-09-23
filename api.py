@@ -38,6 +38,13 @@ try:
 except ImportError:
     HAS_MEMORY_METRICS = False
 
+# Import advanced memory agent
+try:
+    from advanced_memory_agent import AdvancedMemoryAgent
+    HAS_ADVANCED_MEMORY = True
+except ImportError:
+    HAS_ADVANCED_MEMORY = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

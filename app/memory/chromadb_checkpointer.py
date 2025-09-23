@@ -108,7 +108,7 @@ class ChromaDBCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else object):
         
         try:
             # Search for the checkpoint
-            results = self.vector_store.similarity_search_by_text(
+            results = self.vector_store.similarity_search(
                 query=checkpoint_id,
                 k=1
             )
@@ -171,7 +171,7 @@ class ChromaDBCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else object):
             # Note: This is a simplified implementation
             # In a production system, you'd want more sophisticated filtering
             
-            results = self.vector_store.similarity_search_by_text(
+            results = self.vector_store.similarity_search(
                 query=f"thread_{thread_id}",
                 k=limit or 10
             )

@@ -1,0 +1,192 @@
+{
+  "test_suite": "Advanced Memory Features Tests",
+  "total_tests": 4,
+  "successful_tests": 4,
+  "success_rate": 1.0,
+  "total_time_seconds": 30.55,
+  "timestamp": "2025-09-24 02:08:39",
+  "detailed_results": [
+    {
+      "test_name": "Advanced Memory Persistence",
+      "success": true,
+      "thread_id": "advanced_memory_test_1758659889",
+      "conversations": 3,
+      "memory_recall_conv2": 0,
+      "memory_recall_conv3": 0,
+      "memory_effectiveness": 0.0,
+      "responses": {
+        "conv1_length": 0,
+        "conv2_length": 0,
+        "conv3_length": 0
+      }
+    },
+    {
+      "test_name": "Memory Isolation",
+      "success": true,
+      "thread1_id": "isolation_test_1_1758659897",
+      "thread2_id": "isolation_test_2_1758659897",
+      "thread1_memory_correct": false,
+      "thread2_memory_correct": false,
+      "thread1_isolated": true,
+      "thread2_isolated": true,
+      "isolation_score": 0.5
+    },
+    {
+      "test_name": "Performance Metrics",
+      "success": true,
+      "total_operations": 10,
+      "successful_operations": 10,
+      "success_rate": 1.0,
+      "average_response_time_ms": 1320.18,
+      "min_response_time_ms": 1229.19,
+      "max_response_time_ms": 1449.6,
+      "initial_memory_stats": {
+        "timestamp": "2025-09-24T02:08:22.967155",
+        "memory_optimization": {
+          "string_intern": {
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "cache_size": 0,
+            "hit_rate": 0.0
+          },
+          "memory_pool": {
+            "total_created": 100,
+            "reused": 0,
+            "peak_usage": 0,
+            "available_buffers": 100,
+            "in_use_buffers": 0,
+            "reuse_rate": 0.0
+          }
+        },
+        "system_stats": {
+          "error": "Not initialized"
+        }
+      },
+      "final_memory_stats": {
+        "timestamp": "2025-09-24T02:08:36.170538",
+        "memory_optimization": {
+          "string_intern": {
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "cache_size": 0,
+            "hit_rate": 0.0
+          },
+          "memory_pool": {
+            "total_created": 100,
+            "reused": 0,
+            "peak_usage": 0,
+            "available_buffers": 100,
+            "in_use_buffers": 0,
+            "reuse_rate": 0.0
+          }
+        },
+        "system_stats": {
+          "error": "Not initialized"
+        }
+      },
+      "operations_detail": [
+        {
+          "operation_id": 1,
+          "success": true,
+          "response_time_ms": 1442.57,
+          "status_code": 200
+        },
+        {
+          "operation_id": 2,
+          "success": true,
+          "response_time_ms": 1278.43,
+          "status_code": 200
+        },
+        {
+          "operation_id": 3,
+          "success": true,
+          "response_time_ms": 1322.65,
+          "status_code": 200
+        },
+        {
+          "operation_id": 4,
+          "success": true,
+          "response_time_ms": 1318.72,
+          "status_code": 200
+        },
+        {
+          "operation_id": 5,
+          "success": true,
+          "response_time_ms": 1229.19,
+          "status_code": 200
+        },
+        {
+          "operation_id": 6,
+          "success": true,
+          "response_time_ms": 1449.6,
+          "status_code": 200
+        },
+        {
+          "operation_id": 7,
+          "success": true,
+          "response_time_ms": 1304.29,
+          "status_code": 200
+        },
+        {
+          "operation_id": 8,
+          "success": true,
+          "response_time_ms": 1238.11,
+          "status_code": 200
+        },
+        {
+          "operation_id": 9,
+          "success": true,
+          "response_time_ms": 1300.0,
+          "status_code": 200
+        },
+        {
+          "operation_id": 10,
+          "success": true,
+          "response_time_ms": 1318.21,
+          "status_code": 200
+        }
+      ]
+    },
+    {
+      "test_name": "Configuration Features",
+      "success": true,
+      "agents_tested": 3,
+      "agents_successful": 3,
+      "average_response_time_ms": 1179.07,
+      "agent_results": [
+        {
+          "agent_name": "coding_assistant",
+          "success": true,
+          "response_time_ms": 887.91,
+          "status_code": 200,
+          "response_length": 0,
+          "memory_keywords_found": 0,
+          "thread_id": "thread-1c5484f2-734e-4660-a20b-727c01b5c4f1",
+          "metadata": null
+        },
+        {
+          "agent_name": "architecture_advisor",
+          "success": true,
+          "response_time_ms": 1342.91,
+          "status_code": 200,
+          "response_length": 0,
+          "memory_keywords_found": 0,
+          "thread_id": "thread-3180f0bf-bc6a-4eda-8c0a-3292c79fc77f",
+          "metadata": null
+        },
+        {
+          "agent_name": "documentation_helper",
+          "success": true,
+          "response_time_ms": 1306.39,
+          "status_code": 200,
+          "response_length": 0,
+          "memory_keywords_found": 0,
+          "thread_id": "thread-0ca5cccf-9515-4047-ad3e-c5294c378f6c",
+          "metadata": null
+        }
+      ]
+    }
+  ]
+}

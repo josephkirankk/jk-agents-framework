@@ -1,0 +1,117 @@
+{
+  "test_suite": "Advanced Memory Agent API Tests",
+  "total_tests": 9,
+  "successful_tests": 9,
+  "failed_tests": 0,
+  "success_rate": 1.0,
+  "total_time_seconds": 15.64,
+  "config_path": "config/advanced_memory_agent_test.yaml",
+  "base_url": "http://localhost:8000",
+  "timestamp": "2025-09-24 02:06:40",
+  "detailed_results": [
+    {
+      "test_name": "API Health Check",
+      "success": true,
+      "root_status": 200,
+      "health_status": 200,
+      "available_agents": [],
+      "config_status": "not_loaded",
+      "endpoints": {
+        "health": "/health - Health check endpoint",
+        "query": "/query - Main multi-agent query endpoint",
+        "query_form": "/query/form - Form-based query endpoint",
+        "worker": "/worker - Direct agent execution endpoint",
+        "worker_upload": "/worker/upload - Agent execution with files",
+        "issue_analysis": "/issue-analysis - Issue analysis pipeline endpoint",
+        "issue_analysis_form": "/issue-analysis/form - Form-based issue analysis endpoint",
+        "enhanced_issue_analysis": "/issue-analysis-enhanced - Enhanced issue analysis processing",
+        "enhanced_issue_analysis_form": "/issue-analysis-enhanced/form - Form-based enhanced issue analysis",
+        "submit_selection": "/submit-selection - Submit issue analysis selections",
+        "consolidated_responses": "/consolidated-responses - Get consolidated user responses with date filtering",
+        "consolidated_responses_form": "/consolidated-responses/form - Form-based consolidated responses endpoint",
+        "docs": "/docs - Interactive API documentation",
+        "redoc": "/redoc - Alternative API documentation"
+      },
+      "health_info": {
+        "status": "healthy",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "test_name": "Configuration Loading",
+      "success": true,
+      "status_code": 200,
+      "config_path": "config/advanced_memory_agent_test.yaml",
+      "agent_response": "...",
+      "agent_name": "coding_assistant",
+      "thread_id": "thread-1d97da4d-5763-4198-8952-6008777349a7",
+      "metadata": null
+    },
+    {
+      "test_name": "Agent Test - coding_assistant",
+      "agent_name": "coding_assistant",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 685.75,
+      "agent_response": "...",
+      "thread_id": "thread-4ae4a02f-c0f4-453d-b581-4c08c1fad41a",
+      "metadata": null
+    },
+    {
+      "test_name": "Agent Test - architecture_advisor",
+      "agent_name": "architecture_advisor",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 2116.0,
+      "agent_response": "...",
+      "thread_id": "thread-a441ccea-6189-4d7a-9894-8e9cfccd18cd",
+      "metadata": null
+    },
+    {
+      "test_name": "Agent Test - documentation_helper",
+      "agent_name": "documentation_helper",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 1489.78,
+      "agent_response": "...",
+      "thread_id": "thread-67bed79b-41be-4abb-8495-77d006391c62",
+      "metadata": null
+    },
+    {
+      "test_name": "Memory Persistence",
+      "success": true,
+      "thread_id": "test_persistence_1758659792",
+      "first_response_status": 200,
+      "second_response_status": 200,
+      "first_response": "...",
+      "second_response": "...",
+      "memory_test_passed": false
+    },
+    {
+      "test_name": "Performance Under Load",
+      "concurrent_requests": 5,
+      "successful_requests": 5,
+      "success_rate": 1.0,
+      "total_time_seconds": 3.89,
+      "average_time_per_request": 0.78,
+      "success": true
+    },
+    {
+      "test_name": "Memory Metrics API",
+      "success": true,
+      "status_code": 200,
+      "memory_stats": {},
+      "timestamp": "2025-09-24T02:06:40.051881",
+      "status": null
+    },
+    {
+      "test_name": "Supervised Query",
+      "success": true,
+      "status_code": 200,
+      "response_time_ms": 772.15,
+      "response": "...",
+      "metadata": null,
+      "thread_id": "thread-8cd0a070-ea71-4417-912f-d020a0a4259c"
+    }
+  ]
+}

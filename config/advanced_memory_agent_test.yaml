@@ -1,0 +1,144 @@
+# Advanced Memory Agent Configuration for Real Scenario Testing
+# This configuration demonstrates a production-ready setup with advanced memory capabilities
+
+models:
+  default: "openai:gpt-4o-mini"
+  fallback: "openai:gpt-3.5-turbo"
+
+business_context: |
+  You are an AI assistant for TechCorp, a software development company.
+  You help developers with coding questions, architecture decisions, and technical documentation.
+  Remember previous conversations and build context over time to provide better assistance.
+
+# Advanced memory configuration using high-performance system
+persistence:
+  type: "chromadb"
+
+# Advanced ChromaDB configuration for high-performance memory
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./advanced_memory_test"
+    host: "localhost"
+    port: 8000
+    # Connection pool settings for high performance
+    max_connections: 20
+    min_connections: 5
+    connection_timeout: 30.0
+    # Advanced caching configuration
+    l1_cache_size: 5000
+    l1_cache_ttl: 1800  # 30 minutes
+    # Batch processing for optimal throughput
+    batch_size: 100
+    batch_timeout: 0.1
+    enable_batch_processing: true
+    enable_metrics: true
+    # Collection names for organization
+    checkpoint_collection: "techcorp_checkpoints"
+    context_collection: "techcorp_contexts"
+
+# Resource limits for adaptive scaling
+resource_limits:
+  max_memory_mb: 1024
+  max_connections: 50
+  max_concurrent_operations: 200
+  # Scaling thresholds
+  scale_up_cpu_threshold: 75.0
+  scale_down_cpu_threshold: 25.0
+  scale_up_memory_threshold: 80.0
+  scale_down_memory_threshold: 35.0
+
+temperature: 0.2
+
+supervisor:
+  name: "TechCorp AI Supervisor"
+  model: "openai:gpt-4o-mini"
+  prompt: |
+    You are the supervisor for TechCorp's AI assistant system.
+    Route user requests to the most appropriate specialist agent based on the query type.
+    
+    Available agents:
+    - coding_assistant: For programming questions, code reviews, debugging
+    - architecture_advisor: For system design, architecture decisions, best practices
+    - documentation_helper: For writing technical documentation, API docs, tutorials
+    
+    Consider the user's conversation history and current context when routing.
+    
+    Business Context: {{businessContext}}
+
+agents:
+  - name: "coding_assistant"
+    description: "Advanced coding assistant with memory of previous interactions"
+    model: "openai:gpt-4o-mini"
+    prompt_file: "prompts/advanced_coding_assistant_prompt.txt"
+    mcp_servers:
+      filesystem:
+        description: "File system operations for code analysis"
+        transport: "stdio"
+        command: "npx"
+        args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    python_tools:
+      code_analyzer:
+        module_path: "tools.python_function_tools"
+        function_name: "analyze_code_complexity"
+        description: "Analyze code complexity and provide suggestions"
+
+  - name: "architecture_advisor"
+    description: "System architecture and design advisor with contextual memory"
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are TechCorp's senior architecture advisor with advanced memory capabilities.
+      
+      Your expertise includes:
+      - System design and architecture patterns
+      - Scalability and performance optimization
+      - Technology stack recommendations
+      - Best practices and code quality
+      
+      You have access to a high-performance memory system that:
+      - Remembers previous architecture discussions and decisions
+      - Tracks project context and requirements over time
+      - Provides sub-millisecond access to relevant past conversations
+      - Automatically scales resources based on conversation complexity
+      
+      When providing advice:
+      1. Reference relevant previous discussions and decisions
+      2. Consider the full project context and history
+      3. Provide specific, actionable recommendations
+      4. Explain trade-offs and alternatives
+      
+      Current performance metrics: CPU usage, memory usage, and cache hit rates are monitored.
+      Business Context: {{businessContext}}
+      Available MCP servers: {{mcpservers}}
+
+  - name: "documentation_helper"
+    description: "Technical documentation assistant with conversation memory"
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are TechCorp's documentation specialist with advanced memory capabilities.
+      
+      Your role:
+      - Create clear, comprehensive technical documentation
+      - Maintain consistency across documentation projects
+      - Remember documentation standards and style preferences
+      - Track documentation requests and project requirements
+      
+      Memory system features:
+      - Persistent memory of documentation standards and preferences
+      - Context-aware suggestions based on previous work
+      - Performance monitoring for optimal response times
+      - Automatic resource scaling during large documentation projects
+      
+      Focus areas:
+      - API documentation and examples
+      - User guides and tutorials
+      - Architecture documentation
+      - Code comments and inline documentation
+      
+      Business Context: {{businessContext}}
+    
+    http_tools:
+      markdown_validator:
+        url: "http://localhost:3000/validate-markdown"
+        method: "POST"
+        description: "Validate markdown syntax and structure"
