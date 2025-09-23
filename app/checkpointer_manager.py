@@ -23,6 +23,13 @@ try:
 except ImportError:
     HAS_OPTIMIZED_MEMORY = False
 
+# Import ChromaDB checkpointer
+try:
+    from .memory.chromadb_checkpointer import ChromaDBCheckpointer
+    HAS_CHROMADB = True
+except ImportError:
+    HAS_CHROMADB = False
+
 log = logging.getLogger("checkpointer_manager")
 
 
@@ -35,7 +42,7 @@ class CheckpointerManager:
     _instance: Optional['CheckpointerManager'] = None
     _lock = Lock()
     
-    def __new__(cls) -> 'CheckpointerManager':
+    def __new__(cls, config: Optional[Dict[str, Any]] = None) -> 'CheckpointerManager':
         """Ensure singleton pattern."""
         if cls._instance is None:
             with cls._lock:
@@ -44,18 +51,34 @@ class CheckpointerManager:
                     cls._instance._initialized = False
         return cls._instance
     
-    def __init__(self):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the checkpointer manager."""
         if hasattr(self, '_initialized') and self._initialized:
             return
         
-        # Use standard MemorySaver for now while ChromaDB compatibility is being resolved
-        self._checkpointer = MemorySaver()
-        log.info("Initialized global checkpointer manager with standard MemorySaver")
+        self._config = config or {}
+        self._memory_backend = self._config.get("memory", {}).get("backend", "standard")
         
-        # Note: ChromaDB backend is available but needs LangGraph interface compatibility fixes
-        # The optimized memory system initializes successfully but has method signature mismatches
-        # TODO: Update ChromaDB adapter to match the latest LangGraph interface requirements
+        # Initialize based on configuration
+        if self._memory_backend == "chromadb" and HAS_CHROMADB:
+            try:
+                chromadb_config = self._config.get("memory", {}).get("chromadb", {})
+                persist_directory = chromadb_config.get("path", "./jk_agents_memory")
+                collection_name = chromadb_config.get("collection_name", "jk_checkpoints")
+                
+                self._checkpointer = ChromaDBCheckpointer(
+                    persist_directory=persist_directory,
+                    collection_name=collection_name
+                )
+                log.info(f"Initialized ChromaDB checkpointer at {persist_directory}")
+            except Exception as e:
+                log.error(f"Failed to initialize ChromaDB checkpointer: {e}")
+                log.info("Falling back to standard MemorySaver")
+                self._checkpointer = MemorySaver()
+        else:
+            # Use standard MemorySaver as fallback
+            self._checkpointer = MemorySaver()
+            log.info("Initialized global checkpointer manager with standard MemorySaver")
             
         self._initialized = True
     
@@ -144,29 +167,35 @@ class CheckpointerManager:
 _checkpointer_manager = None
 
 
-def get_global_checkpointer() -> MemorySaver:
+def get_global_checkpointer(config: Optional[Dict[str, Any]] = None) -> Any:
     """
     Get the global shared checkpointer instance.
     
+    Args:
+        config: Optional configuration dictionary
+    
     Returns:
-        MemorySaver: The shared checkpointer instance
+        The shared checkpointer instance (MemorySaver or ChromaDBCheckpointer)
     """
     global _checkpointer_manager
     if _checkpointer_manager is None:
-        _checkpointer_manager = CheckpointerManager()
+        _checkpointer_manager = CheckpointerManager(config)
     return _checkpointer_manager.get_checkpointer()
 
 
-def get_checkpointer_manager() -> CheckpointerManager:
+def get_checkpointer_manager(config: Optional[Dict[str, Any]] = None) -> CheckpointerManager:
     """
     Get the global checkpointer manager instance.
+    
+    Args:
+        config: Optional configuration dictionary
     
     Returns:
         CheckpointerManager: The checkpointer manager instance
     """
     global _checkpointer_manager
     if _checkpointer_manager is None:
-        _checkpointer_manager = CheckpointerManager()
+        _checkpointer_manager = CheckpointerManager(config)
     return _checkpointer_manager
 
 

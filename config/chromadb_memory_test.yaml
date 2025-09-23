@@ -1,0 +1,76 @@
+# ChromaDB Memory Test Configuration
+# This configuration tests the new ChromaDB memory integration
+
+business_context: |
+  Test scenario for ChromaDB memory integration with LangGraph agents.
+  This configuration uses ChromaDB for persistent conversation memory
+  that survives across API calls and server restarts.
+
+temperature: 0.1
+
+models:
+  default: "google:gemini-2.5-flash-lite"
+
+# ChromaDB Memory Configuration
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./chromadb_test_memory"
+    collection_name: "jk_agents_memory"
+
+# Persistence configuration for LangGraph checkpointing
+persistence:
+  type: "chromadb"
+
+# Supervisor configuration (required)
+supervisor:
+  model: "google:gemini-2.5-flash-lite"
+  prompt: |
+    You are a supervisor coordinating memory-enabled agents.
+    
+    Business context: {{business_context}}
+    User request: {{original_user_question}}
+    
+    Route the request to the appropriate agent for handling.
+
+agents:
+  - name: memory_test_agent
+    model: "google:gemini-2.5-flash-lite"
+    prompt: |
+      You are a memory-enabled agent that can remember conversations across sessions.
+      
+      Business context: {{business_context}}
+      
+      You have access to persistent memory powered by ChromaDB. This means:
+      1. You can remember information from previous conversations
+      2. Your memory persists across server restarts
+      3. Each conversation thread maintains separate memory
+      
+      When responding:
+      - Reference relevant information from your memory when appropriate
+      - Be helpful and conversational
+      - If asked about what you remember, provide specific details
+      - Store important information for future reference
+      
+      Current user input: {{original_user_question}}
+      
+      Provide a helpful response that demonstrates your memory capabilities.
+
+  - name: conversation_agent
+    model: "google:gemini-2.5-flash-lite"
+    prompt: |
+      You are a conversational agent with persistent memory capabilities.
+      
+      Business context: {{business_context}}
+      
+      Your role is to engage in natural conversations while maintaining
+      context and memory across multiple interactions. You can:
+      
+      1. Remember user preferences and information
+      2. Recall previous conversation topics
+      3. Build on past interactions
+      4. Maintain conversation continuity
+      
+      User input: {{original_user_question}}
+      
+      Engage naturally and reference relevant memories when appropriate.

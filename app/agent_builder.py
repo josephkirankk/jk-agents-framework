@@ -153,10 +153,11 @@ async def build_react_agent(
     llm_payload_logger: Optional[LLMPayloadLogger] = None,
     custom_placeholders: Optional[Dict[str, Any]] = None,
     default_temperature: float = 0.2,
+    app_config: Optional[Dict[str, Any]] = None,
 ):
     # Use global checkpointer for memory persistence across API calls
     if checkpointer is None:
-        checkpointer = get_global_checkpointer()
+        checkpointer = get_global_checkpointer(app_config)
         log.info(f"Using global checkpointer for agent {agent_cfg.name}")
 
     model_id = agent_cfg.model or default_model

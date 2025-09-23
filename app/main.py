@@ -123,6 +123,10 @@ async def build_agents_map(
     mcp_clients: Dict[str, Optional[MultiServerMCPClient]] = {}
 
     default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+    
+    # Convert AppConfig to dict for memory configuration
+    app_config_dict = app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__
+    
     for a in app_cfg.agents:
         compiled, mcp_client = await build_react_agent(
             a,
@@ -133,6 +137,7 @@ async def build_agents_map(
             config_path=config_path,
             enable_llm_payload_logging=False,  # Disable for supervisor mode to avoid log clutter
             default_temperature=app_cfg.temperature,
+            app_config=app_config_dict,
         )
         agents_map[a.name] = compiled
         if mcp_client:
@@ -162,6 +167,9 @@ async def run_direct_agent(
         if not target:
             raise SystemExit(f"Agent '{agent_name}' not found in config")
 
+        # Convert AppConfig to dict for memory configuration
+        app_config_dict = app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__
+        
         compiled, mcp_client = await build_react_agent(
             target,
             default_model,
@@ -172,6 +180,7 @@ async def run_direct_agent(
             enable_llm_payload_logging=True,
             llm_payload_logger=logger.get_llm_payload_logger(),
             default_temperature=app_cfg.temperature,
+            app_config=app_config_dict,
         )
 
         try:

@@ -93,3 +93,4 @@ okta_token.json
 user_responses
 vectordb_wrapper/vectorlogs
 agentlog/
+test_chroma_db/
