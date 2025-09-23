@@ -41,7 +41,7 @@ supervisor:
 agents:
   - name: "python_exec_agent"
     description: "Execute Python code with guaranteed tool calling support"
-    model: "azure_openai:gpt-4.1"  # Proven to work with tool calling
+    model: "google:gemini-2.5-flash"  # Proven to work with tool calling
     prompt: |
       {{dependent_request_responses}}
 
