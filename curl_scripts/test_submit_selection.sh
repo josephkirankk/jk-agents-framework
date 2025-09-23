@@ -19,9 +19,9 @@ curl -X POST "$API_URL" \
     "timestamp": "2024-01-15T10:30:45.123Z",
     "original_input": "Bearing overheating in motor pump",
     "remarks": "This issue has been recurring for the past week. Temperature readings show 85°C which is above normal operating range.",
-    "selected_defect": {
-      "defect_code": "DEF001",
-      "defect_text": "Bearing overheating",
+    "selected_issue": {
+      "issue_code": "DEF001",
+      "issue_text": "Bearing overheating",
       "confidence_score": 0.92,
       "mapping_status": "EXACT_MATCH",
       "curator_action": "AUTO_ACCEPT"
@@ -55,9 +55,9 @@ curl -X POST "$API_URL" \
       }
     ],
     "analysis_metadata": {
-      "agent_name": "jk_pilger_agent_v8",
-      "config_path": "config/jk-gemba.yaml",
-      "submission_source": "enhanced_defect_analysis_page",
+      "agent_name": "general_agent",
+      "config_path": "config/multi_provider_example.yaml",
+      "submission_source": "general_analysis_page",
       "total_pairs_selected": 2
     }
   }' | jq '.'
@@ -74,9 +74,9 @@ curl -X POST "$API_URL" \
   -d '{
     "timestamp": "invalid-timestamp",
     "original_input": "Test input",
-    "selected_defect": {
-      "defect_code": "DEF001",
-      "defect_text": "Test defect",
+    "selected_issue": {
+      "issue_code": "DEF001",
+      "issue_text": "Test issue",
       "confidence_score": 0.8,
       "mapping_status": "EXACT_MATCH",
       "curator_action": "AUTO_ACCEPT"
@@ -116,9 +116,9 @@ curl -X POST "$API_URL" \
   -d '{
     "timestamp": "2024-01-15T10:30:45.123Z",
     "original_input": "Test input",
-    "selected_defect": {
-      "defect_code": "DEF001",
-      "defect_text": "Test defect",
+    "selected_issue": {
+      "issue_code": "DEF001",
+      "issue_text": "Test issue",
       "confidence_score": 0.8,
       "mapping_status": "EXACT_MATCH",
       "curator_action": "AUTO_ACCEPT"
