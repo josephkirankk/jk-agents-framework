@@ -1,0 +1,267 @@
+# High-Performance Memory System Test Configuration
+# This configuration showcases the new optimized memory backend with
+# ChromaDB, connection pooling, caching, and performance monitoring
+
+business_context: |
+  Test scenario for evaluating high-performance memory system with multiple
+  concurrent agents, complex workflows, and extensive checkpoint usage.
+  This configuration stress-tests the ChromaDB backend, connection pooling,
+  caching efficiency, and adaptive resource management.
+
+temperature: 0.3
+
+models:
+  default: "openai:gpt-4o-mini"
+  fast: "openai:gpt-4o-mini"  
+  advanced: "openai:gpt-4o"
+
+# Memory configuration for high-performance backend
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./performance_test_memory"
+    max_connections: 30
+    min_connections: 5
+    batch_size: 100
+    batch_timeout: 0.05  # 50ms for faster batching
+    l1_cache_size: 10000
+    enable_batch_processing: true
+    enable_metrics: true
+  resource_limits:
+    max_memory_mb: 1024
+    max_connections: 50
+    max_concurrent_operations: 1000
+    scale_up_cpu_threshold: 75
+    scale_down_cpu_threshold: 25
+
+supervisor:
+  model: "openai:gpt-4o-mini"
+  prompt: |
+    You are a performance testing supervisor coordinating multiple agents to 
+    stress-test our high-performance memory system. Your job is to create a 
+    comprehensive test plan that exercises:
+    
+    1. Concurrent agent operations
+    2. Extensive checkpoint creation and retrieval  
+    3. Memory optimization features
+    4. Cache efficiency
+    5. Resource scaling
+    
+    Given the user's request: {{original_user_question}}
+    
+    Create a detailed execution plan with multiple parallel steps that will 
+    thoroughly test the memory system performance. Each step should involve
+    different agents performing memory-intensive operations.
+    
+    Return your plan as a JSON object with this structure:
+    {
+      "goal": "Performance testing objective",
+      "plan": [
+        {
+          "id": "step1",
+          "agent": "memory_stress_agent", 
+          "task": "Create and store 100 checkpoints rapidly",
+          "depends_on": [],
+          "timeout_seconds": 60
+        },
+        {
+          "id": "step2", 
+          "agent": "cache_test_agent",
+          "task": "Test cache hit rates with repeated retrievals", 
+          "depends_on": ["step1"],
+          "timeout_seconds": 45
+        },
+        {
+          "id": "step3",
+          "agent": "concurrent_agent_1",
+          "task": "Parallel checkpoint operations",
+          "depends_on": [],
+          "timeout_seconds": 90
+        },
+        {
+          "id": "step4",
+          "agent": "concurrent_agent_2", 
+          "task": "Parallel checkpoint operations",
+          "depends_on": [],
+          "timeout_seconds": 90
+        },
+        {
+          "id": "step5",
+          "agent": "performance_analyzer",
+          "task": "Analyze memory system performance metrics",
+          "depends_on": ["step1", "step2", "step3", "step4"],
+          "timeout_seconds": 30
+        }
+      ]
+    }
+
+agents:
+  - name: memory_stress_agent
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are a memory stress testing agent. Your task is to create intensive 
+      checkpoint operations to test the performance of our ChromaDB backend.
+      
+      Business context: {{business_context}}
+      User request: {{user_task}}
+      
+      For this test, simulate creating and managing a large number of 
+      conversation checkpoints. Generate detailed response data that will 
+      create substantial memory usage and test our optimization features.
+      
+      Report on:
+      - Number of operations performed
+      - Time taken for operations  
+      - Any performance observations
+      - Memory usage patterns noticed
+      
+      Focus on creating realistic conversation data that exercises string 
+      interning, memory pooling, and batch processing capabilities.
+
+  - name: cache_test_agent
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are a cache efficiency testing agent. Your job is to test the 
+      multi-level caching system (L1 in-memory cache and ChromaDB storage).
+      
+      Business context: {{business_context}}
+      User request: {{user_task}}
+      
+      Perform operations that test:
+      1. Cache hit rates for frequently accessed data
+      2. Cache miss patterns for new data
+      3. Cache eviction under memory pressure
+      4. Performance differences between cached vs non-cached retrievals
+      
+      Generate varied queries and checkpoint retrievals to thoroughly test 
+      caching efficiency. Report detailed metrics on cache performance.
+
+  - name: concurrent_agent_1
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are concurrent agent #1 in a parallel processing test. Work 
+      simultaneously with other agents to test connection pooling and 
+      concurrent access patterns.
+      
+      Business context: {{business_context}}
+      User request: {{user_task}}
+      Previous results: {{dependent_request_responses}}
+      
+      Perform intensive checkpoint operations while other agents run in 
+      parallel. This tests:
+      - Connection pool efficiency under load
+      - Thread safety of the memory system
+      - Resource contention handling
+      - Batch processing coordination
+      
+      Generate substantial checkpoint data and monitor performance under 
+      concurrent load. Report any bottlenecks or performance degradation.
+
+  - name: concurrent_agent_2  
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are concurrent agent #2 in a parallel processing test. Work
+      simultaneously with other agents to test system scalability.
+      
+      Business context: {{business_context}}
+      User request: {{user_task}}
+      Previous results: {{dependent_request_responses}}
+      
+      Execute complementary operations to concurrent_agent_1:
+      - Mixed read/write checkpoint operations
+      - Different user contexts for multi-tenancy testing  
+      - Varied data sizes to test memory optimization
+      - Cache invalidation patterns
+      
+      Focus on different access patterns than agent_1 to thoroughly test 
+      the system under diverse concurrent workloads.
+
+  - name: performance_analyzer
+    model: "openai:gpt-4o"
+    prompt: |
+      You are the performance analysis agent. Analyze the results from all 
+      previous memory system tests and provide comprehensive insights.
+      
+      Business context: {{business_context}}
+      User request: {{user_task}}  
+      Previous results: {{dependent_request_responses}}
+      
+      Based on the test results, analyze:
+      
+      1. **Memory Optimization Effectiveness**:
+         - String interning hit rates
+         - Memory pool utilization  
+         - Zero-copy operation benefits
+         
+      2. **ChromaDB Backend Performance**:
+         - Connection pool efficiency
+         - Batch processing throughput
+         - Query response times
+         
+      3. **Caching System Performance**:
+         - L1 cache hit rates
+         - Cache eviction patterns
+         - Memory usage optimization
+         
+      4. **Concurrent Access Handling**:
+         - Thread safety validation
+         - Resource contention analysis
+         - Scalability under load
+         
+      5. **Resource Management**:  
+         - Adaptive scaling triggers
+         - CPU and memory utilization
+         - Circuit breaker effectiveness
+         
+      Provide specific performance metrics, identify bottlenecks, and recommend
+      optimizations. Include concrete numbers and comparisons where possible.
+
+  - name: human_response_agent
+    model: "openai:gpt-4o"
+    prompt: |
+      You are the final response agent. Based on comprehensive memory system 
+      performance testing, provide a detailed summary for the user.
+      
+      Previous results: {{dependent_request_responses}}
+      
+      Synthesize the performance test results into a clear, actionable report:
+      
+      ## High-Performance Memory System Test Results
+      
+      ### Executive Summary
+      [Overall assessment of memory system performance]
+      
+      ### Performance Metrics  
+      - **Memory Optimization**: [String interning, memory pools, zero-copy stats]
+      - **ChromaDB Backend**: [Connection pooling, batching, query performance]
+      - **Caching System**: [Hit rates, response times, memory efficiency]
+      - **Concurrent Performance**: [Multi-user handling, thread safety]
+      
+      ### Key Improvements Demonstrated
+      [Specific optimizations and their impact]
+      
+      ### Performance Benchmarks
+      [Concrete numbers comparing before/after optimization]
+      
+      ### Recommendations
+      [Suggested configuration tuning for production use]
+      
+      ### Conclusion
+      [Summary of memory system readiness and performance gains]
+      
+      Focus on quantifiable results and practical insights for production deployment.
+
+python_tools:
+  memory_performance_tools:
+    module_path: "tools.memory_performance_tools"
+    tools:
+      - name: "create_checkpoint_stress_test"
+        description: "Create multiple checkpoints rapidly for stress testing"
+      - name: "measure_cache_performance"  
+        description: "Measure cache hit rates and response times"
+      - name: "simulate_concurrent_users"
+        description: "Simulate multiple concurrent user sessions"
+      - name: "analyze_memory_usage"
+        description: "Analyze memory optimization statistics"
+      - name: "benchmark_operations"
+        description: "Benchmark memory operations performance"

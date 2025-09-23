@@ -1,0 +1,40 @@
+models:
+  default: "google:gemini-2.5-flash-lite"
+  supervisor: "google:gemini-2.5-flash-lite"
+  temperature: 0.0
+
+business_context: |
+  Basic test configuration using standard memory for simple testing.
+
+persistence:
+  type: "standard"
+
+supervisor:
+  name: "supervisor"
+  model: "google:gemini-2.5-flash-lite"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+
+    Task requirements:
+    - Simple, specific actions
+    - Include simple verification questions
+    - Always end with simple_test_agent for final presentation
+
+    Available agents: {{agents}}
+
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple verification question"}
+      ]
+    }
+
+agents:
+  - name: "simple_test_agent"
+    description: "Simple test agent without external dependencies"
+    model: "google:gemini-2.5-flash-lite"
+    prompt: |
+      You are a helpful test agent. Answer the user's question directly without using any external tools.
+      Be concise and accurate in your responses.
+    mcp_servers: {}

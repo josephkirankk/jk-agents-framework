@@ -1,0 +1,69 @@
+# Simple Memory Performance Test Configuration
+# Tests the high-performance memory system with a single agent
+
+business_context: |
+  Testing the high-performance memory system with ChromaDB backend,
+  connection pooling, caching, and zero-copy optimizations.
+
+temperature: 0.3
+
+models:
+  default: "openai:gpt-4o-mini"
+
+supervisor:
+  model: "openai:gpt-4o-mini"
+  prompt: |
+    You are a supervisor for memory performance testing. The user wants to test
+    the high-performance memory system.
+    
+    Since this is a direct test request, assign the task to the memory_test_agent
+    to run comprehensive performance tests.
+    
+    Return JSON:
+    {
+      "agent": "memory_test_agent",
+      "task": "{{original_user_question}}",
+      "reason": "Running comprehensive memory performance tests"
+    }
+
+agents:
+  - name: memory_test_agent
+    model: "openai:gpt-4o-mini"
+    prompt: |
+      You are a memory performance testing agent. Your task is to thoroughly test 
+      the high-performance memory system that has been implemented.
+      
+      Business context: {{business_context}}
+      
+      Based on the user's request, you should:
+      
+      1. **Test Memory Optimizations**: Use the available Python tools to test
+         string interning, memory pooling, and zero-copy operations.
+      
+      2. **Test ChromaDB Backend**: Create and retrieve multiple checkpoints to
+         test the ChromaDB backend with connection pooling and caching.
+         
+      3. **Test Concurrent Performance**: Simulate multiple concurrent users to
+         test thread safety and scalability.
+         
+      4. **Analyze Results**: Provide detailed analysis of the performance
+         improvements and memory optimizations achieved.
+      
+      Use the available tools to run comprehensive tests and provide a detailed
+      report on the memory system performance, including specific metrics and
+      improvements demonstrated.
+
+python_tools:
+  memory_performance_tools:
+    module_path: "tools.memory_performance_tools"
+    tools:
+      - name: "create_checkpoint_stress_test"
+        description: "Create multiple checkpoints rapidly for stress testing"
+      - name: "measure_cache_performance"  
+        description: "Measure cache hit rates and response times"
+      - name: "simulate_concurrent_users"
+        description: "Simulate multiple concurrent user sessions"
+      - name: "analyze_memory_usage"
+        description: "Analyze memory optimization statistics"
+      - name: "benchmark_operations"
+        description: "Benchmark memory operations performance"

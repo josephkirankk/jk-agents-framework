@@ -31,6 +31,13 @@ from app.thread_manager import get_or_create_thread_id
 
 from app.checkpointer_manager import get_memory_stats, clear_thread_memory, reset_all_memory
 
+# Import memory metrics API
+try:
+    from app.memory_metrics_api import memory_metrics_router
+    HAS_MEMORY_METRICS = True
+except ImportError:
+    HAS_MEMORY_METRICS = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +51,11 @@ app = FastAPI(
     description="Multi-agent system with supervisor planning and execution",
     version="1.0.0",
 )
+
+# Include memory metrics API if available
+if HAS_MEMORY_METRICS:
+    app.include_router(memory_metrics_router)
+    log.info("Memory metrics API endpoints enabled")
 
 # Add CORS middleware
 app.add_middleware(
