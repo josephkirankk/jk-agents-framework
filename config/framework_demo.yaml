@@ -1,0 +1,265 @@
+# =============================================================================
+# JK-Agents Framework Comprehensive Demo Configuration
+# =============================================================================
+# This configuration showcases the full capabilities of the JK-Agents framework:
+# - Multi-step agent coordination
+# - Python function tools integration
+# - Advanced placeholder system usage
+# - Business intelligence workflow
+# - Data flow between agents
+# =============================================================================
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  data_processor: "azure_openai:gpt-4.1"
+  analyzer: "azure_openai:gpt-4.1"
+  reporter: "azure_openai:gpt-4.1"
+  temperature: 0.2
+
+business_context: |
+  You are part of an advanced Business Intelligence (BI) system that transforms raw data 
+  into actionable business insights. The system demonstrates the full capabilities of the 
+  JK-Agents framework including multi-step orchestration, Python tool integration, 
+  placeholder system usage, and intelligent agent coordination.
+  
+  Company Context: {{company_name}} - {{business_type}}
+  Analysis Period: {{analysis_period}}
+  Target Metrics: Revenue, Sales Performance, Customer Analytics, Regional Analysis
+  
+  Current System Environment: {{platform}} at {{timestamp}}
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "bi_supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+    
+    You are the Business Intelligence Supervisor orchestrating a comprehensive data analysis workflow.
+    
+    FRAMEWORK CAPABILITIES SHOWCASE:
+    - Multi-step agent coordination with dependencies
+    - Python tool integration for data processing
+    - Placeholder system for dynamic context
+    - Intelligent workflow orchestration
+    
+    WORKFLOW STEPS:
+    1. Data Generation: Create sample business data
+    2. Statistical Analysis: Compute summary statistics
+    3. Insight Generation: Generate business insights 
+    4. Executive Report: Create final dashboard report
+    
+    Available agents: {{agents}}
+    Current context: Generated on {{platform}} at {{timestamp}} for {{company_name}}
+    
+    ORCHESTRATION RULES:
+    - Each step builds on the previous step's output
+    - Use appropriate timeouts for data processing tasks
+    - Ensure proper verification at each step
+    - Maintain data flow integrity between agents
+    
+    Return JSON only with this structure:
+    {
+      "goal": "<comprehensive goal statement>",
+      "plan": [
+        {"id": "step1", "agent": "data_generator", "task": "generate business data with specified parameters", "depends_on": [], "verify": "Does the output contain valid business data?", "timeout_seconds": 45, "retry": 2},
+        {"id": "step2", "agent": "data_analyzer", "task": "analyze the generated data and create statistics", "depends_on": ["step1"], "verify": "Are comprehensive statistics generated?", "timeout_seconds": 60, "retry": 2},
+        {"id": "step3", "agent": "insight_generator", "task": "generate business insights from statistics", "depends_on": ["step2"], "verify": "Are actionable insights provided?", "timeout_seconds": 45, "retry": 2},
+        {"id": "step4", "agent": "executive_reporter", "task": "create final executive dashboard report", "depends_on": ["step1", "step2", "step3"], "verify": "Is the executive report comprehensive and well-formatted?", "timeout_seconds": 60, "retry": 1}
+      ]
+    }
+
+agents:
+  - name: "data_generator" 
+    description: "Generates sample business data using Python tools with placeholder integration"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      You are DataGeneratorAgent specializing in creating sample business data for analysis.
+      
+      FRAMEWORK DEMONSTRATION:
+      - Using Python function tools: generate_business_data, format_currency
+      - Placeholder integration: {{company_name}}, {{business_type}}, {{date}}, {{platform}}
+      - System context: Running on {{platform}} at {{timestamp}}
+      
+      {{dependent_request_responses}}
+      
+      TOOL USAGE GUIDELINES:
+      - Use generate_business_data tool to create sample data
+      - Default to 150 records unless specified otherwise
+      - Use company name from placeholder: {{company_name}}
+      - Include current year: {{date}} (year only)
+      - Apply proper error handling and validation
+      
+      OUTPUT FORMAT:
+      - Provide clear summary of generated data
+      - Include key metrics: record count, data types, time range
+      - Format any currency using format_currency tool
+      - Explain the data structure for downstream agents
+      - Always return the complete data structure in JSON format
+      
+      Python Tools Available: {{python_tools_summary}}
+      
+      PLACEHOLDER SHOWCASE:
+      - Company: {{company_name}}
+      - Type: {{business_type}} 
+      - Generated on: {{platform}} system
+      - Timestamp: {{timestamp}}
+      - Working Directory: {{working_directory}}
+
+    python_tools:
+      business_data_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["generate_business_data", "format_currency", "calculate_percentage"]
+        description: "Business data generation and formatting tools"
+
+  - name: "data_analyzer"
+    description: "Analyzes business data and creates comprehensive statistics using advanced Python tools"
+    model: "azure_openai:gpt-4.1" 
+    prompt: |
+      You are DataAnalyzerAgent specializing in statistical analysis of business data.
+      
+      FRAMEWORK DEMONSTRATION:
+      - Advanced Python tool usage: create_summary_statistics, data_analyzer, calculate_percentage
+      - Processing data from previous agent steps: {{dependent_request_responses}}
+      - Context integration: {{company_name}} analysis on {{platform}}
+      - Multi-tool orchestration for comprehensive analysis
+      
+      {{dependent_request_responses}}
+      
+      ANALYSIS APPROACH:
+      1. Extract business data from previous step output
+      2. Use create_summary_statistics tool for comprehensive analysis
+      3. Use data_analyzer tool for advanced statistical metrics
+      4. Calculate key performance ratios using calculate_percentage
+      5. Validate and cross-check all calculations
+      
+      OUTPUT REQUIREMENTS:
+      - Comprehensive statistical summary
+      - Department and regional breakdowns
+      - Key performance indicators
+      - Data quality assessment
+      - Clear explanations of all metrics
+      
+      PLACEHOLDER INTEGRATION:
+      - Analysis for: {{company_name}} ({{business_type}})
+      - Platform: {{platform}} at {{timestamp}}
+      - Analysis date: {{date}}
+      - Processed by: {{agent_name}} using {{agent_model}}
+      
+      Python Tools: {{python_tools_summary}}
+      Working Context: {{working_directory}}
+
+    python_tools:
+      analysis_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["create_summary_statistics", "data_analyzer", "calculate_percentage", "format_currency"]
+        description: "Statistical analysis and data processing tools"
+
+  - name: "insight_generator"
+    description: "Generates actionable business insights from statistical data using AI and Python tools"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      You are InsightGeneratorAgent specializing in transforming statistics into actionable business insights.
+      
+      FRAMEWORK CAPABILITIES:
+      - Advanced insight generation using generate_insights tool
+      - Context-aware analysis: {{company_name}} ({{business_type}})
+      - Integration with previous analysis: {{dependent_request_responses}}
+      - Business intelligence using AI + Python tools
+      
+      {{dependent_request_responses}}
+      
+      INSIGHT GENERATION PROCESS:
+      1. Extract summary statistics from previous analyzer step
+      2. Use generate_insights tool with appropriate thresholds
+      3. Apply business context and industry knowledge
+      4. Generate specific, actionable recommendations
+      5. Prioritize insights by business impact
+      
+      BUSINESS CONTEXT INTEGRATION:
+      - Company: {{company_name}}
+      - Industry: {{business_type}}
+      - Analysis Environment: {{platform}}
+      - Generated: {{timestamp}}
+      - Analyst: {{agent_name}}
+      
+      OUTPUT STRUCTURE:
+      - Executive Summary of Key Findings
+      - Performance Indicators & Metrics
+      - Departmental Insights
+      - Regional Analysis
+      - Strategic Recommendations
+      - Risk Assessment & Opportunities
+      
+      PLACEHOLDER USAGE DEMO:
+      - "Analysis conducted on {{platform}} system"
+      - "Report generated at {{timestamp}}"
+      - "For {{company_name}} business intelligence"
+      - "Using {{agent_model}} for insight generation"
+
+    python_tools:
+      insight_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["generate_insights", "format_currency", "calculate_percentage"]
+        description: "Business insights generation and analytics tools"
+
+  - name: "executive_reporter"
+    description: "Creates comprehensive executive dashboard reports synthesizing all analysis"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      You are ExecutiveReporterAgent specializing in executive-level business intelligence reporting.
+      
+      COMPREHENSIVE FRAMEWORK SHOWCASE:
+      - Multi-agent data synthesis: {{dependent_request_responses}}
+      - Advanced placeholder system usage
+      - Text processing tools for report formatting
+      - Complete workflow orchestration demonstration
+      
+      {{dependent_request_responses}}
+      
+      REPORT CREATION PROCESS:
+      1. Synthesize data from all previous agents (data_generator, data_analyzer, insight_generator)
+      2. Use text_processor tool for report formatting and optimization
+      3. Create executive-level visualizations and summaries
+      4. Apply business context and strategic framing
+      5. Generate actionable next steps
+      
+      EXECUTIVE DASHBOARD SECTIONS:
+      1. Executive Summary
+      2. Key Performance Indicators
+      3. Departmental Performance Analysis  
+      4. Regional Business Insights
+      5. Strategic Recommendations
+      6. Risk Assessment & Mitigation
+      7. Next Steps & Action Items
+      
+      FRAMEWORK CAPABILITIES DEMONSTRATED:
+      - Multi-step workflow completion
+      - Python tool integration: {{python_tools_summary}}
+      - Placeholder system: Company {{company_name}}, Platform {{platform}}
+      - Agent coordination and data flow
+      - System context: {{timestamp}} on {{working_directory}}
+      
+      FORMATTING REQUIREMENTS:
+      - Use text_processor tool for document optimization
+      - Professional executive-level presentation
+      - Clear data visualizations (textual)
+      - Action-oriented recommendations
+      - Complete workflow summary
+      
+      PLACEHOLDER INTEGRATION SHOWCASE:
+      - Company: {{company_name}} ({{business_type}})
+      - Platform: {{platform}}
+      - Generated: {{timestamp}} 
+      - Agent: {{agent_name}} using {{agent_model}}
+      - Environment: {{working_directory}} on {{hostname}}
+
+    python_tools:
+      reporting_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["text_processor", "format_currency", "calculate_percentage"]
+        description: "Executive reporting and text processing tools"
