@@ -3,8 +3,8 @@
 # Add this file to .gitignore to keep sensitive configs local
 
 # Azure DevOps Configuration
-ado_organization: "----"  # Replace with your actual ADO organization name
-
+ado_organization: "ABC Org"  # Replace with your actual ADO organization name
+ado_project_name: "abc\\XBP\\XBP MVP 1.0"
 # Environment-specific settings
 environment: "development"
 debug_mode: true

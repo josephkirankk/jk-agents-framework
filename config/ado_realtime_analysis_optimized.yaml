@@ -3,8 +3,8 @@
 # Integrates Microsoft ADO MCP server with Python analysis capabilities
 
 models:
-  default: "azure_openai:gpt-4o"  # Fast, cost-effective for most operations
-  supervisor: "azure_openai:gpt-4o"  # Fast planning decisions
+  default: "azure_openai:gpt-4.1"  # Fast, cost-effective for most operations
+  supervisor: "azure_openai:gpt-4.1"  # Fast planning decisions
   temperature: 0.1  # Lower for more consistent, accurate responses
 
 business_context: |
@@ -23,16 +23,15 @@ business_context: |
   - Focus on actionable recommendations and data-driven decisions
 
   **Azure DevOps User Story Query Context:**  
-        - For any question about User Stories, always assume the area path is {{ado_project_name}} unless another area path is explicitly specified.  
+        - For any question about User Stories, always assume the area path is Global_Data_Project\JBP\JBP Retail 360 MVP 1.0 unless another area path is explicitly specified.  
         - All queries, counts, lists, details, and analyses should be performed only within this area path.
-
 
 persistence:
   type: "memory"
 
 supervisor:
   name: "ado_orchestrator"
-  model: "azure_openai:gpt-4o"
+  model: "azure_openai:gpt-4.1"
   prompt: |
     Business context (do not reveal to user):
     {{business_context}}
@@ -116,7 +115,7 @@ supervisor:
 agents:
   - name: "ado_quick_query_agent"
     description: "Fast-track ADO query agent for immediate responses to simple questions. Optimized for speed and accuracy on direct ADO data requests without complex analysis."
-    model: "azure_openai:gpt-4o"  # Fastest model for quick responses
+    model: "azure_openai:gpt-4.1"  # Fastest model for quick responses
     prompt: |
       {{dependent_request_responses}}
       
@@ -141,6 +140,7 @@ agents:
       3. **Clear Format**: Present results in clean, readable format
       4. **Speed Focus**: One tool call when possible, minimal processing
       5. **Accuracy First**: Ensure data is correct and current
+      6. **API Constraints**: For wit_get_work_item, use EITHER 'fields' OR 'expand' parameter, NEVER both together
       
       OUTPUT FORMAT:
       - Start with direct answer to the question
@@ -157,26 +157,17 @@ agents:
       Remember: Speed and accuracy over analysis depth.
       
     mcp_servers:
-      ado_server:
+      azure_devops:
         description: "Official Microsoft Azure DevOps MCP server for real-time ADO access"
         transport: "stdio"
         command: "npx"
-        args:
-          - "-y"
-          - "@azure-devops/mcp"
-          - "{{ado_organization}}"  # Will be replaced with actual organization name
-          - "-d"
-          - "core"
-          - "work"
-          - "work-items"
-          - "wiki"
-          - "search"
+        args: ["-y", "@azure-devops/mcp", "PepsiCoIT", "-d", "core", "work", "work-items", "wiki", "search"]
         env:
           AZURE_DEVOPS_EXT_PAT: "${AZURE_DEVOPS_EXT_PAT}"
 
   - name: "ado_query_agent"
     description: "Specialized Azure DevOps data retrieval agent using official Microsoft ADO MCP server. Handles real-time queries for work items, projects, builds, releases, backlogs, teams, and iterations."
-    model: "azure_openai:gpt-4o"  # Cost-effective for data retrieval tasks
+    model: "azure_openai:gpt-4.1"  # Cost-effective for data retrieval tasks
     prompt: |
       {{dependent_request_responses}}
       
@@ -207,6 +198,8 @@ agents:
       - Use wit_list_backlogs() for team backlog analysis
       - Use wit_get_work_items_batch_by_ids() for detailed work item data
       - Use work_list_team_iterations() for sprint and iteration data
+      - For individual work items, use wit_get_work_item with EITHER 'fields' parameter OR 'expand' parameter, NEVER both together (Azure DevOps API constraint)
+      - When fetching specific fields, use 'fields' parameter only. When expanding relations, use 'expand' parameter only
       - Always include work item IDs, titles, states, assigned users, and priority levels
       
       OUTPUT FORMAT:
@@ -220,26 +213,17 @@ agents:
       Remember: Focus on data accuracy and completeness. Your output feeds critical analysis workflows.
       
     mcp_servers:
-      ado_server:
+      azure_devops:
         description: "Official Microsoft Azure DevOps MCP server for real-time ADO access"
         transport: "stdio"
         command: "npx"
-        args:
-          - "-y"
-          - "@azure-devops/mcp"
-          - "{{ado_organization}}"  # Will be replaced with actual organization name
-          - "-d"
-          - "core"
-          - "work"
-          - "work-items"
-          - "wiki"
-          - "search"
+        args: ["-y", "@azure-devops/mcp", "PepsiCoIT", "-d", "core", "work", "work-items", "wiki", "search"]
         env:
           AZURE_DEVOPS_EXT_PAT: "${AZURE_DEVOPS_EXT_PAT}"
 
   - name: "python_analysis_agent"  
     description: "Optimized Python data analysis agent for ADO metrics, trends, and statistical insights. Balances speed with analytical depth."
-    model: "azure_openai:gpt-4o"  # Fast model with good analytical capabilities
+    model: "azure_openai:gpt-4.1"  # Fast model with good analytical capabilities
     prompt: |
       {{dependent_request_responses}}
       
@@ -320,7 +304,7 @@ agents:
 
   - name: "report_generator_agent"
     description: "Fast executive report generator that creates concise, actionable summaries from ADO analysis. Optimized for quick business insights."
-    model: "azure_openai:gpt-4o"  # Fast model for executive communication
+    model: "azure_openai:gpt-4.1"  # Fast model for executive communication
     prompt: |
       {{dependent_request_responses}}
       
