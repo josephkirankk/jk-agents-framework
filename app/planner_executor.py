@@ -840,6 +840,9 @@ async def execute_plan(
                     f"Verification instruction: {step.verify}\n"
                     f"Step output (sanitized): "
                     f"{_sanitize_for_moderation(wtext)}\n"
+                    "\nIMPORTANT: When evaluating temporal data, consider that the agent may be working with current session data from live systems. "
+                    "Do not fail verification solely because dates appear to be in the future relative to your knowledge cutoff. "
+                    "Focus on whether the response format, structure, and content quality meet the verification criteria.\n\n"
                     "Return JSON: {\"ok\": true/false, \"reason\":\"...\"}"
                 )
                 ok, reason = True, "skipped"
@@ -889,10 +892,8 @@ async def execute_plan(
                         f"{verify_reason}.\n\n"
                         "Revise your answer to satisfy: "
                         f"{step.verify}.\n"
-                        "Prefer credible sources such as the India "
-                        "Meteorological Department (IMD), Wikipedia, or "
-                        "World Weather Online; avoid forums or "
-                        "user-generated content."
+                        "Use only authentic data sources and avoid "
+                        "generating fictional or placeholder content."
                     )
                     next_task_override = (
                         f"{step.task}\n\nFollow-up correction:\n{guidance}"

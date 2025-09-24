@@ -4,6 +4,9 @@ models:
   temperature: 0.0
 
 business_context: |
+  **CURRENT SESSION**: {{datetime}} ({{day_name}}, {{date_long}})
+  **ANALYSIS PERIOD**: {{month_name}} {{year}}, Week {{week_number}}
+  
   An Azure DevOps business analysis agent that interprets user questions and returns accurate, evidence-backed
   business information about work items, features, epics, repositories, pipelines, and wiki content within the
   organization's Azure DevOps instance. The agent's focus:
@@ -12,6 +15,7 @@ business_context: |
     - Retrieve and analyze work items, comments, and related artifacts.
     - Extract explicit business insights, open questions, risks, and recommendations with verifiable evidence (IDs, URLs, short excerpts).
     - Maintain READ-ONLY safety; never modify resources.
+    - Include temporal context in analysis when relevant (Current date/time: {{date}} {{time}})
 
 persistence:
   type: "memory"
@@ -39,6 +43,9 @@ agents:
     model: "azure_openai:gpt-4.1"
     prompt: |
       {{dependent_request_responses}}
+      
+      **SESSION CONTEXT**: {{datetime}} ({{day_name}}, {{date_long}})
+      **CURRENT PERIOD**: Q{{quarter}} {{year}}, Week {{week_number}} of {{month_name}}
 
       🔒 READ-ONLY AZURE DEVOPS AGENT (production-grade) 🔒
 

@@ -24,6 +24,8 @@ from .markdown_formatter import (
 from .direct_agent_logger import create_direct_agent_logger
 from .thread_manager import get_or_create_thread_id
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from .template_utils import render_prompt_with_placeholders
+from .placeholder_system import PlaceholderContext
 
 
 log = logging.getLogger("app.main")
@@ -31,6 +33,25 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(levelname)s] %(name)s: %(message)s",
 )
+
+
+def process_business_context_template(business_context: str) -> str:
+    """Process template variables in business_context."""
+    if not business_context or not isinstance(business_context, str):
+        return business_context or ""
+    
+    try:
+        # Create placeholder context
+        placeholder_context = PlaceholderContext()
+        
+        # Render the business context template
+        return render_prompt_with_placeholders(
+            business_context,
+            placeholder_context=placeholder_context,
+        )
+    except Exception as e:
+        log.warning(f"Failed to process business_context template: {e}")
+        return business_context  # Return original if processing fails
 
 
 def load_app_config(cfg_path: Path | None = None) -> AppConfig:
@@ -129,11 +150,14 @@ async def build_agents_map(
     # Convert AppConfig to dict for memory configuration
     app_config_dict = app_cfg.model_dump() if hasattr(app_cfg, 'model_dump') else (app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__)
     
+    # Process business context template
+    processed_business_context = process_business_context_template(app_cfg.business_context or "")
+    
     for a in app_cfg.agents:
         compiled, mcp_client = await build_react_agent(
             a,
             default_model,
-            business_context=app_cfg.business_context or "",
+            business_context=processed_business_context,
             original_user_question=user_input or "",
             dependent_request_responses="",
             config_path=config_path,
@@ -150,11 +174,14 @@ async def build_agents_map(
 async def run_direct_agent(
     agent_name: str, user_input: str, app_cfg: AppConfig
 ):
+    # Process business context template
+    processed_business_context = process_business_context_template(app_cfg.business_context or "")
+    
     # Initialize logger
     logger = create_direct_agent_logger(
         agent_name=agent_name,
         user_input=user_input,
-        business_context=app_cfg.business_context or ""
+        business_context=processed_business_context
     )
 
     success = False
@@ -175,7 +202,7 @@ async def run_direct_agent(
         compiled, mcp_client = await build_react_agent(
             target,
             default_model,
-            business_context=app_cfg.business_context or "",
+            business_context=processed_business_context,
             original_user_question=user_input,
             dependent_request_responses="",
             config_path=None,  # Direct agent calls don't have config path
@@ -188,7 +215,7 @@ async def run_direct_agent(
         try:
             system_context = (
                 "Business context:\n"
-                f"{app_cfg.business_context or ''}\n\n"
+                f"{processed_business_context}\n\n"
                 "Previous step results:\n(none)"
             )
 
@@ -247,12 +274,16 @@ async def run_direct_agent(
 
 async def run_supervised(user_input: str, app_cfg: AppConfig):
     default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+    
+    # Process business context template
+    processed_business_context = process_business_context_template(app_cfg.business_context or "")
+    
     # Build supervisor
     supervisor = build_supervisor_compiled(
         app_cfg.supervisor,
         app_cfg.agents,
         default_model,
-        app_cfg.business_context or "",
+        processed_business_context,
         original_user_question=user_input,
         config_path=None,  # CLI calls don't have config path
         default_temperature=app_cfg.temperature,
@@ -266,7 +297,7 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
             supervisor_compiled=supervisor,
             agents_map=agents_map,
             user_input=user_input,
-            business_context=app_cfg.business_context or "",
+            business_context=processed_business_context,
             default_model_for_verifier=default_model,
             agents_configs=app_cfg.agents,
             default_model=default_model,
@@ -275,7 +306,7 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
         formatted_output = format_result_as_markdown(
             result=result,
             user_input=user_input,
-            business_context=app_cfg.business_context
+            business_context=processed_business_context
         )
         print(20*"**")
         print(formatted_output)

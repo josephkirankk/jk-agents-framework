@@ -26,9 +26,22 @@ def extract_json_block(text: str) -> Optional[str]:
         obj, idx = decoder.raw_decode(substring)
         return substring[:idx]
     except Exception:
-        m = re.search(r"(\{(?:[^{}]|(?R))*\})", s)
+        # Find balanced braces using a simple approach
+        brace_count = 0
+        start_pos = -1
+        for i, char in enumerate(s):
+            if char == '{':
+                if brace_count == 0:
+                    start_pos = i
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0 and start_pos != -1:
+                    return s[start_pos:i+1]
+        # Fallback: try to find a simple JSON-like structure
+        m = re.search(r"\{[^{}]*\}", s)
         if m:
-            return m.group(1)
+            return m.group(0)
     return None
 
 def parse_supervisor_json(buf: str) -> Optional[SupervisorDecision]:
