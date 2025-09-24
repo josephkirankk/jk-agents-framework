@@ -4,6 +4,8 @@ import asyncio
 import logging
 from pathlib import Path
 import os
+import signal
+import sys
 from dotenv import load_dotenv
 from typing import Dict, Optional
 
@@ -125,7 +127,7 @@ async def build_agents_map(
     default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
     
     # Convert AppConfig to dict for memory configuration
-    app_config_dict = app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__
+    app_config_dict = app_cfg.model_dump() if hasattr(app_cfg, 'model_dump') else (app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__)
     
     for a in app_cfg.agents:
         compiled, mcp_client = await build_react_agent(
@@ -168,7 +170,7 @@ async def run_direct_agent(
             raise SystemExit(f"Agent '{agent_name}' not found in config")
 
         # Convert AppConfig to dict for memory configuration
-        app_config_dict = app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__
+        app_config_dict = app_cfg.model_dump() if hasattr(app_cfg, 'model_dump') else (app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__)
         
         compiled, mcp_client = await build_react_agent(
             target,
@@ -297,13 +299,30 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def signal_handler(signum, frame):
+    """Handle keyboard interrupt gracefully."""
+    print("\n\n⚠️  Operation interrupted by user. Exiting gracefully...")
+    sys.exit(0)
+
+
 def main():
-    args = parse_args()
-    cfg = load_app_config(Path(args.config) if args.config else None)
-    if args.agent:
-        asyncio.run(run_direct_agent(args.agent, args.prompt, cfg))
-    else:
-        asyncio.run(run_supervised(args.prompt, cfg))
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    try:
+        args = parse_args()
+        cfg = load_app_config(Path(args.config) if args.config else None)
+        if args.agent:
+            asyncio.run(run_direct_agent(args.agent, args.prompt, cfg))
+        else:
+            asyncio.run(run_supervised(args.prompt, cfg))
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Operation interrupted by user. Exiting gracefully...")
+        sys.exit(0)
+    except Exception as e:
+        log.error(f"Application error: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -156,12 +156,41 @@ class TimeoutTool(BaseTool):
                 )
                 return result
             except Exception as e:
-                log.error(
-                    f"Tool {self._inner.name} failed on "
-                    f"attempt {attempt + 1}: {type(e).__name__}: {e}"
-                )
-                import traceback
-                log.error(f"Full traceback: {traceback.format_exc()}")
+                error_msg = str(e)
+                error_type = type(e).__name__
+                
+                # Categorize common error patterns for better user experience
+                if "parameter" in error_msg.lower() and ("conflict" in error_msg.lower() or "cannot" in error_msg.lower()):
+                    log.error(
+                        f"Tool {self._inner.name} failed due to parameter conflict on "
+                        f"attempt {attempt + 1}: {error_msg}"
+                    )
+                elif "authentication" in error_msg.lower() or "unauthorized" in error_msg.lower():
+                    log.error(
+                        f"Tool {self._inner.name} failed due to authentication issue on "
+                        f"attempt {attempt + 1}: {error_type}: {error_msg}"
+                    )
+                elif "permission" in error_msg.lower() or "access denied" in error_msg.lower():
+                    log.error(
+                        f"Tool {self._inner.name} failed due to permission issue on "
+                        f"attempt {attempt + 1}: {error_type}: {error_msg}"
+                    )
+                elif "timeout" in error_msg.lower() or "connection" in error_msg.lower():
+                    log.error(
+                        f"Tool {self._inner.name} failed due to connectivity issue on "
+                        f"attempt {attempt + 1}: {error_type}: {error_msg}"
+                    )
+                else:
+                    log.error(
+                        f"Tool {self._inner.name} failed on "
+                        f"attempt {attempt + 1}: {error_type}: {error_msg}"
+                    )
+                
+                # Only show full traceback on debug level to avoid clutter
+                if log.isEnabledFor(logging.DEBUG):
+                    import traceback
+                    log.debug(f"Full traceback: {traceback.format_exc()}")
+                
                 last_exc = e
         log.error(
             f"Tool {self._inner.name} failed after {self._retries + 1} "

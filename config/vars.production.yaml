@@ -1,0 +1,12 @@
+# Production Configuration Variables
+# Override development settings for production environment
+
+ado_organization: your-prod-org
+environment: production
+debug_mode: false
+api_timeout: 180
+max_retries: 5
+log_level: WARNING
+enable_fast_track_routing: true
+enable_performance_monitoring: true
+mock_external_services: false

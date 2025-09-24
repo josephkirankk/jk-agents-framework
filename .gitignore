@@ -64,6 +64,11 @@ ipython_config.py
 .env.*
 !.env.example
 
+# Configuration variables (keep local)
+config/vars.local.yaml
+config/variables.local.yaml
+config/*.local.yaml
+
 # Editors/IDE
 .vscode/
 .idea/
@@ -94,3 +99,5 @@ user_responses
 vectordb_wrapper/vectorlogs
 agentlog/
 test_chroma_db/
+
+config/vars.local.yaml

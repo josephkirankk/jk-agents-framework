@@ -1,0 +1,28 @@
+# Local Configuration Variables
+# This file contains runtime/config variables for the JK-Agents framework
+# Add this file to .gitignore to keep sensitive configs local
+
+# Azure DevOps Configuration
+ado_organization: "----"  # Replace with your actual ADO organization name
+
+# Environment-specific settings
+environment: "development"
+debug_mode: true
+
+# Example multi-environment support
+# You can override these values in vars.production.yaml, vars.staging.yaml, etc.
+
+# API Configuration
+api_timeout: 120
+max_retries: 3
+
+# Logging
+log_level: "INFO"
+
+# Feature flags
+enable_fast_track_routing: true
+enable_performance_monitoring: true
+
+# Development utilities
+mock_external_services: false
+verbose_logging: false

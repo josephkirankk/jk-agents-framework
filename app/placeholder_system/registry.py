@@ -251,6 +251,7 @@ def _initialize_default_providers(registry: PlaceholderRegistry) -> None:
             ContextPlaceholderProvider,
             UserPlaceholderProvider,
         )
+        from .config_provider import ConfigPlaceholderProvider
     except ImportError:
         from providers import (
             SystemPlaceholderProvider,
@@ -258,11 +259,13 @@ def _initialize_default_providers(registry: PlaceholderRegistry) -> None:
             ContextPlaceholderProvider,
             UserPlaceholderProvider,
         )
+        from config_provider import ConfigPlaceholderProvider
     
     # Register built-in providers with appropriate priorities
     registry.register_provider(SystemPlaceholderProvider(), priority=10)
+    registry.register_provider(ConfigPlaceholderProvider(), priority=15)  # High priority for config vars
     registry.register_provider(AgentPlaceholderProvider(), priority=20)
     registry.register_provider(ContextPlaceholderProvider(), priority=30)
     registry.register_provider(UserPlaceholderProvider(), priority=100)  # Lowest priority
     
-    log.info("Initialized default placeholder providers")
+    log.info("Initialized default placeholder providers including ConfigProvider")

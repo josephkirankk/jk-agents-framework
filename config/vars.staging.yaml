@@ -1,0 +1,11 @@
+# Staging Configuration Variables
+# Override development settings for staging environment
+
+ado_organization: your-staging-org
+environment: staging
+debug_mode: true
+api_timeout: 150
+max_retries: 3
+log_level: INFO
+enable_performance_monitoring: true
+mock_external_services: false
