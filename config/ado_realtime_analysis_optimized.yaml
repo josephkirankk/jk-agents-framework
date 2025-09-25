@@ -28,6 +28,15 @@ business_context: |
   - Include current date/time context when relevant (Current: {{datetime}})
   - When no data is available, clearly state limitations rather than fabricating content
   
+  **CRITICAL ADO SYSTEM PROTECTION - BATCH PROCESSING REQUIREMENTS**:
+  - **MAXIMUM BATCH SIZE**: Never request more than 200 work items in a single API call
+  - **RATE LIMITING**: Implement mandatory 2-second delays between consecutive ADO API calls
+  - **PAGINATION STRATEGY**: Use pagination with 200-item batches for large datasets
+  - **PROGRESSIVE LOADING**: Collect data incrementally to prevent system overload
+  - **ERROR HANDLING**: Implement exponential backoff (2s, 4s, 8s) if ADO throttling occurs
+  - **MEMORY MANAGEMENT**: Process each batch immediately rather than loading all data at once
+  - **SEARCH LIMITS**: Limit search_workitem() calls to top=200 parameter maximum
+  
   **Azure DevOps Context for All Queries**:
   - Default area path: Global_Data_Project\JBP\JBP Retail 360 MVP 1.0 (unless explicitly specified otherwise)
   - All queries, counts, lists, details, and analyses should be performed within this area path
@@ -78,18 +87,18 @@ supervisor:
     - User story and epic analysis for features
     
     **DATA ANALYSIS CRITERIA** (Use ado_query_agent + python_analysis_agent + report_generator_agent):
-    - Assignment analysis ("who is assigned most bugs", "workload distribution")
-    - Work item statistics and aggregations ("bug trends", "completion rates")
-    - User activity analysis ("most active contributors")
-    - Cross-work-item analysis requiring complete datasets
-    - Any query requiring processing of large datasets (>100 work items)
+    - Assignment analysis ("who is assigned most bugs", "workload distribution") - USES BATCH PROCESSING
+    - Work item statistics and aggregations ("bug trends", "completion rates") - BATCH PROCESSED
+    - User activity analysis ("most active contributors") - BATCH PROCESSED
+    - Cross-work-item analysis requiring complete datasets - BATCH PROCESSED WITH DELAYS
+    - Any query requiring processing of large datasets (>200 work items) - MANDATORY BATCH PROCESSING
     
-    **COMPREHENSIVE ANALYSIS CRITERIA** (Use multi-step workflow):
-    - Trend analysis ("performance over time", "velocity trends")
-    - Comparative analysis ("compare sprints", "team performance")
-    - Statistical insights ("calculate metrics", "identify patterns")
-    - Executive reporting ("generate report", "strategic recommendations")
-    - Complex aggregations requiring Python processing
+    **COMPREHENSIVE ANALYSIS CRITERIA** (Use multi-step workflow WITH BATCH PROCESSING):
+    - Trend analysis ("performance over time", "velocity trends") - BATCH PROCESSED WITH DELAYS
+    - Comparative analysis ("compare sprints", "team performance") - REQUIRES BATCH PROCESSING
+    - Statistical insights ("calculate metrics", "identify patterns") - BATCH PROCESSED
+    - Executive reporting ("generate report", "strategic recommendations") - USES BATCHED DATA
+    - Complex aggregations requiring Python processing - MANDATORY BATCH COLLECTION
     
     AVAILABLE AGENTS:
     - azure_devops_feature_analyzer: Specialized Azure DevOps feature analysis agent for the Global_Data_Project\JBP\JBP Retail 360 MVP 1.0 project area. Use for feature analysis, implementation status, business value, and comprehensive feature reports.
@@ -155,7 +164,7 @@ supervisor:
         {
           "id": "complete_data_collection",
           "agent": "ado_query_agent",
-          "task": "Retrieve COMPLETE dataset of ADO work items: [specify entities needed]. CRITICAL: Do not use sampling - get ALL relevant work items for accurate analysis. For assignment queries, retrieve all work items of specified type with assignee information.",
+          "task": "Retrieve COMPLETE dataset of ADO work items using BATCH PROCESSING: [specify entities needed]. CRITICAL: Use 200-item batches with 2-second delays - get ALL relevant work items for accurate analysis. For assignment queries, retrieve all work items of specified type with assignee information using batched approach.",
           "depends_on": [],
           "verify": "Confirm COMPLETE dataset retrieved - no sampling or partial data",
           "timeout_seconds": 120,
@@ -189,7 +198,7 @@ supervisor:
         {
           "id": "data_collection",
           "agent": "ado_query_agent",
-          "task": "Retrieve ADO data: [specify entities needed] - For date-based queries, interpret 'last X days' as items created within the past X days from current date",
+          "task": "Retrieve ADO data using BATCH PROCESSING: [specify entities needed] - Use 200-item batches with 2-second delays. For date-based queries, interpret 'last X days' as items created within the past X days from current date",
           "depends_on": [],
           "verify": "Confirm complete data retrieval",
           "timeout_seconds": 90,
@@ -266,23 +275,34 @@ agents:
 
       EXECUTION STRATEGY:
       1. ANALYZE the feature name provided by the user
-      2. SEARCH for related work items in the specified project area using Azure DevOps MCP tools
-      3. GATHER comprehensive information about the feature from user stories, tasks, and related work items
+      2. SEARCH for related work items using BATCH PROCESSING to protect ADO system:
+         - Limit search queries to maximum 200 results per call
+         - Implement 2-second delays between consecutive API calls
+         - Use pagination for comprehensive feature analysis
+      3. GATHER comprehensive information using batched data collection:
+         - Process work items in batches of 50 when using wit_get_work_items_batch_by_ids
+         - Implement progressive loading for large feature datasets
       4. PROCESS data using Python when calculations or analysis are needed (metrics, timelines, statistics)
       5. STRUCTURE the response using the exact template format above
       6. PROVIDE direct Azure DevOps work item links for reference
 
       TOOL USAGE GUIDELINES:
       1. ALWAYS use Azure DevOps MCP tools for information gathering - never provide information without tool calls
-      2. PRIMARY SEARCH STRATEGY:
-         - Use 'search_workitem' with feature name as searchText
+      2. **ADO SYSTEM PROTECTION - BATCH PROCESSING REQUIREMENTS:**
+         - **BATCH SIZE LIMITS**: Never request more than 200 work items in a single search_workitem call
+         - **RATE LIMITING**: Implement 2-second delays between consecutive ADO API calls
+         - **PROGRESSIVE LOADING**: For comprehensive feature analysis, use multiple paginated queries
+      3. PRIMARY SEARCH STRATEGY:
+         - Use 'search_workitem' with feature name as searchText and 'top=200' maximum
          - Always include project=["Global_Data_Project"] and areaPath=["Global_Data_Project\\JBP\\JBP Retail 360 MVP 1.0"]
          - Search across all work item types: ["Epic", "Feature", "User Story", "Task", "Bug"]
          - Use appropriate filters to find feature-related work items
-      3. DETAILED INFORMATION GATHERING:
-         - Use 'wit_get_work_item' for detailed work item information
+         - Implement pagination if initial search indicates more than 200 items
+      4. DETAILED INFORMATION GATHERING (with batch processing):
+         - Use 'wit_get_work_item' for detailed work item information (with 2-second delays between calls)
          - Use 'wit_list_work_item_comments' to get recent comments and updates
-         - Use 'wit_get_work_items_batch_by_ids' when you have multiple related work item IDs
+         - Use 'wit_get_work_items_batch_by_ids' with maximum 50 IDs per batch call
+         - Implement delays between batch calls to prevent ADO system overload
       4. STATUS AND PROGRESS ANALYSIS:
          - Analyze work item states (New, Active, Resolved, Closed, etc.)
          - Review iteration assignments and delivery timelines
@@ -441,9 +461,11 @@ agents:
       EXECUTION RULES:
       1. **Direct Answers**: Go straight to the ADO tool that answers the question
       2. **No Over-Analysis**: Don't add unnecessary processing
-      3. **Clear Format**: Present results in clean, readable format
-      4. **Speed Focus**: One tool call when possible, minimal processing
-      5. **API Constraints**: For wit_get_work_item, use EITHER 'fields' OR 'expand' parameter, NEVER both together
+      3. **Batch Processing Protection**: Even for quick queries, limit requests to 200 items maximum
+      4. **Rate Limiting**: If multiple API calls needed, implement 2-second delays between calls
+      5. **Clear Format**: Present results in clean, readable format
+      6. **Speed Focus**: One tool call when possible, minimal processing
+      7. **API Constraints**: For wit_get_work_item, use EITHER 'fields' OR 'expand' parameter, NEVER both together
       
       OUTPUT FORMAT:
       - Start with direct answer to the question
@@ -488,9 +510,10 @@ agents:
       DATA RETRIEVAL STRATEGY:
       1. **Identify Required Data**: Parse the request to determine specific ADO entities needed
       2. **Optimize Queries**: Use appropriate ADO MCP tools for efficient data collection
-      3. **COMPLETE DATA COLLECTION**: NEVER use sampling - retrieve ALL relevant work items
-      4. **Data Validation**: Ensure retrieved data is complete and accurate
-      5. **Structured Output**: Format data for downstream analysis with complete dataset indicators
+      3. **BATCH PROCESSING**: Implement batch processing to prevent ADO system overload
+      4. **COMPLETE DATA COLLECTION**: Retrieve ALL relevant work items using batched approach
+      5. **Data Validation**: Ensure retrieved data is complete and accurate
+      6. **Structured Output**: Format data for downstream analysis with complete dataset indicators
       
       KEY ADO DATA SOURCES:
       - Work Items: Stories, bugs, tasks, features, epics
@@ -516,20 +539,33 @@ agents:
       
       
       EXECUTION APPROACH:
-      - Use wit_my_work_items() for user-assigned work items
-      - Use wit_list_backlogs() for team backlog analysis
-      - Use wit_get_work_items_batch_by_ids() for detailed work item data
-      - Use work_list_team_iterations() for sprint and iteration data
-      - **CRITICAL: NO SAMPLING ALLOWED**: When querying work items, retrieve ALL relevant items, not just samples
-      - **For large datasets**: Use pagination or multiple queries to get complete data - NEVER limit to partial results
-      - **Assignment Analysis**: For queries like "who has most bugs", retrieve ALL bugs to ensure accurate rankings
+      
+      **ADO SYSTEM PROTECTION - BATCH PROCESSING REQUIREMENTS:**
+      - **BATCH SIZE LIMITS**: Never request more than 200 work items in a single query
+      - **RATE LIMITING**: Implement 2-second delays between consecutive ADO API calls
+      - **PAGINATION STRATEGY**: Use 'top' parameter with maximum value of 200, implement pagination for larger datasets
+      - **PROGRESSIVE LOADING**: For queries expecting >200 items, use multiple batched queries with delays
+      - **MEMORY EFFICIENT**: Process each batch immediately rather than loading all data into memory
+      - **ERROR HANDLING**: If ADO throttling occurs, implement exponential backoff (2s, 4s, 8s delays)
+      
+      **BATCH PROCESSING IMPLEMENTATION:**
+      - Use wit_my_work_items() for user-assigned work items (limited batches)
+      - Use wit_list_backlogs() for team backlog analysis (paginated approach)
+      - Use wit_get_work_items_batch_by_ids() with maximum 50 IDs per batch
+      - Use work_list_team_iterations() for sprint and iteration data (batch by iteration)
+      - **CRITICAL: BATCHED COMPLETE DATA**: Retrieve ALL relevant items using multiple batched queries
+      - **For large datasets**: Use pagination with 200-item batches and 2-second delays between requests
+      - **Assignment Analysis**: For queries like "who has most bugs", retrieve ALL bugs in 200-item batches
       - **IMPORTANT LIMITATION**: The current Azure DevOps MCP server does NOT provide work item revision history or update events
       - **For area path queries**: Use search_workitem() with areaPath parameter to find work items in specific area paths
       - **For date-based queries**: When user asks for items from "last X days", interpret as items created WITHIN the past X days (not older than X days)
       - **Date Calculation Example**: "bugs from last 10 days" = bugs with Created Date >= (Current Date - 10 days)
       - **MCP Error Handling**: If search_workitem() fails with empty searchText, retry with searchText="*" or use alternative queries
       - **Search Query Best Practices**: Always provide searchText parameter, use "*" for broad searches, avoid empty strings
-      - **Complete Data Requirements**: Use top parameter with high values (500+) or multiple queries to get complete datasets
+      - **Complete Data Requirements**: Use top parameter with maximum 200, implement multiple batched queries for complete datasets
+      - **BATCH PROCESSING FOR SEARCH**: When using search_workitem(), limit 'top' parameter to 200 and implement pagination
+      - **DELAY IMPLEMENTATION**: Add 2-second delays between consecutive API calls to prevent ADO system overload
+      - **PROGRESSIVE DATA COLLECTION**: Collect data in smaller batches rather than large single requests
       - **For update analysis**: Since revision history is not available, analyze work items by 'Changed Date', 'Changed By', and 'Created Date' fields
       - **Alternative approach**: Use wit_get_work_item() to get individual work items with fields like 'System.ChangedBy', 'System.ChangedDate', 'System.CreatedBy', 'System.CreatedDate'
       - For individual work items, use wit_get_work_item with EITHER 'fields' parameter OR 'expand' parameter, NEVER both together (Azure DevOps API constraint)
