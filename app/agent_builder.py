@@ -6,6 +6,7 @@ from pathlib import Path
 
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
+from .memory.enhanced_tool_node import EnhancedToolNode
 
 from .checkpointer_manager import get_global_checkpointer
 from .mcp_loader import load_mcp_tools, build_http_tools
@@ -320,14 +321,42 @@ async def build_react_agent(
         log.warning("Full traceback: %s", traceback.format_exc())
         model_with_tools = model_instance
 
-    agent = create_react_agent(
-        model=model_with_tools,
-        tools=tools,
-        prompt=prompt_filled,
-        name=agent_cfg.name,
-        version="v2",
-        checkpointer=checkpointer,
-    )
+    # Create enhanced tool node for large data handling if enabled
+    large_data_config = app_config.get("large_data_handling") if app_config else None
+    if large_data_config and large_data_config.get("enabled", False):
+        log.info(f"Creating agent {agent_cfg.name} with large data optimization")
+        
+        # Create agent with enhanced tool node
+        agent = create_react_agent(
+            model=model_with_tools,
+            tools=tools,
+            prompt=prompt_filled,
+            name=agent_cfg.name,
+            version="v2",
+            checkpointer=checkpointer,
+        )
+        
+        # Replace tool node with enhanced version
+        enhanced_tool_node = EnhancedToolNode(tools, large_data_config)
+        
+        # Update the agent's tool node (this is LangGraph-specific)
+        if hasattr(agent, '_graph') and hasattr(agent._graph, 'nodes'):
+            # Find and replace the tool node
+            for node_name, node in agent._graph.nodes.items():
+                if 'tool' in node_name.lower():
+                    agent._graph.nodes[node_name] = enhanced_tool_node
+                    break
+        
+    else:
+        # Standard agent creation without large data handling
+        agent = create_react_agent(
+            model=model_with_tools,
+            tools=tools,
+            prompt=prompt_filled,
+            name=agent_cfg.name,
+            version="v2",
+            checkpointer=checkpointer,
+        )
     # Attach model identifier for downstream logging without changing APIs
     try:
         setattr(agent, "_model_id", model_id)

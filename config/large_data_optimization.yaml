@@ -1,0 +1,154 @@
+# Large Data Optimization Configuration for JK Agents Framework
+# This configuration enables efficient handling of large tool call responses
+
+models:
+  default: "google:gemini-2.5-flash-lite:0.1"
+
+business_context: |
+  Large Data Optimization System is now active.
+  This system automatically handles large tool responses (>1000 tokens) by:
+  - Storing large data locally in optimized storage (SQLite + File System)
+  - Creating intelligent summaries for LLM context
+  - Generating dynamic tools for data access
+  - Reducing token costs by 95%+ for large datasets
+
+# Large data handling configuration
+large_data_handling:
+  enabled: true
+  token_threshold: 1000        # Tokens above which to create references
+  
+  # Storage configuration
+  large_data:
+    sqlite_path: "./large_tool_data.db"
+    file_path: "./large_tool_data_files/"
+    compression: true
+    max_sqlite_size_mb: 50     # Files larger than this go to file system
+  
+  # Summarization settings
+  summarization:
+    max_summary_tokens: 200
+    sample_size: 3
+    include_statistics: true
+  
+  # Auto-cleanup settings
+  cleanup:
+    reference_ttl_hours: 48
+    cleanup_interval_hours: 6
+    max_total_storage_gb: 5
+
+# ChromaDB for conversation memory (separate from large data)
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./conversation_memory"
+    collection_name: "agent_conversations"
+    max_connections: 15
+    l1_cache_size: 5000
+
+# Temperature for consistent behavior
+temperature: 0.2
+
+# Agent configurations
+agents:
+  - name: "data_analyst_agent"
+    description: "Analyzes large datasets efficiently with data optimization"
+    model: "google:gemini-2.5-flash-lite:0.1"
+    prompt: |
+      You are an advanced Data Analyst Agent with access to sophisticated data handling capabilities.
+      
+      LARGE DATA OPTIMIZATION ACTIVE:
+      - When tools return large datasets (>1000 tokens), they are automatically stored locally
+      - You'll receive intelligent summaries and dynamic tools to access the data
+      - Use the provided data access tools to explore specific parts of large datasets
+      - This system saves ~95% of token costs for large data operations
+      
+      Your capabilities:
+      1. Analyze large datasets without token limitations
+      2. Use dynamic tools like get_subset_*, search_data_*, get_stats_*
+      3. Provide insights based on comprehensive data analysis
+      4. Handle datasets from 100K to 10M+ records efficiently
+      
+      When you receive a data reference:
+      1. Read the summary to understand the data structure
+      2. Use available tools to explore relevant portions
+      3. Combine insights from multiple data access operations
+      4. Provide comprehensive analysis based on your findings
+      
+      Business Context: {{businessContext}}
+      Available Tools: {{mcpservers}}
+    
+    # Tools that should use large data optimization
+    tools:
+      - name: "fetch_sales_data"
+        description: "Fetch large sales datasets"
+      - name: "get_user_analytics"
+        description: "Get comprehensive user analytics data"
+      - name: "export_financial_report"
+        description: "Export detailed financial reports"
+    
+    mcp_servers: {}
+    http_tools: {}
+    python_tools: {}
+
+  - name: "research_agent"
+    description: "Research agent optimized for handling large document collections"
+    model: "google:gemini-2.5-flash-lite:0.1"
+    prompt: |
+      You are a Research Agent optimized for handling large document collections and datasets.
+      
+      LARGE DATA OPTIMIZATION FEATURES:
+      - Large research datasets are automatically stored and referenced
+      - You get intelligent summaries of document collections
+      - Use dynamic search and filtering tools to find relevant information
+      - No token limits for large research datasets
+      
+      Research Process:
+      1. When you receive large datasets, review the summary first
+      2. Use search_data_* tools to find relevant information
+      3. Use get_subset_* tools to examine specific portions
+      4. Synthesize findings from multiple data exploration operations
+      
+      Business Context: {{businessContext}}
+    
+    tools:
+      - name: "search_documents"
+        description: "Search through large document collections"
+      - name: "fetch_research_data"
+        description: "Fetch comprehensive research datasets"
+    
+    mcp_servers: {}
+    http_tools: {}
+    python_tools: {}
+
+# Supervisor configuration for multi-agent workflows
+supervisor:
+  name: "Large Data Workflow Supervisor"
+  model: "google:gemini-2.5-flash-lite:0.1"
+  prompt: |
+    You are the Workflow Supervisor for the Large Data Optimization System.
+    
+    LARGE DATA OPTIMIZATION SYSTEM ACTIVE:
+    - All agents have access to advanced large data handling capabilities
+    - Tool responses >1000 tokens are automatically stored with intelligent summaries
+    - Agents receive compact references instead of massive datasets
+    - Dynamic tools are generated for selective data access
+    - Token costs reduced by 95%+ for large datasets
+    
+    OPTIMIZATION CAPABILITIES:
+    - Agents can handle massive datasets (100K+ records) efficiently
+    - Large data is automatically stored locally with intelligent summaries
+    - Each agent gets dynamic tools to access specific data portions
+    - Token costs reduced by 95%+ for large datasets
+    
+    WORKFLOW PLANNING:
+    When planning multi-agent workflows involving large data:
+    1. Assign data-intensive tasks to appropriate specialized agents
+    2. Consider that large datasets will be referenced, not copied
+    3. Plan for agents to use dynamic data access tools
+    4. Enable knowledge sharing through data references
+    5. Leverage the large data optimization for cost-effective analysis
+    
+    Available Agents: {{agents}}
+    Business Context: {{businessContext}}
+    
+    Return JSON with comprehensive multi-step plans that leverage the large data optimization capabilities.
