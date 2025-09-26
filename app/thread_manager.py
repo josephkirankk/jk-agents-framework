@@ -54,9 +54,15 @@ def validate_thread_id(thread_id: str) -> bool:
     if not thread_id or not isinstance(thread_id, str):
         return False
     
-    # Allow alphanumeric characters, hyphens, and underscores
-    # Length should be reasonable (between 5 and 100 characters)
-    pattern = r'^[a-zA-Z0-9_-]{5,100}$'
+    # Strip whitespace
+    thread_id = thread_id.strip()
+    if not thread_id:
+        return False
+    
+    # Allow alphanumeric characters, hyphens, underscores, and dots
+    # Length should be reasonable (between 1 and 200 characters)
+    # More permissive to allow simple IDs like 'qas', 'test', etc.
+    pattern = r'^[a-zA-Z0-9._-]{1,200}$'
     is_valid = bool(re.match(pattern, thread_id))
     
     if not is_valid:
