@@ -13,8 +13,133 @@ from .utils import extract_json_block
 from langchain.chat_models import init_chat_model
 from .thread_manager import get_or_create_thread_id, create_supervisor_thread_id, create_step_thread_id
 
+# Production Smart Memory imports
+try:
+    from smart_agent.memory_adapter import get_or_create_smart_memory_integration, ProductionSmartMemoryIntegration
+    SMART_MEMORY_AVAILABLE = True
+except ImportError:
+    SMART_MEMORY_AVAILABLE = False
+
 log = logging.getLogger("planner_executor")
 logging.getLogger("planner_executor").setLevel(logging.INFO)
+
+
+# Production Smart Memory functions are handled in the memory_adapter module
+
+
+async def get_smart_memory_context(
+    query: str,
+    thread_id: str,
+    context_type: str = "planning",
+    max_tokens: int = 1500,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Retrieve optimized context from Production Smart Memory system.
+    
+    Args:
+        query: The query to retrieve context for
+        thread_id: Thread ID for memory isolation
+        context_type: Type of context ('planning', 'execution', 'verification')
+        max_tokens: Maximum tokens for context
+        **kwargs: Additional parameters for context retrieval
+        
+    Returns:
+        Dictionary containing optimized context and metadata
+    """
+    if not SMART_MEMORY_AVAILABLE:
+        # Return empty context if Smart Memory not available
+        return {
+            "query": query,
+            "optimized_memories": [],
+            "context_summary": "Smart Memory Agent not available",
+            "total_tokens": 0,
+            "optimization_applied": False,
+            "relevance_threshold": 0.0,
+            "performance_metrics": {},
+            "smart_memory_available": False
+        }
+    
+    try:
+        # Get thread-specific Smart Memory integration
+        integration = await get_or_create_smart_memory_integration(thread_id)
+        
+        # Retrieve optimized context with enhanced logging info
+        enhanced_kwargs = kwargs.copy()
+        enhanced_kwargs['context_type'] = context_type
+        enhanced_kwargs['agent_name'] = kwargs.get('agent_name', 'supervisor')
+        
+        context = await integration.get_context_for_query(
+            query=query,
+            max_tokens=max_tokens,
+            include_metadata=True,
+            **enhanced_kwargs
+        )
+        
+        log.info(
+            f"Smart Memory context retrieved for thread {thread_id}: "
+            f"{len(context.get('optimized_memories', []))} memories, "
+            f"{context.get('total_tokens', 0)} tokens"
+        )
+        
+        return context
+        
+    except Exception as e:
+        log.warning(f"Smart Memory context retrieval failed: {e}")
+        # Return fallback context
+        return {
+            "query": query,
+            "optimized_memories": [],
+            "context_summary": f"Smart Memory context retrieval failed: {str(e)}",
+            "total_tokens": 0,
+            "optimization_applied": False,
+            "relevance_threshold": 0.0,
+            "performance_metrics": {},
+            "smart_memory_available": False
+        }
+
+
+async def store_execution_memory(
+    content: str,
+    thread_id: str,
+    memory_type: str = "execution",
+    metadata: Optional[Dict[str, Any]] = None,
+    **kwargs
+) -> Optional[str]:
+    """
+    Store execution results in Production Smart Memory system.
+    
+    Args:
+        content: Content to store
+        thread_id: Thread ID for memory isolation
+        memory_type: Type of memory ('execution', 'plan', 'result')
+        metadata: Additional metadata
+        **kwargs: Additional parameters
+        
+    Returns:
+        Memory ID if stored successfully, None otherwise
+    """
+    if not SMART_MEMORY_AVAILABLE:
+        log.debug("Smart Memory Agent not available for storing execution memory")
+        return None
+    
+    try:
+        # Get thread-specific Smart Memory integration
+        integration = await get_or_create_smart_memory_integration(thread_id)
+        
+        memory_id = await integration.store_memory(
+            content=content,
+            metadata=metadata or {},
+            memory_type=memory_type,
+            **kwargs
+        )
+        
+        log.debug(f"Stored execution memory with ID: {memory_id} for thread: {thread_id}")
+        return memory_id
+        
+    except Exception as e:
+        log.warning(f"Failed to store execution memory: {e}")
+        return None
 
 
 @asynccontextmanager
@@ -386,10 +511,50 @@ async def execute_plan(
         "supervisor": {"input": 0, "output": 0, "total": 0},
         "worker": {"input": 0, "output": 0, "total": 0},
     }
-    sup_system_context = (
-        "Business context:\n"
-        f"{business_context}"
+    # Retrieve Smart Memory context for planning
+    smart_context = await get_smart_memory_context(
+        query=user_input,
+        thread_id=base_thread_id,
+        context_type="planning",
+        max_tokens=1200,
+        agent_name="supervisor",
+        user_input=user_input,
+        business_context=business_context
     )
+    
+    # Build enhanced system context with Smart Memory insights
+    sup_system_context = f"Business context:\n{business_context}"
+    
+    if smart_context.get("smart_memory_available") and smart_context.get("optimized_memories"):
+        # Add Smart Memory context to system prompt
+        context_summary = smart_context.get("context_summary", "")
+        relevant_memories = smart_context.get("optimized_memories", [])
+        
+        if context_summary:
+            sup_system_context += f"\n\nRelevant Context Summary:\n{context_summary}"
+        
+        if relevant_memories:
+            sup_system_context += "\n\nRelevant Previous Interactions:"
+            for i, memory in enumerate(relevant_memories[:3], 1):  # Limit to top 3
+                memory_content = memory.get('content', '')[:300]  # Truncate for brevity
+                relevance_score = memory.get('relevance_score', 0.0)
+                sup_system_context += f"\n{i}. [Relevance: {relevance_score:.2f}] {memory_content}..."
+        log.info(
+            f"Enhanced supervisor context with Smart Memory: {len(relevant_memories)} memories, {smart_context.get('total_tokens', 0)} tokens"
+        )
+        
+        # Log to execution log file
+        _safe_write([
+            "--- Smart Memory Context (Supervisor) ---",
+            f"Thread ID: {base_thread_id}",
+            f"Agent: supervisor",
+            f"Context Type: planning", 
+            f"Query: {user_input}",
+            f"Memories Retrieved: {len(relevant_memories)}",
+            f"Total Tokens: {smart_context.get('total_tokens', 0)}",
+            f"Context Summary: {context_summary}",
+            ""
+        ])
     sup_state = {
         "messages": [
             {"role": "system", "content": sup_system_context},
@@ -409,7 +574,8 @@ async def execute_plan(
     except Exception as e:
         log.warning("Failed to print supervisor invocation messages: %s", e)
     try:
-        config = {"configurable": {"thread_id": supervisor_thread_id}}
+        # Use base thread ID for supervisor to maintain memory continuity
+        config = {"configurable": {"thread_id": base_thread_id}}
         # Log supervisor request
         _safe_write([
             "--- Supervisor Request ---",
@@ -417,6 +583,7 @@ async def execute_plan(
             f"Planning Prompt: {getattr(supervisor_compiled, '_rendered_prompt', '(none)')}",
             f"System Context: {sup_system_context}",
             f"User: {user_input}",
+            f"Thread ID: {base_thread_id}",
             "",
         ])
         log.info(
@@ -438,7 +605,8 @@ async def execute_plan(
             time.perf_counter() - t0,
         )
     except AttributeError:
-        config = {"configurable": {"thread_id": supervisor_thread_id}}
+        # Use base thread ID for fallback to maintain memory continuity
+        config = {"configurable": {"thread_id": base_thread_id}}
         _safe_write([
             "--- Supervisor Request ---",
             f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
@@ -584,11 +752,54 @@ async def execute_plan(
             # Use existing compiled agent but inject dependent context via system message
             user_task = next_task_override or step.task
             worker_compiled = agents_map[step.agent]
+            
+            # Retrieve Smart Memory context for step execution
+            step_smart_context = await get_smart_memory_context(
+                query=user_task,
+                thread_id=base_thread_id,
+                context_type="execution",
+                max_tokens=800,
+                agent_name=step.agent,
+                step_id=step.id,
+                user_input=user_input,
+                business_context=business_context
+            )
 
-            # Build system context with business context and dependent steps
+            # Build system context with business context, dependent steps, and Smart Memory
             system_context = f"Business context:\n{business_context}"
             if dependent_req_resp:
                 system_context += f"\n\n{dependent_req_resp}"
+                
+            # Add Smart Memory context if available
+            if step_smart_context.get("smart_memory_available") and step_smart_context.get("optimized_memories"):
+                context_summary = step_smart_context.get("context_summary", "")
+                relevant_memories = step_smart_context.get("optimized_memories", [])
+                
+                if context_summary:
+                    system_context += f"\n\nRelevant Context for this Step:\n{context_summary}"
+                
+                if relevant_memories:
+                    system_context += "\n\nRelevant Previous Results:"
+                    for i, memory in enumerate(relevant_memories[:2], 1):  # Limit to top 2 for steps
+                        memory_content = memory.get('content', '')[:200]  # More compact for steps
+                        relevance_score = memory.get('relevance_score', 0.0)
+                        memory_type = memory.get('memory_type', 'unknown')
+                        system_context += f"\n{i}. [{memory_type}, Score: {relevance_score:.2f}] {memory_content}..."
+                
+                log.info(f"Enhanced step {step.id} context with Smart Memory: {len(relevant_memories)} memories")
+                
+                # Log to execution log file
+                _safe_write([
+                    f"--- Smart Memory Context (Step {step.id}) ---",
+                    f"Thread ID: {base_thread_id}",
+                    f"Agent: {step.agent}",
+                    f"Context Type: execution",
+                    f"Query: {user_task}",
+                    f"Memories Retrieved: {len(relevant_memories)}",
+                    f"Total Tokens: {step_smart_context.get('total_tokens', 0)}",
+                    f"Context Summary: {context_summary}",
+                    ""
+                ])
 
             worker_state = {
                 "messages": [
@@ -605,9 +816,9 @@ async def execute_plan(
             )
 
             try:
-                step_thread_id = create_step_thread_id(base_thread_id, step.id)
+                # Use base thread ID for all steps to maintain memory continuity
                 worker_config = {
-                    "configurable": {"thread_id": step_thread_id}
+                    "configurable": {"thread_id": base_thread_id}
                 }
                 # Log worker request
                 _safe_write([
@@ -655,9 +866,9 @@ async def execute_plan(
                         time.perf_counter() - t1,
                     )
             except AttributeError:
-                step_thread_id = create_step_thread_id(base_thread_id, step.id)
+                # Use base thread ID for sync fallback to maintain memory continuity
                 worker_config = {
-                    "configurable": {"thread_id": step_thread_id}
+                    "configurable": {"thread_id": base_thread_id}
                 }
                 _safe_write([
                     (
@@ -901,6 +1112,43 @@ async def execute_plan(
                 step.verify is None or verified
             ):
                 log.info("Step %s completed successfully", step.id)
+                
+                # Store successful execution in Smart Memory for future context
+                memory_id = await store_execution_memory(
+                    content=f"Task: {user_task}\n\nResult: {wtext}",
+                    thread_id=base_thread_id,
+                    memory_type="execution_result",
+                    metadata={
+                        "step_id": step.id,
+                        "agent_name": step.agent,
+                        "user_input": user_input,
+                        "business_context": business_context[:200] if business_context else "",  # Truncate
+                        "attempts": attempts,
+                        "verified": verified,
+                        "verification_reason": verify_reason if step.verify else None,
+                        "tool_calls_count": len(tool_calls),
+                        "response_length": len(wtext),
+                        "success": True,
+                        "timestamp": datetime.now().isoformat()
+                    },
+                    step_id=step.id,
+                    agent_name=step.agent
+                )
+                
+                # Log memory storage to execution log
+                if memory_id:
+                    _safe_write([
+                        f"--- Smart Memory Storage (Step {step.id}) ---",
+                        f"Thread ID: {base_thread_id}",
+                        f"Agent: {step.agent}",
+                        f"Memory ID: {memory_id}",
+                        f"Memory Type: execution_result",
+                        f"Content Length: {len(wtext)} chars",
+                        f"Tool Calls: {len(tool_calls)}",
+                        f"Verified: {verified}",
+                        ""
+                    ])
+                
                 break
             else:
                 # If verification failed, prepare a corrective instruction
@@ -976,12 +1224,62 @@ async def execute_plan(
         sid: {"summary": info["output_summary"], "raw": info["raw"]}
         for sid, info in step_results.items()
     }
+    
+    # Store complete plan execution in Smart Memory for future reference
+    plan_summary = f"Goal: {plan.goal or user_input}\n\n"
+    plan_summary += "Execution Results:\n"
+    for sid, info in step_results.items():
+        success_indicator = "✓" if info.get("ok", False) else "✗"
+        plan_summary += f"{success_indicator} Step {sid} ({info.get('agent', 'unknown')}): {info.get('output_summary', '')[:150]}...\n"
+    
+    # Add performance metrics
+    total_calls = calls["supervisor"] + calls["worker"]
+    total_tokens = tokens["supervisor"]["total"] + tokens["worker"]["total"]
+    plan_summary += f"\nPerformance: {total_calls} LLM calls, {total_tokens} tokens total"
+    
+    plan_memory_id = await store_execution_memory(
+        content=plan_summary,
+        thread_id=base_thread_id,
+        memory_type="plan_execution",
+        metadata={
+            "user_input": user_input,
+            "business_context": business_context[:200] if business_context else "",
+            "plan_goal": plan.goal or user_input,
+            "steps_count": len(plan.plan),
+            "successful_steps": sum(1 for info in step_results.values() if info.get("ok", False)),
+            "failed_steps": sum(1 for info in step_results.values() if not info.get("ok", False)),
+            "total_llm_calls": total_calls,
+            "total_tokens": total_tokens,
+            "execution_time_seconds": time.perf_counter() - t0 if 't0' in locals() else 0,
+            "global_retries_used": global_retries_done,
+            "agents_used": list(set(info.get('agent', '') for info in step_results.values())),
+            "timestamp": datetime.now().isoformat(),
+            "status": "completed"
+        },
+        plan_goal=plan.goal or user_input,
+        user_input=user_input,
+        agent_name="plan_executor"
+    )
+    
+    # Log plan memory storage to execution log
+    if plan_memory_id:
+        _safe_write([
+            "--- Smart Memory Storage (Plan Summary) ---",
+            f"Thread ID: {base_thread_id}",
+            f"Agent: plan_executor",
+            f"Memory ID: {plan_memory_id}",
+            f"Memory Type: plan_execution",
+            f"Steps: {len(plan.plan)} total",
+            f"Successful: {sum(1 for info in step_results.values() if info.get('ok', False))}",
+            f"Failed: {sum(1 for info in step_results.values() if not info.get('ok', False))}",
+            f"Total LLM calls: {total_calls}",
+            f"Total tokens: {total_tokens}",
+            ""
+        ])
 
     # Write summary to log
-    total_calls = calls["supervisor"] + calls["worker"]
     total_input = tokens["supervisor"]["input"] + tokens["worker"]["input"]
     total_output = tokens["supervisor"]["output"] + tokens["worker"]["output"]
-    total_tokens = tokens["supervisor"]["total"] + tokens["worker"]["total"]
     _safe_write([
         "=== Summary ===",
         (

@@ -1,0 +1,259 @@
+# Smart Memory Agent Configuration with Python MCP Integration
+# Optimized configuration for intelligent memory retrieval and context optimization
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.1
+
+business_context: |
+  You are an AI system with advanced memory capabilities powered by a Smart Memory Agent.
+  The system uses machine learning-enhanced vector search, semantic ranking, and intelligent
+  context optimization to provide the most relevant information efficiently.
+
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./smart_memory_store"
+    host: "localhost"
+    port: 8000
+    # High-performance connection pool
+    max_connections: 25
+    min_connections: 8
+    connection_timeout: 45.0
+    # Advanced caching for smart agent
+    l1_cache_size: 8000
+    l1_cache_ttl: 2700  # 45 minutes
+    # Optimized batch processing
+    batch_size: 150
+    batch_timeout: 0.08
+    enable_batch_processing: true
+    enable_metrics: true
+    # Smart agent collections
+    checkpoint_collection: "smart-agent-checkpoints"
+    context_collection: "smart-agent-context"
+
+  # Smart Memory Agent Configuration
+  smart_agent:
+    enabled: true
+    
+    # Vector Search Optimization
+    vector_search:
+      max_candidate_memories: 12
+      relevance_threshold: 0.72
+      cache_relevance_scores: true
+      enable_ml_refinement: true
+      dynamic_k_selection: true
+      
+    # Semantic Context Ranking
+    context_ranking:
+      ranking_weights:
+        relevance: 0.42
+        recency: 0.18
+        importance: 0.25
+        coherence: 0.15
+      adaptive_weights: true
+      enable_learning: true
+      
+    # Token Budget Management
+    token_optimization:
+      max_context_tokens: 2200
+      enable_compression: true
+      summarization_threshold: 400
+      deduplication_threshold: 0.88
+      adaptive_budget: true
+      
+    # Relevance Filtering
+    relevance_filtering:
+      adaptive_thresholding: true
+      multi_criteria_filtering: true
+      quality_preservation: true
+      
+    # ML Enhancement Settings
+    ml_enhancements:
+      enable_query_classification: true
+      enable_similarity_refinement: true
+      enable_statistical_filtering: true
+      enable_clustering_analysis: true
+      enable_context_quality_analysis: true
+      
+    # Performance Settings
+    performance:
+      enable_async_processing: true
+      batch_processing_threshold: 5
+      enable_performance_monitoring: true
+      cache_optimization: true
+
+supervisor:
+  name: "smart_supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+    
+    You are an intelligent supervisor with access to a Smart Memory Agent system.
+    The Smart Memory Agent uses advanced ML techniques to optimize memory retrieval
+    and context delivery, ensuring you receive the most relevant information efficiently.
+    
+    Available agents:
+    {{agents}}
+    
+    Create execution plans that leverage the Smart Memory Agent's capabilities:
+    - The system automatically optimizes context relevance and token usage
+    - Memory retrieval is enhanced with ML-based similarity refinement
+    - Context is intelligently compressed while preserving quality
+    - Query classification helps adapt retrieval strategies
+    
+    Return JSON plan format:
+    {
+      "goal": "<restatement of user goal>",
+      "plan": [
+        {
+          "id": "s1", 
+          "agent": "smart_memory_agent", 
+          "task": "...", 
+          "depends_on": [], 
+          "verify": "...", 
+          "timeout_seconds": 90,
+          "retry": 2,
+          "enable_ml_enhancements": true
+        }
+      ]
+    }
+    
+    Respond with JSON only.
+
+agents:
+  - name: "smart_memory_agent"
+    description: "AI agent with Smart Memory capabilities and Python MCP integration"
+    model: "google:gemini-2.5-flash"
+    prompt: |
+      {{dependent_request_responses}}
+
+      You are an AI agent enhanced with Smart Memory capabilities. Your memory system uses
+      advanced machine learning techniques via Python MCP integration to provide optimal
+      context retrieval and intelligent information synthesis.
+
+      Smart Memory Features Available:
+      - ML-enhanced vector search with dynamic relevance scoring
+      - Intelligent context ranking using multi-factor analysis
+      - Automatic token optimization with content compression
+      - Query classification for adaptive retrieval strategies
+      - Statistical analysis for optimal memory filtering
+      - Clustering analysis for improved information organization
+
+      INSTRUCTIONS:
+      - Leverage your Smart Memory system for all information retrieval and context analysis
+      - The system automatically optimizes context relevance and token efficiency
+      - Use the enhanced memory capabilities to provide comprehensive, accurate responses
+      - The memory system learns and adapts from usage patterns over time
+
+      Available MCP servers: {{mcpservers}}
+      
+      Your Smart Memory Agent will automatically:
+      1. Classify your queries for optimal retrieval strategies
+      2. Use ML-enhanced similarity scoring for better relevance
+      3. Apply statistical filtering to ensure quality information
+      4. Optimize token usage while preserving information quality
+      5. Learn from interactions to improve future performance
+
+    mcp_servers:
+      # Python MCP server for Smart Memory ML computations
+      python_runner:
+        description: "Python MCP server for Smart Memory Agent ML computations"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  - name: "analysis_agent"
+    description: "Specialized agent for data analysis with Smart Memory"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      
+      You are a data analysis specialist with Smart Memory capabilities.
+      Use your enhanced memory system to:
+      - Retrieve relevant analytical patterns and methodologies
+      - Apply learned insights from previous analyses
+      - Optimize information synthesis for analytical tasks
+      
+      Your Smart Memory system provides:
+      - Context-aware retrieval of analytical techniques
+      - Intelligent filtering of relevant data patterns
+      - Optimized context delivery for complex analysis
+    mcp_servers: {}
+
+  - name: "response_formatter"
+    description: "Final response formatter with memory-enhanced insights"
+    model: "azure_openai:gpt-4.1" 
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Format the final response using insights from the Smart Memory-enhanced agents.
+      The previous responses contain optimally retrieved and organized information.
+      
+      Create a comprehensive, well-structured response that:
+      - Synthesizes the smart memory-enhanced insights
+      - Maintains the quality and relevance optimizations
+      - Presents information in a user-friendly format
+      - Leverages the ML-enhanced context organization
+      
+    mcp_servers: {}
+
+# Performance and Quality Monitoring
+monitoring:
+  enable_memory_performance_tracking: true
+  enable_ml_enhancement_metrics: true
+  enable_quality_scoring: true
+  enable_token_efficiency_monitoring: true
+
+# Development and Testing Settings
+development:
+  enable_debug_logging: false
+  enable_performance_profiling: false
+  test_mode: false
+  mock_mcp_server: false
+
+# Alternative model configurations for different performance profiles
+alternative_configs:
+  # High Performance - for production workloads
+  high_performance:
+    models:
+      default: "azure_openai:gpt-4.1"
+    memory:
+      smart_agent:
+        vector_search:
+          max_candidate_memories: 15
+        token_optimization:
+          max_context_tokens: 3000
+        performance:
+          enable_async_processing: true
+          
+  # Cost Optimized - for budget-conscious deployments
+  cost_optimized:
+    models:
+      default: "azure_openai:gpt-4o-mini"
+    memory:
+      smart_agent:
+        vector_search:
+          max_candidate_memories: 8
+        token_optimization:
+          max_context_tokens: 1500
+          
+  # Development - for testing and development
+  development:
+    models:
+      default: "google:gemini-2.5-flash"
+    memory:
+      smart_agent:
+        ml_enhancements:
+          enable_query_classification: false
+        performance:
+          enable_performance_monitoring: false

@@ -806,11 +806,22 @@ async def run_supervised_api(
 
 @app.on_event("startup")
 async def startup_event():
-    """Load default configuration on startup."""
+    """Load default configuration and initialize Smart Memory Agent on startup."""
     global _app_config
     try:
         _app_config = load_app_config()
         log.info("Default configuration loaded successfully")
+        
+        # Initialize Production Smart Memory system
+        try:
+            from smart_agent.memory_adapter import initialize_production_smart_memory
+            await initialize_production_smart_memory()
+            log.info("Production Smart Memory system initialized successfully")
+                
+        except Exception as smart_memory_error:
+            log.warning(f"Could not initialize Production Smart Memory system: {smart_memory_error}")
+            log.info("Continuing without Smart Memory system")
+            
     except Exception as e:
         log.warning(f"Could not load default configuration: {e}")
         _app_config = None
@@ -849,6 +860,8 @@ async def root():
             "query_form": "/query/form - Form-based query endpoint",
             "worker": "/worker - Direct agent execution endpoint",
             "worker_upload": "/worker/upload - Agent execution with files",
+            "memory_stats": "/memory/stats - Get memory system statistics",
+            "smart_memory_status": "/smart-memory/status - Get Smart Memory system status",
             "issue_analysis": "/issue-analysis - Issue analysis pipeline endpoint",
             "issue_analysis_form": "/issue-analysis/form - Form-based issue analysis endpoint",
             "enhanced_issue_analysis": "/issue-analysis-enhanced - Enhanced issue analysis processing",
@@ -881,6 +894,32 @@ async def memory_stats():
         }
     except Exception as e:
         log.error(f"Error getting memory stats: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+
+
+@app.get("/smart-memory/status")
+async def smart_memory_status():
+    """Get Smart Memory system status and metrics."""
+    try:
+        from smart_agent.memory_adapter import get_smart_memory_status
+        status = await get_smart_memory_status()
+        return {
+            "status": "success",
+            "smart_memory_status": status,
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    except ImportError:
+        return {
+            "status": "unavailable",
+            "message": "Smart Memory system not available",
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    except Exception as e:
+        log.error(f"Error getting Smart Memory status: {e}")
         return {
             "status": "error",
             "error": str(e),
