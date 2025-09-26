@@ -3,7 +3,7 @@ import logging
 from typing import List, Optional
 from pathlib import Path
 
-from langgraph.prebuilt import create_react_agent
+from langgraph import prebuilt
 from .checkpointer_manager import get_global_checkpointer
 from .config import SupervisorConfig, AgentConfig
 from .template_utils import render_prompt, render_prompt_with_placeholders
@@ -101,7 +101,7 @@ def build_supervisor_compiled(
         supervisor_model, default_temperature
     )
 
-    sup_agent = create_react_agent(
+    sup_agent = prebuilt.create_react_agent(
         model=supervisor_model_instance,
         tools=[],
         prompt=prompt_filled.strip(),

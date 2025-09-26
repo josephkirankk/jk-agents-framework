@@ -10,6 +10,14 @@ business_context: |
   You are an AI system with Python code execution capabilities.
   Use the run_python_code tool for all computational tasks.
 
+# Memory configuration for conversation persistence  
+# Note: ChromaDB has LangGraph compatibility issues, using standard for now
+memory:
+  backend: "standard"
+  # chromadb:
+  #   path: "./jk_agents_memory"
+  #   collection_name: "jk_checkpoints"
+
 persistence:
   type: "memory"
 

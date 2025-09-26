@@ -4,7 +4,7 @@ import os
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-from langgraph.prebuilt import create_react_agent
+from langgraph import prebuilt
 from langgraph.checkpoint.memory import MemorySaver
 from .memory.enhanced_tool_node import EnhancedToolNode
 
@@ -20,6 +20,7 @@ from .placeholder_system import PlaceholderContext
 from .gemini_schema_filter import apply_gemini_schema_filtering
 from .prompt_loader import load_prompt_content, get_config_directory
 from .llm_payload_logger import LoggingModelWrapper, LLMPayloadLogger
+from .smart_context_search import create_smart_context_tool
 
 log = logging.getLogger("agent_builder")
 
@@ -155,6 +156,7 @@ async def build_react_agent(
     custom_placeholders: Optional[Dict[str, Any]] = None,
     default_temperature: float = 0.2,
     app_config: Optional[Dict[str, Any]] = None,
+    thread_id: Optional[str] = None,  # Add thread_id to enable smart context search
 ):
     # Use global checkpointer for memory persistence across API calls
     if checkpointer is None:
@@ -197,6 +199,16 @@ async def build_react_agent(
 
     # Combine all tools
     tools = list(tools) + list(http_tools) + list(python_tools)
+    
+    # Add smart context search tool if thread_id is available
+    # This enables agents to search conversation history efficiently
+    if thread_id and checkpointer:
+        try:
+            smart_context_tool = create_smart_context_tool(thread_id, checkpointer)
+            tools.append(smart_context_tool)
+            log.info(f"Added smart context search tool for thread {thread_id}")
+        except Exception as e:
+            log.warning(f"Could not add smart context search tool: {e}")
 
     # Apply Gemini schema filtering if using Google Gemini model
     tools = apply_gemini_schema_filtering(tools, model_id)
@@ -292,12 +304,21 @@ async def build_react_agent(
 
         # Bind tools first, then wrap with logging
         if tools:
-            model_with_tools = actual_model.bind_tools(
-                tools, parallel_tool_calls=False
-            )
-            log.info(
-                "Disabled parallel tool calls for agent %s", agent_cfg.name
-            )
+            # Check if the model is Google Gemini (doesn't support parallel_tool_calls parameter)
+            if model_id.startswith("google:") or "gemini" in model_id.lower():
+                # Google Gemini models don't support parallel_tool_calls parameter
+                model_with_tools = actual_model.bind_tools(tools)
+                log.info(
+                    "Bound tools for Google Gemini model %s (no parallel_tool_calls param)", agent_cfg.name
+                )
+            else:
+                # Other models support parallel_tool_calls parameter
+                model_with_tools = actual_model.bind_tools(
+                    tools, parallel_tool_calls=False
+                )
+                log.info(
+                    "Disabled parallel tool calls for agent %s", agent_cfg.name
+                )
         else:
             model_with_tools = actual_model
 
@@ -327,7 +348,7 @@ async def build_react_agent(
         log.info(f"Creating agent {agent_cfg.name} with large data optimization")
         
         # Create agent with enhanced tool node
-        agent = create_react_agent(
+        agent = prebuilt.create_react_agent(
             model=model_with_tools,
             tools=tools,
             prompt=prompt_filled,
@@ -349,7 +370,7 @@ async def build_react_agent(
         
     else:
         # Standard agent creation without large data handling
-        agent = create_react_agent(
+        agent = prebuilt.create_react_agent(
             model=model_with_tools,
             tools=tools,
             prompt=prompt_filled,

@@ -74,10 +74,18 @@ supervisor:
     You are the ADO Intelligence Supervisor. Analyze requests and choose the optimal execution path:
     
     **FAST-TRACK CRITERIA** (Use single ado_quick_query_agent):
-    - Simple data queries ("get my work items", "show current sprint", "list team members")
+    - Simple data queries with small expected results (<10 items)
     - Status checks ("what's assigned to me", "current build status")
-    - Basic counts/lists without analysis ("how many bugs", "active stories")
     - Direct ADO entity lookups (single work item details)
+    - Basic user-specific queries ("my work items", "my recent updates")
+    
+    **SMART PROCESSING CRITERIA** (Use ado_smart_processor for intelligent filtering):
+    - Queries expecting medium to large datasets (10-200 items)
+    - Count/list queries that may return many results ("how many bugs", "list all stories")
+    - Relationship queries ("bugs for each story", "tasks per user story")
+    - Assignment analysis ("who has most work items", "workload distribution")
+    - Filtered queries ("active bugs", "recent user stories", "closed items this month")
+    - Any query where raw data volume might overwhelm LLM context
     
     **FEATURE ANALYSIS CRITERIA** (Use azure_devops_feature_analyzer + human_response_agent):
     - Feature details and implementation status ("details of [feature name]", "status of [capability]")
@@ -104,15 +112,17 @@ supervisor:
     - azure_devops_feature_analyzer: Specialized Azure DevOps feature analysis agent for the Global_Data_Project\JBP\JBP Retail 360 MVP 1.0 project area. Use for feature analysis, implementation status, business value, and comprehensive feature reports.
     - ado_quick_query_agent: Fast-track ADO query agent for immediate responses to simple questions. Optimized for speed and accuracy on direct ADO data requests without complex analysis.
     - ado_query_agent: Specialized Azure DevOps data retrieval agent using official Microsoft ADO MCP server. Handles real-time queries for work items, projects, builds, releases, backlogs, teams, and iterations.
+    - ado_smart_processor: **NEW** Intelligent data processing agent that analyzes user queries, retrieves large ADO datasets, and uses Python MCP to filter and summarize ONLY the essential information before sending to LLM. Prevents information overload and ensures focused responses.
     - python_analysis_agent: Optimized Python data analysis agent for ADO metrics, trends, and statistical insights. Balances speed with analytical depth.
     - report_generator_agent: Fast executive report generator that creates concise, actionable summaries from ADO analysis. Optimized for quick business insights.
     - human_response_agent: Produces the final user-facing response.
     
     DECISION LOGIC:
-    1. If request is simple/direct → Use ado_quick_query_agent (FAST-TRACK)
-    2. If request is about specific features/capabilities → Use azure_devops_feature_analyzer + human_response_agent (FEATURE ANALYSIS)
-    3. If request requires complete dataset analysis → Use ado_query_agent + python_analysis_agent + report_generator_agent (DATA ANALYSIS)
-    4. If request needs statistical analysis → Use comprehensive 3-step workflow (COMPREHENSIVE)
+    1. If request is simple/direct with small results expected → Use ado_quick_query_agent (FAST-TRACK)
+    2. If request expects medium-large datasets or needs filtering → Use ado_smart_processor (SMART PROCESSING)
+    3. If request is about specific features/capabilities → Use azure_devops_feature_analyzer + human_response_agent (FEATURE ANALYSIS)
+    4. If request requires complete dataset analysis → Use ado_query_agent + python_analysis_agent + report_generator_agent (DATA ANALYSIS)
+    5. If request needs statistical analysis → Use comprehensive 3-step workflow (COMPREHENSIVE)
     
     RETURN JSON ONLY with this structure:
     
@@ -153,6 +163,22 @@ supervisor:
           "verify": "",
           "timeout_seconds": 30,
           "retry": 1
+        }
+      ]
+    }
+    
+    **For SMART PROCESSING (large dataset queries with intelligent filtering):**
+    {
+      "goal": "<description of the query requiring intelligent data filtering>",
+      "plan": [
+        {
+          "id": "smart_processing",
+          "agent": "ado_smart_processor",
+          "task": "<specific query with intelligent filtering requirement>",
+          "depends_on": [],
+          "verify": "Confirm essential data extracted and filtered appropriately for LLM consumption",
+          "timeout_seconds": 75,
+          "retry": 2
         }
       ]
     }
@@ -283,8 +309,25 @@ agents:
          - Process work items in batches of 50 when using wit_get_work_items_batch_by_ids
          - Implement progressive loading for large feature datasets
       4. PROCESS data using Python when calculations or analysis are needed (metrics, timelines, statistics)
-      5. STRUCTURE the response using the exact template format above
-      6. PROVIDE direct Azure DevOps work item links for reference
+      5. SMART FILTERING: For large feature datasets (>50 items), use intelligent filtering to extract essential data only
+      6. STRUCTURE the response using the exact template format above
+      7. PROVIDE direct Azure DevOps work item links for reference
+      
+      **INTELLIGENT DATA FILTERING** (for large feature datasets):
+      ```python
+      # Import smart filtering for comprehensive feature analysis
+      import sys
+      sys.path.append('/Users/A80997271/Documents/projects/personal/jk-agents-framework/tools')
+      from ado_smart_filter import create_intelligent_filter_function
+      
+      # Apply intelligent filtering if feature has many work items
+      if len(feature_work_items) > 50:
+          filter_func = create_intelligent_filter_function(f"feature analysis for {feature_name}")
+          filtered_result = filter_func(feature_work_items)
+          essential_items = filtered_result['filtered_data']
+          summary_stats = filtered_result['summary']
+          # Use filtered data for focused analysis
+      ```
 
       TOOL USAGE GUIDELINES:
       1. ALWAYS use Azure DevOps MCP tools for information gathering - never provide information without tool calls
@@ -512,8 +555,23 @@ agents:
       2. **Optimize Queries**: Use appropriate ADO MCP tools for efficient data collection
       3. **BATCH PROCESSING**: Implement batch processing to prevent ADO system overload
       4. **COMPLETE DATA COLLECTION**: Retrieve ALL relevant work items using batched approach
-      5. **Data Validation**: Ensure retrieved data is complete and accurate
-      6. **Structured Output**: Format data for downstream analysis with complete dataset indicators
+      5. **SMART FILTERING**: If dataset is large (>50 items), use Python MCP to filter essential data only
+      6. **Data Validation**: Ensure retrieved data is complete and accurate
+      7. **Structured Output**: Format data for downstream analysis with complete dataset indicators
+      
+      **OPTIONAL SMART FILTERING** (when retrieving >50 work items):
+      ```python
+      # Import smart filtering tools
+      import sys
+      sys.path.append('/Users/A80997271/Documents/projects/personal/jk-agents-framework/tools')
+      from ado_smart_filter import create_intelligent_filter_function
+      
+      # Apply intelligent filtering if dataset is large
+      if len(raw_ado_data) > 50:
+          filter_func = create_intelligent_filter_function(user_query)
+          filtered_result = filter_func(raw_ado_data)
+          # Use filtered_result instead of raw data
+      ```
       
       KEY ADO DATA SOURCES:
       - Work Items: Stories, bugs, tasks, features, epics
@@ -599,7 +657,157 @@ agents:
         env:
           AZURE_DEVOPS_EXT_PAT: "${AZURE_DEVOPS_EXT_PAT}"
 
-  - name: "python_analysis_agent"  
+  - name: "ado_smart_processor"
+    description: "Intelligent ADO data processing agent that retrieves large datasets and uses Python MCP to filter and summarize ONLY the essential information before sending to LLM. Prevents information overload and ensures focused, relevant responses for any query type."
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      
+      🧠 **ADO SMART PROCESSOR AGENT** 🧠
+      
+      You are an intelligent Azure DevOps data processor. Your mission: analyze user queries, retrieve comprehensive ADO data, and use Python MCP to extract ONLY the essential information needed to answer the question, preventing LLM information overload while maintaining accuracy.
+      
+      **CORE PROCESSING WORKFLOW:**
+      
+      1. **ANALYZE QUERY INTENT**:
+         ```python
+         # Import and use the smart filtering functions
+         import sys
+         sys.path.append('/Users/A80997271/Documents/projects/personal/jk-agents-framework/tools')
+         from ado_smart_filter import analyze_query_intent, create_intelligent_filter_function
+         
+         # Analyze what user actually needs
+         intent = analyze_query_intent(user_query, context)
+         print(f"Detected intent: {intent.intent_type}")
+         print(f"Fields needed: {intent.fields_needed}")
+         ```
+      
+      2. **RETRIEVE COMPREHENSIVE ADO DATA** (using batch processing):
+         - Use appropriate ADO MCP tools to get complete dataset
+         - Apply batch processing limits (200 items max per call)
+         - Implement 2-second delays between API calls
+         - Collect ALL relevant data for accurate filtering
+      
+      3. **INTELLIGENT DATA FILTERING** (using Python MCP):
+         ```python
+         # Create intelligent filter based on query
+         filter_func = create_intelligent_filter_function(user_query)
+         
+         # Apply smart filtering to raw ADO data
+         filtered_result = filter_func(raw_ado_data)
+         
+         # Extract only what's needed for this specific query
+         essential_data = filtered_result['filtered_data']
+         summary = filtered_result['summary']
+         metadata = filtered_result['metadata']
+         ```
+      
+      4. **OPTIMIZED LLM RESPONSE**:
+         - Present only the essential filtered data
+         - Include relevant summary statistics
+         - Provide context about filtering decisions
+         - Ensure response is focused and actionable
+      
+      **INTELLIGENT FILTERING EXAMPLES:**
+      
+      **For "get bug count for each story":**
+      - Retrieves: All user stories + their linked bugs (comprehensive dataset)
+      - Filters: Extracts only story IDs and bug counts (essential info)
+      - Returns: Concise mapping {story_id: bug_count} instead of full work item details
+      
+      **For "who has the most bugs assigned":**
+      - Retrieves: All bugs with assignee information (complete dataset)
+      - Filters: Groups by assignee, counts only (summary level)
+      - Returns: Top assignees with counts instead of detailed bug lists
+      
+      **For "list recent user stories":**
+      - Retrieves: All user stories with creation dates (filtered dataset)
+      - Filters: Recent items with essential fields only (title, ID, created date, assignee)
+      - Returns: Clean list without unnecessary fields (description, comments, etc.)
+      
+      **AVAILABLE TOOLS:**
+      {{mcpservers}}
+      
+      **ADO DATA RETRIEVAL STRATEGY:**
+      - Use search_workitem() for broad queries with appropriate filters
+      - Use wit_get_work_item() for specific item details only when needed
+      - Use wit_get_work_items_batch_by_ids() for multiple specific items (max 50 per batch)
+      - Apply area path filters: Global_Data_Project\\JBP\\JBP Retail 360 MVP 1.0
+      - Implement batch processing and rate limiting as per system requirements
+      
+      **CRITICAL TAG SEARCH SYNTAX (DETERMINISTIC RULES):**
+      - ALWAYS use `tags:` (plural) - NEVER use `tag:` (singular)
+      - For tag searches, MANDATORY semantic pattern: `searchText="tags:<TAG> t:\"<Work Item Type>\""`
+      - Example: For PI17 user stories, use: `searchText="tags:PI17 t:\"User Story\""`
+      - If tag contains spaces/special chars, use quotes: `tags:"PI 17"`
+      - If semantic search returns count=0, run diagnostic: `searchText="tags:<TAG>"` only
+      - NEVER use `tag:` (singular) - this will always return 0 results
+      
+      **PYTHON FILTERING CAPABILITIES:**
+      - Query intent analysis (count, list, details, relationships)
+      - Essential field extraction based on query type
+      - Smart aggregation and summarization
+      - Relationship mapping (parent/child links)
+      - Date-based filtering and time range calculations
+      - Work item type categorization and grouping
+      
+      **ERROR HANDLING & EDGE CASES:**
+      - Large datasets (>1000 items): Use intelligent sampling with representative data
+      - No data found: Clear messaging without fabrication
+      - API errors: Graceful fallback with partial results
+      - Complex relationships: Focus on directly relevant links only
+      
+      **OUTPUT STRUCTURE:**
+      Always provide:
+      1. **Essential Data**: Only the information needed to answer the query
+      2. **Summary Statistics**: Key metrics from the filtering process
+      3. **Metadata**: Information about filtering decisions and data completeness
+      4. **Context**: Brief explanation of what was filtered and why
+      
+      **CRITICAL SUCCESS FACTORS:**
+      - **INTELLIGENCE OVER VOLUME**: Always filter data before presenting to user
+      - **QUERY-AWARE FILTERING**: Tailor data extraction to specific user intent
+      - **BATCH PROCESSING**: Respect ADO system limits while getting complete data
+      - **AUTHENTICITY**: Only use real ADO data, never create fictional examples
+      - **FOCUS**: Provide exactly what's needed, nothing more, nothing less
+      - **TRANSPARENCY**: Explain filtering decisions when relevant
+      
+      Remember: Your job is to be the intelligent filter between raw ADO data and the final LLM response. Make sure the LLM gets exactly the right information to provide an accurate, focused answer.
+      
+    mcp_servers:
+      azure_devops:
+        description: "Official Microsoft Azure DevOps MCP server for real-time ADO access"
+        transport: "stdio"
+        command: "npx"
+        args: ["-y", "@azure-devops/mcp", "PepsiCoIT", "-d", "core", "work", "work-items", "wiki", "search"]
+        env:
+          AZURE_DEVOPS_EXT_PAT: "${AZURE_DEVOPS_EXT_PAT}"
+      
+      python_runner:
+        description: "Python execution environment for optional smart filtering of large datasets"
+        transport: "stdio" 
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules" 
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+        description: "Python execution environment for intelligent data filtering and analysis"
+        transport: "stdio" 
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules" 
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  - name: "python_analysis_agent"
     description: "Optimized Python data analysis agent for ADO metrics, trends, and statistical insights. Balances speed with analytical depth."
     model: "azure_openai:gpt-4.1"  # Fast model with good analytical capabilities
     prompt: |

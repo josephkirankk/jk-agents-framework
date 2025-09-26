@@ -199,6 +199,7 @@ async def execute_plan(
 ) -> Dict[str, Any]:
     # Get or create base thread ID for this execution
     base_thread_id = get_or_create_thread_id(thread_id)
+    print(f"Using thread ID: {base_thread_id}")
     supervisor_thread_id = create_supervisor_thread_id(base_thread_id)
 
     # Prepare log file with timestamped name at repo root
@@ -386,9 +387,50 @@ async def execute_plan(
         "supervisor": {"input": 0, "output": 0, "total": 0},
         "worker": {"input": 0, "output": 0, "total": 0},
     }
+    # Load conversation context if available
+    conversation_context = ""
+    try:
+        from .checkpointer_manager import get_global_checkpointer
+        from langchain_core.runnables import RunnableConfig
+        
+        checkpointer = get_global_checkpointer()
+        # Use the main thread_id to get conversation history
+        context_config: RunnableConfig = {"configurable": {"thread_id": base_thread_id}}
+        
+        if hasattr(checkpointer, 'get_tuple'):
+            checkpoint_tuple = checkpointer.get_tuple(context_config)
+            if checkpoint_tuple:
+                # Extract messages from checkpoint
+                checkpoint_data = checkpoint_tuple[1] if isinstance(checkpoint_tuple, tuple) else checkpoint_tuple.checkpoint
+                if checkpoint_data and 'channel_values' in checkpoint_data:
+                    messages = checkpoint_data.get('channel_values', {}).get('messages', [])
+                    if messages and len(messages) > 2:  # More than just system + user message
+                        # Format recent conversation for context
+                        context_lines = ["\n=== Recent Conversation Context ==="]
+                        
+                        # Get last few messages for context (exclude system messages)
+                        recent_msgs = messages[-8:]  # Last 8 messages
+                        for msg in recent_msgs:
+                            if hasattr(msg, 'type') and hasattr(msg, 'content'):
+                                role = 'Assistant' if msg.type == 'ai' else msg.type.title()
+                                content = str(msg.content)[:300]  # Limit content length
+                                if msg.type != 'system':  # Skip system messages
+                                    context_lines.append(f"{role}: {content}")
+                            elif isinstance(msg, dict) and msg.get('role') != 'system':
+                                role = msg.get('role', 'unknown').title()
+                                content = str(msg.get('content', ''))[:300]
+                                context_lines.append(f"{role}: {content}")
+                        
+                        context_lines.append("=== End Context ===\n")
+                        conversation_context = "\n".join(context_lines)
+                        log.info(f"Added conversation context to supervisor with {len(recent_msgs)} recent messages")
+    except Exception as e:
+        log.warning(f"Could not load conversation context for supervisor: {e}")
+    
     sup_system_context = (
         "Business context:\n"
         f"{business_context}"
+        f"{conversation_context}"
     )
     sup_state = {
         "messages": [

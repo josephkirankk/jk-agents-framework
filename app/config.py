@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -112,6 +112,10 @@ class AppConfig(BaseModel):
     )
     persistence: Dict[str, str] = Field(
         default_factory=lambda: {"type": "memory"}
+    )
+    memory: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Memory configuration for persistent storage"
     )
     supervisor: SupervisorConfig
     agents: List[AgentConfig] = Field(default_factory=list)

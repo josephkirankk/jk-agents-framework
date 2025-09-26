@@ -100,4 +100,38 @@ vectordb_wrapper/vectorlogs
 agentlog/
 test_chroma_db/
 
+# Test artifacts and results
+test_checkpoints/
+*_test_results.json
+test_results*.json
+multistep_supervisor_test_results.json
+validation_report_*.md
+
+# Demo data and large files
+demo_*/
+demo_data/
+demo_core_flow/
+demo_multi_agent/
+test_workflow_data/
+
+# ChromaDB memory and data
+chroma_memory/
+advanced_agent_memory/
+*_memory/
+*.chroma
+
+# Backup files
+*.backup
+*.bak
+.env.backup
+
+# Temporary files
+*.tmp
+*.temp
+data/large_files/
+
+# Additional agent logs
+agentlog_*.log
+server.log
+
 config/vars.local.yaml

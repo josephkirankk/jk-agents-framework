@@ -1,0 +1,107 @@
+# Simple Memory Test Configuration
+# Tests conversation context and memory persistence without ADO complexity
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+
+business_context: |
+  You are a helpful assistant that can remember previous conversations.
+  When users refer to "these", "them", "those", or other context words,
+  you should understand what they're referring to from earlier messages.
+
+memory:
+  backend: "standard"  # Use simple MemorySaver for testing
+
+supervisor:
+  name: "simple_supervisor"
+  prompt: |
+    {{business_context}}
+    
+    You are a conversation supervisor. Analyze requests and choose the best agent:
+    
+    AVAILABLE AGENTS:
+    - simple_agent: Handles general queries and can search conversation context
+    - python_agent: Handles calculations and data processing
+    
+    DECISION LOGIC:
+    1. If user asks for calculations or data analysis → Use python_agent
+    2. For all other queries (including context references) → Use simple_agent
+    
+    When user refers to "these", "them", "those" or similar contextual words:
+    - Always use simple_agent 
+    - Include instruction to search conversation context
+    
+    RETURN JSON ONLY:
+    {
+      "goal": "<description of what user wants>",
+      "plan": [
+        {
+          "id": "main_task",
+          "agent": "<agent_name>",
+          "task": "<specific task with context search instruction if needed>",
+          "depends_on": [],
+          "verify": "Task completed successfully",
+          "timeout_seconds": 30,
+          "retry": 1
+        }
+      ]
+    }
+
+agents:
+  - name: "simple_agent"
+    description: "A helpful agent that can answer questions and search conversation context when needed"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      
+      You are a helpful assistant with conversation memory capabilities.
+      
+      IMPORTANT: When users refer to "these", "them", "those", or other contextual words:
+      1. First acknowledge you understand they're referring to something from earlier
+      2. Use the get_conversation_context tool to search for relevant information
+      3. Provide a complete answer based on the found context
+      
+      Available tools:
+      - get_conversation_context: Search for relevant context from previous messages
+      - run_python_code: Execute Python code for calculations
+      
+      Be helpful, conversational, and always try to understand context from previous messages.
+    
+    mcp_servers:
+      python_runner:
+        description: "Python execution environment for data analysis, calculations, and processing"
+        transport: "stdio" 
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules" 
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  - name: "python_agent" 
+    description: "Agent specialized in Python calculations and data processing"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+      
+      You are a Python calculation specialist.
+      Use the run_python_code tool to perform calculations and data analysis.
+      Always show your work and explain the results.
+    
+    mcp_servers:
+      python_runner:
+        description: "Python execution environment"
+        transport: "stdio" 
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules" 
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"

@@ -172,8 +172,13 @@ async def build_agents_map(
 
 
 async def run_direct_agent(
-    agent_name: str, user_input: str, app_cfg: AppConfig
+    agent_name: str, user_input: str, app_cfg: AppConfig, thread_id: Optional[str] = None
 ):
+    # Convert AppConfig to dict and reset checkpointer with proper config
+    app_config_dict = app_cfg.model_dump() if hasattr(app_cfg, 'model_dump') else (app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__)
+    from .checkpointer_manager import reset_checkpointer_with_config
+    reset_checkpointer_with_config(app_config_dict)
+    
     # Process business context template
     processed_business_context = process_business_context_template(app_cfg.business_context or "")
     
@@ -230,9 +235,10 @@ async def run_direct_agent(
                 {"role": "system", "content": system_context},
                 {"role": "user", "content": user_input},
             ]}
-            # Generate unique thread ID for CLI execution
-            thread_id = get_or_create_thread_id()
-            config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+            # Use provided thread ID or generate unique thread ID for CLI execution
+            actual_thread_id = get_or_create_thread_id(thread_id)
+            print(f"Using thread ID: {actual_thread_id}")
+            config: RunnableConfig = {"configurable": {"thread_id": actual_thread_id}}
 
             try:
                 out = await compiled.ainvoke(state, config=config)
@@ -272,8 +278,13 @@ async def run_direct_agent(
             print(f"\nLog saved to: {logger.get_log_file_path()}")
 
 
-async def run_supervised(user_input: str, app_cfg: AppConfig):
+async def run_supervised(user_input: str, app_cfg: AppConfig, thread_id: Optional[str] = None):
     default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+    
+    # Convert AppConfig to dict and reset checkpointer with proper config
+    app_config_dict = app_cfg.model_dump() if hasattr(app_cfg, 'model_dump') else (app_cfg.dict() if hasattr(app_cfg, 'dict') else app_cfg.__dict__)
+    from .checkpointer_manager import reset_checkpointer_with_config
+    reset_checkpointer_with_config(app_config_dict)
     
     # Process business context template
     processed_business_context = process_business_context_template(app_cfg.business_context or "")
@@ -301,6 +312,7 @@ async def run_supervised(user_input: str, app_cfg: AppConfig):
             default_model_for_verifier=default_model,
             agents_configs=app_cfg.agents,
             default_model=default_model,
+            thread_id=thread_id,
         )
         # Format as user-friendly Markdown
         formatted_output = format_result_as_markdown(
@@ -327,6 +339,11 @@ def parse_args() -> argparse.Namespace:
         help="Run a specific agent directly (skip supervisor)",
     )
     p.add_argument("--config", help="Path to agents.yaml", default=None)
+    p.add_argument(
+        "--thread-id",
+        help="Thread ID for conversation continuity (optional)",
+        default=None
+    )
     return p.parse_args()
 
 
@@ -344,10 +361,11 @@ def main():
     try:
         args = parse_args()
         cfg = load_app_config(Path(args.config) if args.config else None)
+        thread_id = getattr(args, 'thread_id', None)  # Get thread_id from args
         if args.agent:
-            asyncio.run(run_direct_agent(args.agent, args.prompt, cfg))
+            asyncio.run(run_direct_agent(args.agent, args.prompt, cfg, thread_id=thread_id))
         else:
-            asyncio.run(run_supervised(args.prompt, cfg))
+            asyncio.run(run_supervised(args.prompt, cfg, thread_id=thread_id))
     except KeyboardInterrupt:
         print("\n\n⚠️  Operation interrupted by user. Exiting gracefully...")
         sys.exit(0)

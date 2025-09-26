@@ -684,6 +684,18 @@ async def run_direct_agent_api(
         if not target:
             raise ValueError(f"Agent '{agent_name}' not found in config")
 
+        # Convert AppConfig to dict for memory configuration
+        app_config_dict = {}
+        if hasattr(app_cfg, 'model_dump'):
+            app_config_dict = app_cfg.model_dump()
+        elif hasattr(app_cfg, 'dict'):
+            app_config_dict = app_cfg.dict()
+        elif hasattr(app_cfg, '__dict__'):
+            app_config_dict = app_cfg.__dict__
+        
+        # Get thread ID early for context search tool
+        actual_thread_id = get_or_create_thread_id(thread_id)
+        
         compiled, mcp_client = await build_react_agent(
             target,
             default_model,
@@ -694,7 +706,11 @@ async def run_direct_agent_api(
             enable_llm_payload_logging=True,
             llm_payload_logger=logger.get_llm_payload_logger(),
             default_temperature=app_cfg.temperature,
+            app_config=app_config_dict,  # Pass app_config for memory configuration
+            thread_id=actual_thread_id,  # Pass thread_id for smart context search
         )
+        
+        # Note: LangGraph's checkpointer should handle conversation continuity automatically
 
         try:
             system_context = (
@@ -710,15 +726,36 @@ async def run_direct_agent_api(
                 user_task=user_input
             )
 
+            # Use the thread ID created earlier
+            config: RunnableConfig = {"configurable": {"thread_id": actual_thread_id}}
+            
+            # Debug: Check if we have previous conversation state
+            from app.checkpointer_manager import get_global_checkpointer
+            checkpointer = get_global_checkpointer(app_config_dict)
+            
+            previous_state = None
+            try:
+                if hasattr(checkpointer, 'get'):
+                    previous_state = checkpointer.get(config)
+                    if previous_state:
+                        log.info(f"Found previous state for thread {actual_thread_id}: {type(previous_state)}")
+                        if 'channel_values' in previous_state:
+                            prev_messages = previous_state.get('channel_values', {}).get('messages', [])
+                            log.info(f"Previous conversation has {len(prev_messages)} messages")
+                    else:
+                        log.info(f"No previous state found for thread {actual_thread_id}")
+            except Exception as e:
+                log.warning(f"Error checking previous state: {e}")
+            
+            # Build initial state - LangGraph agent will handle loading previous messages
             state = {
                 "messages": [
                     {"role": "system", "content": system_context},
                     {"role": "user", "content": user_input},
                 ]
             }
-            # Get or create thread ID
-            actual_thread_id = get_or_create_thread_id(thread_id)
-            config: RunnableConfig = {"configurable": {"thread_id": actual_thread_id}}
+            
+            log.info(f"Using thread ID: {actual_thread_id} for conversation continuity")
 
             try:
                 out = await compiled.ainvoke(state, config=config)

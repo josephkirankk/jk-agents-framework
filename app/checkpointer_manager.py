@@ -57,12 +57,17 @@ class CheckpointerManager:
             return
         
         self._config = config or {}
-        self._memory_backend = self._config.get("memory", {}).get("backend", "standard")
+        # Check for memory config in the right place - it should be at root level
+        memory_config = self._config.get("memory", {})
+        self._memory_backend = memory_config.get("backend", "standard")
+        
+        log.info(f"Checkpointer manager config: {self._config}")
+        log.info(f"Memory backend selected: {self._memory_backend}")
         
         # Initialize based on configuration
         if self._memory_backend == "chromadb" and HAS_CHROMADB:
             try:
-                chromadb_config = self._config.get("memory", {}).get("chromadb", {})
+                chromadb_config = memory_config.get("chromadb", {})
                 persist_directory = chromadb_config.get("path", "./jk_agents_memory")
                 collection_name = chromadb_config.get("collection_name", "jk_checkpoints")
                 
@@ -233,3 +238,16 @@ def reset_all_memory() -> bool:
     """
     manager = get_checkpointer_manager()
     return manager.reset_all_memory()
+
+
+def reset_checkpointer_with_config(config: Optional[Dict[str, Any]] = None) -> None:
+    """
+    Reset the global checkpointer with new configuration.
+    
+    Args:
+        config: New configuration dictionary
+    """
+    global _checkpointer_manager
+    _checkpointer_manager = None  # Reset singleton
+    # Next call to get_global_checkpointer will create new instance with config
+    get_global_checkpointer(config)
