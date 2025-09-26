@@ -40,10 +40,13 @@ pydantic-settings>=2.1.0
 httpx>=0.25.2
 structlog>=23.2.0
 anthropic>=0.25.0
-google-generativeai>=0.4.0
+# google-generativeai==0.6.0  # Temporarily disabled due to dependency conflict with langchain-google-genai
 
 # System monitoring and performance
 psutil>=5.9.0
+
+# Data generation and testing utilities
+faker>=18.0.0
 
 # Development and testing dependencies
 pytest>=7.4.3

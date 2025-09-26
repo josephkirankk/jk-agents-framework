@@ -29,8 +29,8 @@ memory:
     enable_batch_processing: true
     enable_metrics: true
     # Collection names for organization
-    checkpoint_collection: "python-test-session"
-    context_collection: "python-test"
+    checkpoint_collection: "python-test-session-1"
+    context_collection: "python-test-1"
 
 supervisor:
   name: "supervisor"
@@ -60,7 +60,7 @@ supervisor:
 agents:
   - name: "python_exec_agent"
     description: "Execute Python code with guaranteed tool calling support"
-    model: "google:gemini-2.5-flash"  # Proven to work with tool calling
+    model: "azure_openai:gpt-4.1"  # Using Azure OpenAI instead of Google Gemini
     prompt: |
       {{dependent_request_responses}}
 

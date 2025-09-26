@@ -92,17 +92,26 @@ class GeminiCompatibleTool(BaseTool):
         # Handle args_schema with cleaning
         if hasattr(original_tool, 'args_schema') and original_tool.args_schema:
             try:
-                original_schema = original_tool.args_schema.model_json_schema()
-                cleaned_schema = clean_schema_for_gemini(original_schema)
-
-                if original_schema != cleaned_schema:
-                    log.info(f"Cleaned schema for tool '{self.name}' for Gemini compatibility")
-
-                # Keep the original args_schema but note that it's been processed
+                # Try different schema extraction methods
+                original_schema = None
+                if hasattr(original_tool.args_schema, 'model_json_schema'):
+                    original_schema = original_tool.args_schema.model_json_schema()
+                elif hasattr(original_tool.args_schema, 'schema'):
+                    original_schema = original_tool.args_schema.schema()
+                elif isinstance(original_tool.args_schema, dict):
+                    original_schema = original_tool.args_schema
+                
+                if original_schema is not None:
+                    cleaned_schema = clean_schema_for_gemini(original_schema)
+                    if original_schema != cleaned_schema:
+                        log.info(f"Cleaned schema for tool '{self.name}' for Gemini compatibility")
+                    self._cleaned_schema = cleaned_schema
+                
+                # Always keep the original args_schema
                 self.args_schema = original_tool.args_schema
-                self._cleaned_schema = cleaned_schema
+                
             except Exception as e:
-                log.warning(f"Failed to clean schema for tool '{self.name}': {e}")
+                log.debug(f"Failed to clean schema for tool '{self.name}': {e}")
                 self.args_schema = original_tool.args_schema
 
     def _run(self, *args, **kwargs):
@@ -137,22 +146,48 @@ def filter_tool_schemas_for_gemini(tools: List[BaseTool]) -> List[BaseTool]:
         try:
             # Check if the tool has an args_schema that might need cleaning
             if hasattr(tool, 'args_schema') and tool.args_schema is not None:
-                original_schema = tool.args_schema.model_json_schema()
-                cleaned_schema = clean_schema_for_gemini(original_schema)
-
-                # If the schema was modified, wrap the tool
-                if original_schema != cleaned_schema:
-                    log.info(f"Wrapping tool '{tool.name}' for Gemini compatibility")
-                    filtered_tools.append(GeminiCompatibleTool(tool))
+                # Try to get the schema - handle MCP tools and regular tools differently
+                original_schema = None
+                try:
+                    # For regular Pydantic-based tools
+                    if hasattr(tool.args_schema, 'model_json_schema'):
+                        original_schema = tool.args_schema.model_json_schema()
+                    elif hasattr(tool.args_schema, 'schema'):
+                        # For older Pydantic versions or different schema formats
+                        original_schema = tool.args_schema.schema()
+                    elif isinstance(tool.args_schema, dict):
+                        # Schema is already a dictionary
+                        original_schema = tool.args_schema
+                    else:
+                        # Try to convert to dict or skip if not possible
+                        log.debug(f"Tool '{tool.name}' has unsupported args_schema type: {type(tool.args_schema)}")
+                        filtered_tools.append(tool)
+                        continue
+                except AttributeError as ae:
+                    log.debug(f"Tool '{tool.name}' args_schema doesn't have expected methods: {ae}")
+                    # MCP tools or other tool types - add as-is since they handle schema internally
+                    filtered_tools.append(tool)
+                    continue
+                
+                if original_schema is not None:
+                    cleaned_schema = clean_schema_for_gemini(original_schema)
+                    
+                    # If the schema was modified, wrap the tool
+                    if original_schema != cleaned_schema:
+                        log.info(f"Wrapping tool '{tool.name}' for Gemini compatibility")
+                        filtered_tools.append(GeminiCompatibleTool(tool))
+                    else:
+                        # Schema is already clean, use original tool
+                        filtered_tools.append(tool)
                 else:
-                    # Schema is already clean, use original tool
+                    # No schema to clean, add as-is
                     filtered_tools.append(tool)
             else:
                 # Tool doesn't have args_schema, add as-is
                 filtered_tools.append(tool)
 
         except Exception as e:
-            log.warning(f"Failed to filter schema for tool '{tool.name}': {e}")
+            log.debug(f"Failed to filter schema for tool '{tool.name}': {e}")
             # Add the original tool if filtering fails
             filtered_tools.append(tool)
 
