@@ -756,7 +756,22 @@ async def execute_plan(
             if wmsgs:
                 # LangGraph messages are objects with .content attribute
                 last_msg = wmsgs[-1]
-                wtext = getattr(last_msg, "content", "")
+                raw_content = getattr(last_msg, "content", "")
+                
+                # Handle case where content is a list (e.g., from Google Gemini with tool calls)
+                if isinstance(raw_content, list):
+                    # Extract text content from the list
+                    text_parts = []
+                    for part in raw_content:
+                        if isinstance(part, dict):
+                            if part.get("type") == "text":
+                                text_parts.append(part.get("text", ""))
+                        elif isinstance(part, str):
+                            text_parts.append(part)
+                    wtext = "\n".join(text_parts) if text_parts else ""
+                else:
+                    wtext = raw_content or ""
+                    
                 # Track usage for worker
                 calls["worker"] += 1
                 wu = _extract_usage(last_msg)
@@ -813,6 +828,9 @@ async def execute_plan(
                 else request_text
             )
 
+            # Ensure wtext is always a string for startswith check
+            wtext_str = str(wtext) if wtext is not None else ""
+            
             step_results[step.id] = {
                 "agent": step.agent,
                 "task": step.task,
@@ -822,7 +840,7 @@ async def execute_plan(
                 "raw": wtext,
                 "output_summary": summary,
                 "ok": True
-                if not (wtext.startswith("ERROR") or last_err)
+                if not (wtext_str.startswith("ERROR") or last_err)
                 else False,
                 "last_error": last_err,
             }

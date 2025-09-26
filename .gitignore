@@ -101,3 +101,7 @@ agentlog/
 test_chroma_db/
 
 config/vars.local.yaml
+chroma_memory/
+test_chromadb_memory/
+jk_agents_memory/
+test_jk_agents_memory/

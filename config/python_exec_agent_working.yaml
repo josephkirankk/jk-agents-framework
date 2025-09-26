@@ -10,8 +10,27 @@ business_context: |
   You are an AI system with Python code execution capabilities.
   Use the run_python_code tool for all computational tasks.
 
-persistence:
-  type: "memory"
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./advanced_memory_test"
+    host: "localhost"
+    port: 8000
+    # Connection pool settings for high performance
+    max_connections: 20
+    min_connections: 5
+    connection_timeout: 30.0
+    # Advanced caching configuration
+    l1_cache_size: 5000
+    l1_cache_ttl: 1800  # 30 minutes
+    # Batch processing for optimal throughput
+    batch_size: 100
+    batch_timeout: 0.1
+    enable_batch_processing: true
+    enable_metrics: true
+    # Collection names for organization
+    checkpoint_collection: "python-test-session"
+    context_collection: "python-test"
 
 supervisor:
   name: "supervisor"

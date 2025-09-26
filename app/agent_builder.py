@@ -17,7 +17,7 @@ from .python_tool_loader import (
 from .config import AgentConfig
 from .template_utils import render_prompt, render_prompt_with_placeholders
 from .placeholder_system import PlaceholderContext
-from .gemini_schema_filter import apply_gemini_schema_filtering
+from .gemini_schema_filter import apply_gemini_schema_filtering, is_gemini_model
 from .prompt_loader import load_prompt_content, get_config_directory
 from .llm_payload_logger import LoggingModelWrapper, LLMPayloadLogger
 
@@ -290,14 +290,47 @@ async def build_react_agent(
                 type(actual_model).__name__
             )
 
+        # Determine parallel tool calls behavior (agent overrides app; otherwise autodetect)
+        # app_config here is expected to be a dict (see build_react_agent signature)
+        app_parallel = None
+        try:
+            app_parallel = (app_config or {}).get("parallel_tool_calls_enabled")
+        except Exception:
+            app_parallel = None
+
+        agent_parallel = getattr(agent_cfg, "parallel_tool_calls_enabled", None)
+
+        # Autodetect default: disable for Google Gemini, enable otherwise
+        autodetect_parallel = not is_gemini_model(model_id)
+
+        parallel_tool_calls_flag = (
+            agent_parallel if agent_parallel is not None
+            else (app_parallel if app_parallel is not None else autodetect_parallel)
+        )
+
         # Bind tools first, then wrap with logging
         if tools:
-            model_with_tools = actual_model.bind_tools(
-                tools, parallel_tool_calls=False
-            )
-            log.info(
-                "Disabled parallel tool calls for agent %s", agent_cfg.name
-            )
+            # For Google Gemini models, we need to avoid passing parallel_tool_calls
+            # as the parameter is not supported by the Google Gen AI API
+            if is_gemini_model(model_id):
+                model_with_tools = actual_model.bind_tools(tools)
+                log.info(
+                    "Parallel tool calls for agent %s: %s (Google Gemini - parameter not passed to API)",
+                    agent_cfg.name,
+                    parallel_tool_calls_flag,
+                )
+            else:
+                model_with_tools = actual_model.bind_tools(
+                    tools, parallel_tool_calls=parallel_tool_calls_flag
+                )
+                log.info(
+                    "Parallel tool calls for agent %s: %s (agent=%s, app=%s, autodetect=%s)",
+                    agent_cfg.name,
+                    parallel_tool_calls_flag,
+                    agent_parallel,
+                    app_parallel,
+                    autodetect_parallel,
+                )
         else:
             model_with_tools = actual_model
 

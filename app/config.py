@@ -71,6 +71,15 @@ class AgentConfig(BaseModel):
     python_tools: Dict[str, PythonFunctionToolConfig] = Field(
         default_factory=dict
     )
+    # Optional: control whether the LLM can call multiple tools in parallel
+    # If None, the application-level default will be used. If still None, we
+    # auto-detect based on provider (disabled for Google Gemini, enabled otherwise).
+    parallel_tool_calls_enabled: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Enable or disable parallel tool calls for this agent. Overrides app-level setting when provided."
+        ),
+    )
 
     @model_validator(mode='after')
     def validate_prompt_fields(self):
@@ -116,3 +125,11 @@ class AppConfig(BaseModel):
     supervisor: SupervisorConfig
     agents: List[AgentConfig] = Field(default_factory=list)
     temperature: float = 0.0
+    # Optional: App-wide control for parallel tool calls. If None, provider-based
+    # autodetection is used (disabled for Google Gemini, enabled otherwise).
+    parallel_tool_calls_enabled: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Global default for parallel tool calls. Individual agents can override."
+        ),
+    )
