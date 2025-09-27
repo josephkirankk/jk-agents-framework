@@ -1,0 +1,68 @@
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+business_context: |
+  Test configuration for conversation memory system.
+  This setup validates that agents can remember previous conversations.
+
+# Enable conversation memory
+conversation_memory:
+  enabled: true
+  max_conversations: 5
+  max_context_length: 2000
+  prepend_context: false
+  cleanup_days: 30
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+
+    Task requirements:
+    - Simple, specific actions
+    - Include simple verification questions
+    - Always end with human_response_agent for final presentation
+
+    Available agents: {{agents}}
+
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific action", "depends_on": [], "verify": "simple verification question"}
+      ]
+    }
+
+agents:
+  - name: "memory_test_agent"
+    description: "Test agent that can remember previous conversations"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      You are a helpful agent that can remember previous conversations.
+      
+      When asked questions:
+      - Check if you've discussed similar topics before in the conversation history
+      - Reference previous information when relevant
+      - Be concise and accurate in your responses
+      - If you remember something from before, mention it naturally
+    mcp_servers: {}
+
+  - name: "human_response_agent"
+    description: "Produces the final user-facing response"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      {{dependent_request_responses}}
+
+      Final responder: Synthesize all previous steps into a complete, natural answer.
+
+      Rules:
+      - Natural, human-readable format only
+      - No internal reasoning or agent names
+      - Do not call tools
+    mcp_servers: {}

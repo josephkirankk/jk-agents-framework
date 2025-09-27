@@ -109,6 +109,38 @@ class SupervisorConfig(BaseModel):
         return self
 
 
+class ConversationMemoryConfig(BaseModel):
+    """Configuration for conversation memory storage."""
+    enabled: bool = Field(
+        default=False,
+        description="Enable conversation memory storage and context injection"
+    )
+    database_url: Optional[str] = Field(
+        default=None,
+        description="PostgreSQL database URL for conversation storage"
+    )
+    max_conversations: int = Field(
+        default=5,
+        description="Maximum number of recent conversations to include in context"
+    )
+    max_context_length: int = Field(
+        default=2000,
+        description="Maximum length of conversation context in characters"
+    )
+    pool_size: int = Field(
+        default=10,
+        description="Database connection pool size"
+    )
+    cleanup_days: int = Field(
+        default=30,
+        description="Days to keep conversations before cleanup (0 = no cleanup)"
+    )
+    prepend_context: bool = Field(
+        default=False,
+        description="If True, prepend conversation context to system message; otherwise append"
+    )
+
+
 class AppConfig(BaseModel):
     models: Dict[str, str] = Field(
         default_factory=lambda: {"default": "openai:gpt-4o-mini"}
@@ -121,6 +153,10 @@ class AppConfig(BaseModel):
     )
     persistence: Dict[str, str] = Field(
         default_factory=lambda: {"type": "memory"}
+    )
+    conversation_memory: ConversationMemoryConfig = Field(
+        default_factory=ConversationMemoryConfig,
+        description="Configuration for conversation memory storage"
     )
     supervisor: SupervisorConfig
     agents: List[AgentConfig] = Field(default_factory=list)

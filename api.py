@@ -29,6 +29,14 @@ from app.agent_builder import build_react_agent
 from app.direct_agent_logger import create_direct_agent_logger
 from app.thread_manager import get_or_create_thread_id
 
+# Import conversation memory modules
+from app.memory.memory_integration import (
+    initialize_conversation_memory, 
+    enhance_system_message_with_memory, 
+    store_conversation_memory,
+    is_conversation_memory_enabled
+)
+
 from app.checkpointer_manager import get_memory_stats, clear_thread_memory, reset_all_memory
 
 # Import memory metrics API
@@ -248,6 +256,16 @@ async def run_direct_agent_with_files(
                 f"{app_cfg.business_context or ''}\n\n"
                 "Previous step results:\n(none)"
             )
+            
+            # Get or create thread ID
+            actual_thread_id = get_or_create_thread_id(thread_id)
+            
+            # Enhance system context with conversation memory
+            system_context = await enhance_system_message_with_memory(
+                original_message=system_context,
+                thread_id=actual_thread_id,
+                app_config=app_cfg
+            )
 
             # Create multimodal message content
             message_content = []
@@ -296,8 +314,6 @@ async def run_direct_agent_with_files(
                     {"role": "user", "content": message_content},
                 ]
             }
-            # Get or create thread ID
-            actual_thread_id = get_or_create_thread_id(thread_id)
             config: RunnableConfig = {"configurable": {"thread_id": actual_thread_id}}
 
             try:
@@ -316,6 +332,15 @@ async def run_direct_agent_with_files(
             # Log the response
             logger.log_agent_response(response_text=text, raw_output=out)
             success = True
+            
+            # Store conversation in memory
+            await store_conversation_memory(
+                thread_id=actual_thread_id,
+                user_message=user_input,
+                assistant_response=text,
+                app_config=app_cfg,
+                metadata={"agent_name": agent_name, "has_files": True}
+            )
 
             return {
                 "success": True,
@@ -702,6 +727,16 @@ async def run_direct_agent_api(
                 f"{app_cfg.business_context or ''}\n\n"
                 "Previous step results:\n(none)"
             )
+            
+            # Get or create thread ID
+            actual_thread_id = get_or_create_thread_id(thread_id)
+            
+            # Enhance system context with conversation memory
+            system_context = await enhance_system_message_with_memory(
+                original_message=system_context,
+                thread_id=actual_thread_id,
+                app_config=app_cfg
+            )
 
             # Log the request
             logger.log_agent_request(
@@ -716,8 +751,6 @@ async def run_direct_agent_api(
                     {"role": "user", "content": user_input},
                 ]
             }
-            # Get or create thread ID
-            actual_thread_id = get_or_create_thread_id(thread_id)
             config: RunnableConfig = {"configurable": {"thread_id": actual_thread_id}}
 
             try:
@@ -736,6 +769,15 @@ async def run_direct_agent_api(
             # Log the response
             logger.log_agent_response(response_text=text, raw_output=out)
             success = True
+            
+            # Store conversation in memory
+            await store_conversation_memory(
+                thread_id=actual_thread_id,
+                user_message=user_input,
+                assistant_response=text,
+                app_config=app_cfg,
+                metadata={"agent_name": agent_name}
+            )
 
             return {
                 "success": True,
@@ -768,13 +810,23 @@ async def run_supervised_api(
     instead of printing.
     """
     default_model = app_cfg.models.get("default", "openai:gpt-4o-mini")
+    
+    # Get or create thread ID for conversation context
+    actual_thread_id = get_or_create_thread_id(thread_id)
+    
+    # Enhance business context with conversation memory
+    enhanced_business_context = await enhance_system_message_with_memory(
+        original_message=app_cfg.business_context or "",
+        thread_id=actual_thread_id,
+        app_config=app_cfg
+    )
 
     # Build supervisor
     supervisor = build_supervisor_compiled(
         app_cfg.supervisor,
         app_cfg.agents,
         default_model,
-        app_cfg.business_context or "",
+        enhanced_business_context,
         original_user_question=user_input,
         config_path=config_path,
         default_temperature=app_cfg.temperature,
@@ -790,12 +842,23 @@ async def run_supervised_api(
             supervisor_compiled=supervisor,
             agents_map=agents_map,
             user_input=user_input,
-            business_context=app_cfg.business_context or "",
+            business_context=enhanced_business_context,
             default_model_for_verifier=default_model,
             agents_configs=app_cfg.agents,
             default_model=default_model,
-            thread_id=thread_id,
+            thread_id=actual_thread_id,
         )
+        
+        # Store conversation in memory after successful execution
+        human_response = await extract_human_response(result)
+        await store_conversation_memory(
+            thread_id=actual_thread_id,
+            user_message=user_input,
+            assistant_response=human_response,
+            app_config=app_cfg,
+            metadata={"execution_type": "supervised"}
+        )
+        
         return result
 
     finally:
@@ -811,6 +874,15 @@ async def startup_event():
     try:
         _app_config = load_app_config()
         log.info("Default configuration loaded successfully")
+        
+        # Initialize conversation memory if enabled
+        if _app_config and is_conversation_memory_enabled(_app_config):
+            memory_initialized = await initialize_conversation_memory(_app_config)
+            if memory_initialized:
+                log.info("Conversation memory initialized successfully")
+            else:
+                log.warning("Failed to initialize conversation memory")
+                
     except Exception as e:
         log.warning(f"Could not load default configuration: {e}")
         _app_config = None

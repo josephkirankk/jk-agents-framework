@@ -45,6 +45,9 @@ anthropic>=0.25.0
 # System monitoring and performance
 psutil>=5.9.0
 
+# PostgreSQL async database support
+asyncpg>=0.29.0
+
 # Data generation and testing utilities
 faker>=18.0.0
 
