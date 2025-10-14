@@ -1,0 +1,101 @@
+{
+  "goal": "<brief 1-2 sentence restatement of user goal>",
+  "plan": [
+    {
+      "id": "s1",
+      "agent": "conversation_summarizer",
+      "task": "summarize conversation history to reduce memory usage while preserving all critical data",
+      "depends_on": [],
+      "verify": "conversation summarized successfully",
+      "timeout_seconds": 30,
+      "retry": 1
+    },
+    {
+      "id": "s2", 
+      "agent": "python_exec_agent",
+      "task": "execute Python code to calculate/analyze data based on user request",
+      "depends_on": ["s1"],
+      "verify": "are the calculations accurate and properly formatted",
+      "timeout_seconds": 60,
+      "retry": 2
+    },
+    {
+      "id": "s3",
+      "agent": "file_analyzer_agent", 
+      "task": "analyze uploaded files (images, PDFs, documents) if present",
+      "depends_on": [],
+      "verify": "files analyzed correctly",
+      "timeout_seconds": 90,
+      "retry": 1
+    },
+    {
+      "id": "s4",
+      "agent": "human_response_agent", 
+      "task": "synthesize results from previous steps into final user response",
+      "depends_on": ["s2", "s3"],
+      "verify": null,
+      "timeout_seconds": 30,
+      "retry": 0
+    }
+  ],
+  "_schema_notes": {
+    "required_fields": {
+      "goal": "string - Brief restatement of user's objective",
+      "plan": "array - List of execution steps"
+    },
+    "plan_step_schema": {
+      "id": "string (required) - Unique step identifier (s1, s2, etc.)",
+      "agent": "string (required) - Name of agent to execute this step",
+      "task": "string (required) - Specific actionable task description",
+      "depends_on": "array (optional) - Array of step IDs this step depends on. Default: []",
+      "verify": "string|null (optional) - Verification question for LLM validation. Use null to skip verification",
+      "timeout_seconds": "integer (optional) - Max execution time. Default: 120 seconds",
+      "retry": "integer (optional) - Number of retry attempts on failure. Default: 0"
+    },
+    "available_agents": {
+      "conversation_summarizer": "Intelligently summarize conversation history to reduce memory usage while preserving all critical data. Use when word_count > 2000",
+      "python_exec_agent": "Execute Python code with guaranteed tool calling support. For math, computation, data analysis tasks",
+      "file_analyzer_agent": "Analyze various file types including images, PDFs, and documents. Use when files are uploaded",
+      "human_response_agent": "Final response formatting and synthesis. Always use as final step for user-facing output"
+    },
+    "timeout_guidelines": {
+      "conversation_summarizer": "30 seconds (text processing)",
+      "python_exec_agent": "60-120 seconds (computation dependent)",
+      "file_analyzer_agent": "90-180 seconds (file size dependent)",
+      "human_response_agent": "30 seconds (text formatting)"
+    },
+    "retry_guidelines": {
+      "conversation_summarizer": "1 retry (reliable text processing)",
+      "python_exec_agent": "2 retries (computation may fail)",
+      "file_analyzer_agent": "1 retry (file processing issues)",
+      "human_response_agent": "0 retries (final step, should not fail)"
+    },
+    "dynamic_summarization_logic": {
+      "word_count > 3000": "PRIORITIZE calling conversation_summarizer FIRST",
+      "word_count > 1500": "CONSIDER summarization if response will be complex",
+      "word_count < 1000": "Proceed with normal planning"
+    },
+    "conversation_context_priority": {
+      "note": "If user input contains 'Previous conversation context (words: N):' with [Turn-X] markers",
+      "actions": [
+        "PRIORITIZE existing data in planning - use as foundation instead of generating new data",
+        "BUILD UPON previous interactions to maintain continuity",
+        "EXTRACT specific data using [Turn-X] markers when available",
+        "NOTE: Large word counts indicate rich conversation history with preserved structured data"
+      ]
+    },
+    "parallel_execution": {
+      "note": "Steps with no dependencies can run in parallel",
+      "example": "Steps s2 and s3 above can run simultaneously since s2 depends on s1 but s3 has no dependencies"
+    },
+    "verification_best_practices": {
+      "format": "Simple yes/no questions that can be answered by LLM",
+      "examples": [
+        "are the calculations accurate and properly formatted",
+        "conversation summarized successfully", 
+        "files analyzed correctly"
+      ],
+      "when_to_skip": "Use null for final steps (human_response_agent) or when verification adds no value"
+    }
+  }
+}

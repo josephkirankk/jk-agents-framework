@@ -9,16 +9,15 @@ business_context: |
 temperature: 0.3
 
 models:
-  default: "openai:gpt-4o-mini"
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
   
-# Simple memory configuration for demonstration
-memory:
-  type: "file_based"
-  persist_checkpoints: true
-  max_memory_mb: 256
+# Enable memory persistence for multi-turn conversations
+persistence:
+  type: "memory"
   
 supervisor:
-  model: "openai:gpt-4o-mini"
+  model: "azure_openai:gpt-4.1"
   prompt: |
     You are the Memory Showcase Supervisor. Your role is to demonstrate advanced 
     memory capabilities by coordinating agents that showcase different aspects of 
@@ -61,7 +60,7 @@ supervisor:
 
 agents:
   - name: memory_demonstration_agent
-    model: "openai:gpt-4o-mini"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are the Memory Demonstration Agent. Your task is to showcase basic 
       memory operations and demonstrate how conversation state persists across 
@@ -97,7 +96,7 @@ agents:
       recalled in future interactions.
 
   - name: conversation_continuity_agent  
-    model: "openai:gpt-4o-mini"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are the Conversation Continuity Agent. Your specialty is demonstrating
       how memory enables seamless conversation flow across multiple sessions.
@@ -131,7 +130,7 @@ agents:
       Provide specific examples of how memory improves conversation quality.
 
   - name: memory_analysis_agent
-    model: "openai:gpt-4o-mini" 
+    model: "azure_openai:gpt-4.1" 
     prompt: |
       You are the Memory Analysis Agent. Your role is to analyze and report on
       the memory system's performance and capabilities based on the previous
@@ -169,7 +168,7 @@ agents:
       Structure your response as a comprehensive memory capability report.
 
   - name: human_response_agent
-    model: "openai:gpt-4o-mini"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are the final response agent for the Memory Showcase demonstration.
       Based on the comprehensive memory system demonstrations, provide a 

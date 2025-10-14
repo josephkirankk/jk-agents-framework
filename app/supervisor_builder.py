@@ -11,6 +11,14 @@ from .placeholder_system import PlaceholderContext
 from .agent_builder import create_model_instance
 from .prompt_loader import load_prompt_content, get_config_directory
 
+# Import conversation metadata for supervisor enhancement
+try:
+    from .simple_conversation_memory_fixed import get_conversation_context_metadata
+    HAS_CONVERSATION_METADATA = True
+except ImportError:
+    HAS_CONVERSATION_METADATA = False
+    log.warning("Conversation metadata not available - dynamic summarization disabled")
+
 log = logging.getLogger("supervisor_builder")
 
 
@@ -31,6 +39,7 @@ def build_supervisor_compiled(
     original_user_question: str = "",
     config_path: Optional[str] = None,
     default_temperature: float = 0.2,
+    thread_id: Optional[str] = None,
 ):
     # Use global checkpointer for memory persistence across API calls
     if checkpointer is None:
@@ -60,6 +69,32 @@ def build_supervisor_compiled(
     try:
         # Create placeholder context
         placeholder_context = PlaceholderContext()
+        
+        # Add conversation context metadata if available
+        conversation_metadata_str = ""
+        if HAS_CONVERSATION_METADATA and thread_id:
+            try:
+                metadata = get_conversation_context_metadata(thread_id)
+                conversation_metadata_str = (
+                    f"conversation_context_metadata.word_count: {metadata['word_count']}\n"
+                    f"conversation_context_metadata.turn_count: {metadata['turn_count']}\n"
+                    f"conversation_context_metadata.message_count: {metadata['message_count']}\n"
+                    f"conversation_context_metadata.has_structured_data: {metadata['has_structured_data']}\n"
+                    f"conversation_context_metadata.summarization_recommended: {metadata['summarization_recommended']}\n"
+                    f"conversation_context_metadata.memory_size_bytes: {metadata['memory_size_bytes']}"
+                )
+                log.info(f"Added conversation metadata for thread {thread_id}: {metadata['word_count']} words, {metadata['turn_count']} turns")
+            except Exception as e:
+                log.warning(f"Failed to get conversation metadata for thread {thread_id}: {e}")
+                conversation_metadata_str = "conversation_context_metadata: unavailable (no prior conversation)"
+        else:
+            conversation_metadata_str = "conversation_context_metadata: unavailable (no thread_id or conversation system disabled)"
+        
+        # Add conversation metadata as a custom placeholder
+        placeholder_context.add_custom_placeholder(
+            "conversation_context_metadata", 
+            conversation_metadata_str
+        )
 
         # Render prompt with enhanced placeholder support
         prompt_filled = render_prompt_with_placeholders(

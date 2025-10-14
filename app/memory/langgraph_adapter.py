@@ -11,6 +11,8 @@ import logging
 from typing import Dict, List, Any, Optional, Iterator, Tuple, Union, AsyncIterator, Sequence
 from datetime import datetime
 import json
+import uuid
+import time
 
 try:
     from langgraph.checkpoint.base import BaseCheckpointSaver, Checkpoint, CheckpointMetadata, CheckpointTuple
@@ -41,6 +43,9 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obje
     maintaining the same interface for backward compatibility.
     """
     
+    # Class-level cache for LangGraph version detection (avoids repeated detection)
+    _DETECTED_LANGGRAPH_VERSION: Optional[int] = None
+    
     def __init__(self, config: Optional[Dict[str, Any]] = None, **kwargs):
         """Initialize with optional configuration."""
         if HAS_LANGGRAPH:
@@ -49,6 +54,9 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obje
         self._manager: Optional[HighPerformanceMemoryManager] = None
         self._initialized = False
         self._user_id = "default_user"  # Default user ID
+        
+        # Detect LangGraph version on first instantiation
+        self._detect_langgraph_version()
     
     async def _ensure_initialized(self):
         """Ensure the memory manager is initialized."""
@@ -95,13 +103,36 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obje
             return None
         
         try:
+            log.debug(f"Retrieving checkpoint for thread {thread_id}")
             data = await self._manager.retrieve_checkpoint(self._user_id, thread_id)
             if data:
+                log.debug(f"Raw checkpoint data retrieved for thread {thread_id}, length: {len(data) if isinstance(data, bytes) else 'N/A'}")
                 # Convert back to LangGraph checkpoint format
-                return self._deserialize_checkpoint(data)
+                checkpoint = self._deserialize_checkpoint(data)
+                log.debug(f"Deserialized checkpoint for thread {thread_id}, type: {type(checkpoint)}, keys: {list(checkpoint.keys()) if isinstance(checkpoint, dict) else 'N/A'}")
+                
+                # Ensure checkpoint is valid for LangGraph
+                if checkpoint and isinstance(checkpoint, dict):
+                    validated_checkpoint = self._ensure_valid_checkpoint(checkpoint)
+                    log.debug(f"Validated checkpoint for thread {thread_id}, keys: {list(validated_checkpoint.keys())}")
+                    
+                    # Double-check that critical fields exist
+                    if self._is_checkpoint_valid_for_langgraph(validated_checkpoint):
+                        log.debug(f"Returning valid checkpoint for thread {thread_id}")
+                        return validated_checkpoint
+                    else:
+                        log.warning(f"Checkpoint for thread {thread_id} is not LangGraph compatible, returning None to force fresh start")
+                        return None
+                else:
+                    log.debug(f"Invalid checkpoint format for thread {thread_id}, returning None")
+                    return None
+            log.debug(f"No checkpoint data found for thread {thread_id}")
             return None
         except Exception as e:
-            log.error(f"Error retrieving checkpoint: {e}")
+            log.error(f"Error retrieving checkpoint for thread {thread_id}: {e}")
+            log.error(f"Error type: {type(e)}, Error args: {e.args}")
+            import traceback
+            log.error(f"Traceback: {traceback.format_exc()}")
             return None
     
     def get(self, config: RunnableConfig) -> Optional[Checkpoint]:
@@ -188,7 +219,11 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obje
                     
                     # Create a checkpoint tuple for each result
                     checkpoint_config = {"configurable": {"thread_id": cp.get("thread_id")}}
-                    metadata = {"timestamp": cp.get("timestamp"), "size": cp.get("size")}
+                    metadata = {
+                        "timestamp": cp.get("timestamp"), 
+                        "size": cp.get("size"),
+                        "step": cp.get("step", 0)  # Add required step field with default value
+                    }
                     pending_writes = {}
                     
                     # Try to retrieve the actual checkpoint data
@@ -232,25 +267,314 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obje
             results = asyncio.run(_run_alist())
             return iter(results)
     
+    def _json_serializer(self, obj):
+        """Custom JSON serializer to handle complex objects like AIMessage."""
+        try:
+            # Handle LangGraph/LangChain objects
+            if hasattr(obj, 'dict'):
+                return obj.dict()
+            elif hasattr(obj, '__dict__'):
+                # Convert object to dict, filtering out private attributes
+                result = {}
+                for key, value in obj.__dict__.items():
+                    if not key.startswith('_'):
+                        try:
+                            # Test if value is JSON serializable
+                            json.dumps(value)
+                            result[key] = value
+                        except (TypeError, ValueError):
+                            # Convert non-serializable values to string
+                            result[key] = str(value)
+                return result
+            elif hasattr(obj, '__class__'):
+                # For other objects, return class name and string representation
+                return {
+                    "__class__": obj.__class__.__name__,
+                    "__str__": str(obj)
+                }
+            else:
+                # Fallback to string representation
+                return str(obj)
+        except Exception as e:
+            log.warning(f"Failed to serialize object {type(obj)}: {e}")
+            return f"<Unserializable: {type(obj).__name__}>"
+
     def _serialize_checkpoint(self, checkpoint: Checkpoint, metadata: CheckpointMetadata, new_versions: Optional[dict] = None) -> bytes:
         """Serialize checkpoint, metadata, and versions to bytes."""
+        # Ensure checkpoint has required LangGraph version field with proper validation
+        if isinstance(checkpoint, dict):
+            # Always ensure 'v' field exists and is valid
+            if "v" not in checkpoint or not isinstance(checkpoint.get("v"), int) or checkpoint.get("v") < 1:
+                compatible_version = HighPerformanceCheckpointer._get_compatible_version()
+                checkpoint["v"] = compatible_version
+                log.debug(f"Set checkpoint version to {compatible_version} for checkpoint {checkpoint.get('id', '<unknown>')}")            
+        
+        # Sanitize metadata to prevent serialization issues
+        safe_metadata = self._sanitize_metadata(metadata)
+        
         data = {
             "checkpoint": checkpoint,
-            "metadata": metadata,
+            "metadata": safe_metadata,
             "new_versions": new_versions or {},
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "serializer_version": f"langgraph_v{HighPerformanceCheckpointer._get_compatible_version()}"  # Track detected version
         }
-        return json.dumps(data, default=str).encode('utf-8')
+        return json.dumps(data, default=self._json_serializer).encode('utf-8')
+    
+    @classmethod
+    def _detect_langgraph_version(cls) -> None:
+        """Dynamically detect LangGraph's preferred checkpoint version."""
+        if cls._DETECTED_LANGGRAPH_VERSION is None:
+            try:
+                from langgraph.checkpoint.base import empty_checkpoint
+                default_checkpoint = empty_checkpoint()
+                detected_version = default_checkpoint.get('v', 2)  # Fallback to 2 if 'v' missing
+                cls._DETECTED_LANGGRAPH_VERSION = detected_version
+                log.info(f"🔍 Detected LangGraph checkpoint version: {detected_version}")
+            except Exception as e:
+                log.warning(f"Could not detect LangGraph version, using safe fallback: {e}")
+                cls._DETECTED_LANGGRAPH_VERSION = 2  # Safe fallback
+    
+    @classmethod
+    def _get_compatible_version(cls) -> int:
+        """Get the compatible checkpoint version for current LangGraph installation."""
+        if cls._DETECTED_LANGGRAPH_VERSION is None:
+            cls._detect_langgraph_version()
+        return cls._DETECTED_LANGGRAPH_VERSION or 2
     
     def _deserialize_checkpoint(self, data: bytes) -> Checkpoint:
-        """Deserialize bytes back to checkpoint."""
+        """Deserialize bytes back to checkpoint with enhanced version compatibility."""
         import json
         try:
+            # Safely decode and parse JSON
+            if not isinstance(data, bytes):
+                log.error(f"Expected bytes for checkpoint data, got {type(data)}")
+                return self._create_minimal_checkpoint()
+                
             parsed = json.loads(data.decode('utf-8'))
-            return parsed.get("checkpoint", {})
+            
+            # Safely extract checkpoint data
+            if not isinstance(parsed, dict):
+                log.error(f"Expected dict for parsed checkpoint data, got {type(parsed)}")
+                return self._create_minimal_checkpoint()
+                
+            checkpoint = parsed.get("checkpoint", {})
+            serializer_version = parsed.get("serializer_version", "unknown")
+            
+            # Ensure checkpoint is a dictionary
+            if not isinstance(checkpoint, dict):
+                log.error(f"Expected dict for checkpoint, got {type(checkpoint)}")
+                return self._create_minimal_checkpoint()
+            
+            # Enhanced version field handling with backwards compatibility
+            checkpoint = self._ensure_version_compatibility(checkpoint, serializer_version)
+            
+            # Additional validation to prevent KeyError 'v' in LangGraph
+            if not self._validate_checkpoint_structure(checkpoint):
+                log.warning(f"Checkpoint structure validation failed, creating compliant checkpoint")
+                return self._create_compatible_checkpoint(checkpoint)
+
+            log.debug(
+                "Checkpoint parsed with version %s (%s), id=%s, serializer=%s",
+                checkpoint.get("v"),
+                type(checkpoint.get("v")),
+                checkpoint.get("id", "<unknown>"),
+                serializer_version
+            )
+            return checkpoint
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            log.error(f"Error decoding/parsing checkpoint JSON: {e}")
+            return self._create_minimal_checkpoint()  # Return minimal valid checkpoint
         except Exception as e:
-            log.error(f"Error deserializing checkpoint: {e}")
+            log.error(f"Unexpected error deserializing checkpoint: {e}")
+            import traceback
+            log.debug(f"Deserialization traceback: {traceback.format_exc()}")
+            return self._create_minimal_checkpoint()  # Return minimal valid checkpoint
+    
+    def _ensure_valid_checkpoint(self, checkpoint: Checkpoint) -> Checkpoint:
+        """Ensure checkpoint is valid for LangGraph usage."""
+        if not isinstance(checkpoint, dict):
+            log.warning("Checkpoint is not a dict, creating new valid checkpoint")
+            return self._create_minimal_checkpoint()
+        
+        # Ensure version field exists
+        if "v" not in checkpoint:
+            log.warning(
+                "Validated checkpoint missing version field; assigning default",
+                checkpoint.get("id", "<unknown>"),
+            )
+            checkpoint["v"] = HighPerformanceCheckpointer._get_compatible_version()
+        
+        # Ensure id field exists (required by LangGraph)
+        if "id" not in checkpoint:
+            import uuid
+            checkpoint["id"] = str(uuid.uuid4())
+            
+        # Ensure timestamp field exists
+        if "ts" not in checkpoint:
+            from datetime import datetime
+            checkpoint["ts"] = datetime.now().isoformat() + "+00:00"
+        
+        # Ensure other required fields exist with defaults
+        if "channel_values" not in checkpoint:
+            checkpoint["channel_values"] = {}
+        
+        if "channel_versions" not in checkpoint:
+            checkpoint["channel_versions"] = {}
+        
+        if "versions_seen" not in checkpoint:
+            checkpoint["versions_seen"] = {}
+        
+        if "pending_sends" not in checkpoint:
+            checkpoint["pending_sends"] = []
+        
+        log.debug(f"Validated checkpoint with keys: {list(checkpoint.keys())}")
+        return checkpoint
+        
+    def _create_minimal_checkpoint(self) -> Checkpoint:
+        """Create a minimal valid checkpoint."""
+        import uuid
+        from datetime import datetime
+        return {
+            "v": 4,
+            "id": str(uuid.uuid4()),
+            "ts": datetime.now().isoformat() + "+00:00",
+            "channel_values": {},
+            "channel_versions": {},
+            "versions_seen": {},
+            "pending_sends": []
+        }
+    
+    def _sanitize_metadata(self, metadata: CheckpointMetadata) -> Dict[str, Any]:
+        """Sanitize metadata to prevent serialization issues."""
+        if not isinstance(metadata, dict):
             return {}
+        
+        safe_metadata = {}
+        for key, value in metadata.items():
+            try:
+                # Test JSON serialization
+                json.dumps(value, default=self._json_serializer)
+                safe_metadata[key] = value
+            except (TypeError, ValueError) as e:
+                log.debug(f"Sanitizing metadata field '{key}': {e}")
+                safe_metadata[key] = str(value)
+        
+        return safe_metadata
+    
+    def _ensure_version_compatibility(self, checkpoint: Dict[str, Any], serializer_version: str) -> Dict[str, Any]:
+        """Ensure checkpoint version field is compatible with current LangGraph version."""
+        
+        # Handle version field with different compatibility modes
+        if "v" not in checkpoint:
+            log.warning(
+                "Checkpoint %s missing version field; applying default for serializer %s",
+                checkpoint.get("id", "<unknown>"),
+                serializer_version
+            )
+            checkpoint["v"] = HighPerformanceCheckpointer._get_compatible_version()  # Use detected compatible version
+        else:
+            version_value = checkpoint.get("v")
+            
+            # Comprehensive version validation
+            if version_value is None:
+                compatible_version = HighPerformanceCheckpointer._get_compatible_version()
+                log.warning(f"Checkpoint version is None, setting to {compatible_version}")
+                checkpoint["v"] = compatible_version
+            elif not isinstance(version_value, int):
+                log.warning(
+                    "Checkpoint %s has non-integer version %s (%s); coercing to int",
+                    checkpoint.get("id", "<unknown>"),
+                    version_value,
+                    type(version_value),
+                )
+                try:
+                    if isinstance(version_value, str) and version_value.isdigit():
+                        checkpoint["v"] = int(version_value)
+                    elif isinstance(version_value, (float, bool)):
+                        checkpoint["v"] = int(version_value)
+                    else:
+                        checkpoint["v"] = HighPerformanceCheckpointer._get_compatible_version()
+                except (TypeError, ValueError):
+                    compatible_version = HighPerformanceCheckpointer._get_compatible_version()
+                    log.error(
+                        "Failed to coerce checkpoint version for %s; falling back to %s",
+                        checkpoint.get("id", "<unknown>"),
+                        compatible_version
+                    )
+                    checkpoint["v"] = compatible_version
+            elif version_value < 1:
+                compatible_version = HighPerformanceCheckpointer._get_compatible_version()
+                log.warning(f"Invalid checkpoint version {version_value}, setting to {compatible_version}")
+                checkpoint["v"] = compatible_version
+        
+        return checkpoint
+    
+    def _validate_checkpoint_structure(self, checkpoint: Dict[str, Any]) -> bool:
+        """Validate that checkpoint has all required fields for LangGraph compatibility."""
+        required_fields = ["v", "id", "ts"]
+        recommended_fields = ["channel_values", "channel_versions", "versions_seen"]
+        
+        # Check required fields
+        for field in required_fields:
+            if field not in checkpoint:
+                log.debug(f"Checkpoint missing required field: {field}")
+                return False
+        
+        # Check version field specifically (most common KeyError source)
+        version = checkpoint.get("v")
+        if not isinstance(version, int) or version < 1:
+            log.debug(f"Invalid checkpoint version: {version} (type: {type(version)})")
+            return False
+        
+        return True
+    
+    def _create_compatible_checkpoint(self, original_checkpoint: Dict[str, Any]) -> Checkpoint:
+        """Create a LangGraph-compatible checkpoint preserving as much original data as possible."""
+        import uuid
+        from datetime import datetime
+        
+        # Start with minimal checkpoint
+        compatible = self._create_minimal_checkpoint()
+        
+        # Preserve original data where possible
+        if isinstance(original_checkpoint, dict):
+            # Preserve ID if valid
+            if "id" in original_checkpoint and original_checkpoint["id"]:
+                compatible["id"] = str(original_checkpoint["id"])
+            
+            # Preserve timestamp if valid
+            if "ts" in original_checkpoint and original_checkpoint["ts"]:
+                compatible["ts"] = str(original_checkpoint["ts"])
+            
+            # Preserve channel data if valid
+            for field in ["channel_values", "channel_versions", "versions_seen", "pending_sends"]:
+                if field in original_checkpoint and isinstance(original_checkpoint[field], (dict, list)):
+                    compatible[field] = original_checkpoint[field]
+        
+        log.debug(f"Created compatible checkpoint from original with keys: {list(original_checkpoint.keys()) if isinstance(original_checkpoint, dict) else 'N/A'}")
+        return compatible
+    
+    def _is_checkpoint_valid_for_langgraph(self, checkpoint: Dict[str, Any]) -> bool:
+        """Check if checkpoint has all required fields for LangGraph compatibility."""
+        required_fields = ["v", "channel_values", "channel_versions", "versions_seen"]
+        
+        for field in required_fields:
+            if field not in checkpoint:
+                log.warning(f"Checkpoint missing required field: {field}")
+                return False
+        
+        # Ensure version is valid
+        version = checkpoint.get("v")
+        if not isinstance(version, int) or version < 1:
+            log.warning(
+                "Invalid checkpoint version detected (%s); thread id: %s",
+                version,
+                checkpoint.get("id", "<unknown>"),
+            )
+            return False
+        
+        return True
     
     def _convert_to_metadata(self, checkpoint_info: Dict[str, Any]) -> CheckpointMetadata:
         """Convert internal checkpoint info to LangGraph metadata format."""
@@ -258,7 +582,8 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obje
             "thread_id": checkpoint_info.get("thread_id"),
             "timestamp": checkpoint_info.get("timestamp"),
             "size": checkpoint_info.get("size"),
-            "id": checkpoint_info.get("id")
+            "id": checkpoint_info.get("id"),
+            "step": checkpoint_info.get("step", 0)  # Add required step field with default value
         }
     
     async def get_stats(self) -> Dict[str, Any]:
@@ -377,9 +702,16 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obje
             if data:
                 # Deserialize checkpoint data
                 checkpoint = self._deserialize_checkpoint(data)
-                metadata = {"thread_id": thread_id, "timestamp": datetime.now().isoformat()}
-                pending_writes = {}  # We don't track pending writes separately in our implementation
-                return CheckpointTuple(config, checkpoint, metadata, pending_writes) if HAS_LANGGRAPH else (config, checkpoint, metadata, pending_writes)
+                # Ensure checkpoint is valid for LangGraph
+                if checkpoint and isinstance(checkpoint, dict):
+                    checkpoint = self._ensure_valid_checkpoint(checkpoint)
+                    metadata = {
+                        "thread_id": thread_id, 
+                        "timestamp": datetime.now().isoformat(),
+                        "step": 0  # Add required step field with default value
+                    }
+                    pending_writes = {}  # We don't track pending writes separately in our implementation
+                    return CheckpointTuple(config, checkpoint, metadata, pending_writes) if HAS_LANGGRAPH else (config, checkpoint, metadata, pending_writes)
             return None
         except Exception as e:
             log.error(f"Error retrieving checkpoint tuple: {e}")
@@ -433,7 +765,7 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obje
                 "task_path": task_path,
                 "timestamp": datetime.now().isoformat()
             }
-            serialized = json.dumps(writes_data).encode('utf-8')
+            serialized = json.dumps(writes_data, default=self._json_serializer).encode('utf-8')
             # Use a special key format for writes
             writes_key = f"{thread_id}_writes_{task_id}"
             await self._manager.store_checkpoint(self._user_id, writes_key, serialized)

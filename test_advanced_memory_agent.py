@@ -1,25 +1,51 @@
 """
-Comprehensive test suite for the Advanced Memory Agent
+Advanced Memory Agent Test Suite
 
-Tests all aspects of the high-performance memory system including:
-- Memory manager initialization and configuration
-- Performance monitoring and adaptive scaling
-- Circuit breaker patterns
-- Memory optimization features
-- Concurrent operations and thread safety
-- Error handling and recovery
+This test suite validates the high-performance memory system with:
+- Checkpoint stress testing
+- Cache performance validation
+- Concurrent user simulation
+- Memory usage analysis
+- Operations benchmarking
+- Integration testing
 """
 
 import asyncio
+import json
 import logging
 import os
-import sys
-import time
-import pytest
-from typing import Dict, List, Any
-from datetime import datetime
-import tempfile
 import shutil
+import statistics
+import sys
+import tempfile
+import time
+import traceback
+from pathlib import Path
+from typing import Any, Dict, List
+
+# Load environment variables from .env.example if no .env exists
+from dotenv import load_dotenv
+
+# Try to load .env first, then .env.example as fallback
+env_file = Path(__file__).parent / '.env'
+if env_file.exists():
+    print("  Loading environment variables from .env")
+    load_dotenv(env_file)
+else:
+    env_example_file = Path(__file__).parent / '.env.example'
+    if env_example_file.exists():
+        print("  Loading environment variables from .env.example")
+        load_dotenv(env_example_file)
+        # Check if API key needs to be set
+        if os.getenv('AZURE_OPENAI_API_KEY') == 'xxx':
+            print("  Warning: AZURE_OPENAI_API_KEY is set to placeholder 'xxx'")
+            print("   Please set the actual API key as an environment variable:")
+            print("   export AZURE_OPENAI_API_KEY='your-actual-api-key'")
+    else:
+        print("  No .env or .env.example file found")
+
+from app.agent_builder import create_react_agent
+from core.memory_monitor import MemoryMonitor
 
 # Add the app directory to the path
 sys.path.append(os.path.dirname(__file__))
@@ -41,8 +67,7 @@ log = logging.getLogger(__name__)
 class TestAdvancedMemoryAgent:
     """Comprehensive test suite for the Advanced Memory Agent."""
     
-    @pytest.fixture
-    async def temp_agent(self):
+    async def create_temp_agent(self):
         """Create a temporary agent for testing."""
         temp_dir = tempfile.mkdtemp()
         
@@ -71,142 +96,194 @@ class TestAdvancedMemoryAgent:
         agent = AdvancedMemoryAgent(config)
         await agent.initialize()
         
-        yield agent
-        
-        # Cleanup
-        await agent.cleanup()
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        return agent, temp_dir
     
-    async def test_agent_initialization(self, temp_agent):
+    async def test_agent_initialization(self):
         """Test that the agent initializes correctly."""
-        assert temp_agent.initialized
-        assert temp_agent.memory_manager is not None
-        assert temp_agent.conversation_count == 0
-        
-        # Test health check
-        health = await temp_agent.memory_manager.health_check()
-        assert health.get("healthy") is True
+        temp_agent, temp_dir = await self.create_temp_agent()
+        try:
+            assert temp_agent.initialized
+            assert temp_agent.memory_manager is not None
+            assert temp_agent.conversation_count == 0
+            
+            # Test health check
+            health = await temp_agent.memory_manager.health_check()
+            assert health.get("healthy") is True
+            print("✅ Agent initialization test passed")
+        finally:
+            await temp_agent.cleanup()
+            shutil.rmtree(temp_dir, ignore_errors=True)
     
-    async def test_basic_chat_functionality(self, temp_agent):
+    async def test_basic_chat_functionality(self):
         """Test basic chat functionality with memory."""
-        
-        # First conversation
-        result1 = await temp_agent.chat("Hello, my name is Alice", "user1", "thread1")
-        
-        assert "response" in result1
-        assert result1["user_id"] == "user1"
-        assert result1["thread_id"] == "thread1"
-        assert result1["conversation_count"] == 1
-        assert "processing_time_ms" in result1
-        
-        # Second conversation in same thread
-        result2 = await temp_agent.chat("What's my name?", "user1", "thread1")
-        
-        assert result2["conversation_count"] == 2
-        assert result2["thread_id"] == "thread1"
+        temp_agent, temp_dir = await self.create_temp_agent()
+        try:
+            # First conversation
+            result1 = await temp_agent.chat("Hello, my name is Alice", "user1", "thread1")
+            
+            assert "response" in result1
+            assert result1["user_id"] == "user1"
+            assert result1["thread_id"] == "thread1"
+            assert result1["conversation_count"] == 1
+            assert "processing_time_ms" in result1
+            
+            # Second conversation in same thread
+            result2 = await temp_agent.chat("What's my name?", "user1", "thread1")
+            
+            assert result2["conversation_count"] == 2
+            assert result2["thread_id"] == "thread1"
+            print("✅ Basic chat functionality test passed")
+        finally:
+            await temp_agent.cleanup()
+            shutil.rmtree(temp_dir, ignore_errors=True)
     
-    async def test_memory_persistence(self, temp_agent):
+    async def test_memory_persistence(self):
         """Test that memory persists across conversations."""
-        
-        user_id = "test_user"
-        thread_id = "memory_test"
-        
-        # Store some information
-        await temp_agent.chat("Remember that I like pizza", user_id, thread_id)
-        await temp_agent.chat("My favorite color is blue", user_id, thread_id)
-        
-        # Try to recall information
-        result = await temp_agent.chat("What do you know about my preferences?", user_id, thread_id)
-        
-        # Should have memory context
-        assert "response" in result
-        assert result["conversation_count"] > 0
-    
-    async def test_performance_monitoring(self, temp_agent):
-        """Test performance monitoring capabilities."""
-        
-        # Get initial stats
-        stats = await temp_agent.get_comprehensive_stats()
-        
-        assert "agent_info" in stats
-        assert "memory_system" in stats
-        assert "health" in stats
-        assert "memory_optimization" in stats
-        
-        # Check agent info
-        agent_info = stats["agent_info"]
-        assert "conversation_count" in agent_info
-        assert "uptime_seconds" in agent_info
-        assert agent_info["initialized"] is True
-        
-        # Check memory system stats
-        memory_system = stats["memory_system"]
-        assert "backend" in memory_system
-        assert "performance" in memory_system
-        
-        # Check health
-        health = stats["health"]
-        assert "healthy" in health
-    
-    async def test_concurrent_operations(self, temp_agent):
-        """Test concurrent chat operations."""
-        
-        async def chat_worker(user_id: str, message: str):
-            """Worker function for concurrent testing."""
-            return await temp_agent.chat(f"Hello from {user_id}: {message}", user_id, f"thread_{user_id}")
-        
-        # Create multiple concurrent chat operations
-        tasks = []
-        for i in range(5):
-            task = asyncio.create_task(chat_worker(f"user_{i}", f"message_{i}"))
-            tasks.append(task)
-        
-        # Wait for all to complete
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Check that all succeeded
-        successful_results = [r for r in results if not isinstance(r, Exception)]
-        assert len(successful_results) == 5
-        
-        # Check that conversation counts are correct
-        for result in successful_results:
-            assert "conversation_count" in result
+        temp_agent, temp_dir = await self.create_temp_agent()
+        try:
+            user_id = "test_user"
+            thread_id = "memory_test"
+            
+            # Store some information
+            await temp_agent.chat("Remember that I like pizza", user_id, thread_id)
+            await temp_agent.chat("My favorite color is blue", user_id, thread_id)
+            
+            # Try to recall information
+            result = await temp_agent.chat("What do you know about my preferences?", user_id, thread_id)
+            
+            # Should have memory context
             assert "response" in result
+            assert result["conversation_count"] > 0
+            print("✅ Memory persistence test passed")
+        finally:
+            await temp_agent.cleanup()
+            shutil.rmtree(temp_dir, ignore_errors=True)
     
-    async def test_error_handling(self, temp_agent):
+    async def test_performance_monitoring(self):
+        """Test performance monitoring capabilities."""
+        temp_agent, temp_dir = await self.create_temp_agent()
+        try:
+            # Get initial stats
+            stats = await temp_agent.get_comprehensive_stats()
+            
+            assert "agent_info" in stats
+            assert "memory_system" in stats
+            assert "health" in stats
+            assert "memory_optimization" in stats
+            
+            # Check agent info
+            agent_info = stats["agent_info"]
+            assert "conversation_count" in agent_info
+            assert "uptime_seconds" in agent_info
+            assert agent_info["initialized"] is True
+            
+            # Check memory system stats
+            memory_system = stats["memory_system"]
+            assert "backend" in memory_system
+            assert "performance" in memory_system
+            
+            # Check health
+            health = stats["health"]
+            assert "healthy" in health
+            print("✅ Performance monitoring test passed")
+        finally:
+            await temp_agent.cleanup()
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    async def test_concurrent_operations(self):
+        """Test concurrent chat operations."""
+        temp_agent, temp_dir = await self.create_temp_agent()
+        try:
+            async def chat_worker(user_id: str, message: str):
+                """Worker function for concurrent testing."""
+                return await temp_agent.chat(f"Hello from {user_id}: {message}", user_id, f"thread_{user_id}")
+            
+            # Create multiple concurrent chat operations
+            tasks = []
+            for i in range(5):
+                task = asyncio.create_task(chat_worker(f"user_{i}", f"message_{i}"))
+                tasks.append(task)
+            
+            # Wait for all to complete
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Check that all succeeded
+            successful_results = [r for r in results if not isinstance(r, Exception)]
+            assert len(successful_results) == 5
+            
+            # Check that conversation counts are correct
+            for result in successful_results:
+                assert "conversation_count" in result
+                assert "response" in result
+            print("✅ Concurrent operations test passed")
+        finally:
+            await temp_agent.cleanup()
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    async def test_error_handling(self):
         """Test error handling and recovery."""
-        
-        # Test with invalid user_id (should handle gracefully)
-        result = await temp_agent.chat("Test message", "", "thread1")
-        
-        # Should still get a response, even if there's an error
-        assert "response" in result
-        
-        # Test with very long message
-        long_message = "x" * 10000
-        result = await temp_agent.chat(long_message, "user1", "thread1")
-        assert "response" in result
+        temp_agent, temp_dir = await self.create_temp_agent()
+        try:
+            # Test with invalid user_id (should handle gracefully)
+            result = await temp_agent.chat("Test message", "", "thread1")
+            
+            # Should still get a response, even if there's an error
+            assert "response" in result
+            
+            # Test with very long message
+            long_message = "x" * 10000
+            result = await temp_agent.chat(long_message, "user1", "thread1")
+            assert "response" in result
+            print("✅ Error handling test passed")
+        finally:
+            await temp_agent.cleanup()
+            shutil.rmtree(temp_dir, ignore_errors=True)
     
-    async def test_memory_optimization_features(self, temp_agent):
+    async def test_memory_optimization_features(self):
         """Test memory optimization features."""
+        temp_agent, temp_dir = await self.create_temp_agent()
+        try:
+            # Generate multiple conversations to trigger optimizations
+            for i in range(10):
+                await temp_agent.chat(f"Message {i}", "user1", "thread1")
+            
+            # Get memory optimization stats
+            stats = await temp_agent.get_comprehensive_stats()
+            memory_opt = stats.get("memory_optimization", {})
+            
+            # Check string interning
+            string_intern = memory_opt.get("string_intern", {})
+            assert "cache_size" in string_intern
+            assert "hit_rate" in string_intern
+            
+            # Check memory pool
+            memory_pool = memory_opt.get("memory_pool", {})
+            assert "total_created" in memory_pool
+            assert "reuse_rate" in memory_pool
+            print("✅ Memory optimization features test passed")
+        finally:
+            await temp_agent.cleanup()
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    async def run_unit_tests(self):
+        """Run all unit tests."""
+        print("🧪 Running Unit Tests")
+        print("=" * 30)
         
-        # Generate multiple conversations to trigger optimizations
-        for i in range(10):
-            await temp_agent.chat(f"Message {i}", "user1", "thread1")
-        
-        # Get memory optimization stats
-        stats = await temp_agent.get_comprehensive_stats()
-        memory_opt = stats.get("memory_optimization", {})
-        
-        # Check string interning
-        string_intern = memory_opt.get("string_intern", {})
-        assert "cache_size" in string_intern
-        assert "hit_rate" in string_intern
-        
-        # Check memory pool
-        memory_pool = memory_opt.get("memory_pool", {})
-        assert "total_created" in memory_pool
-        assert "reuse_rate" in memory_pool
+        try:
+            await self.test_agent_initialization()
+            await self.test_basic_chat_functionality()
+            await self.test_memory_persistence()
+            await self.test_performance_monitoring()
+            await self.test_concurrent_operations()
+            await self.test_error_handling()
+            await self.test_memory_optimization_features()
+            print("\n✅ All unit tests passed!")
+            return True
+        except Exception as e:
+            print(f"\n❌ Unit test failed: {e}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return False
 
 
 async def run_performance_tests():
@@ -399,6 +476,14 @@ async def main():
     print()
     
     try:
+        # Create test suite instance
+        test_suite = TestAdvancedMemoryAgent()
+        
+        # Run unit tests first
+        unit_test_success = await test_suite.run_unit_tests()
+        
+        print("\n" + "=" * 60)
+        
         # Run performance tests
         performance_results = await run_performance_tests()
         
@@ -416,13 +501,14 @@ async def main():
         cache_efficiency = performance_results["cache_performance"]["actual_hit_ratio"] > 0.5
         concurrent_success = performance_results["concurrent_users"]["success_rate"] > 90
         
+        print(f"Unit Tests: {'✅' if unit_test_success else '❌'}")
         print(f"Checkpoint Stress Test: {'✅' if checkpoint_success else '❌'}")
         print(f"Cache Performance: {'✅' if cache_efficiency else '❌'}")
         print(f"Concurrent Operations: {'✅' if concurrent_success else '❌'}")
         print(f"Integration Test: {'✅' if integration_results['success'] else '❌'}")
         
         # Overall assessment
-        all_passed = all([checkpoint_success, cache_efficiency, concurrent_success, integration_results['success']])
+        all_passed = all([unit_test_success, checkpoint_success, cache_efficiency, concurrent_success, integration_results['success']])
         
         print(f"\n🏆 Overall Result: {'✅ ALL TESTS PASSED' if all_passed else '❌ SOME TESTS FAILED'}")
         
@@ -430,6 +516,7 @@ async def main():
         
     except Exception as e:
         print(f"❌ Test suite failed: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 

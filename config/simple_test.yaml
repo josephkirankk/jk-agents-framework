@@ -33,7 +33,7 @@ supervisor:
 agents:
   - name: "simple_test_agent"
     description: "Simple test agent without external dependencies"
-    model: "google:gemini-2.5-flash-lite"
+    model: "google:gemini-2.0-flash-exp"
     prompt: |
       You are a helpful test agent. Answer the user's question directly without using any external tools.
       Be concise and accurate in your responses. search the memory and answer if use asks a question that has been answered or provided before.

@@ -45,32 +45,61 @@ class DirectAgentLogger:
         self._write_log_header()
     
     def _initialize_log_file(self):
-        """Initialize the log file with timestamped name in agentlog folder."""
+        """Initialize the log file with timestamped name in agents_direct_logs folder."""
         try:
             ts = self.start_time.strftime("%Y%m%d%H%M%S")
             repo_root = Path(__file__).resolve().parents[1]
-            agentlog_dir = repo_root / "agentlog"
+            log.info(f"DirectAgentLogger - Repository root directory: {repo_root}")
+            
+            agents_direct_logs_dir = repo_root / "agents_direct_logs"
+            log.info(f"DirectAgentLogger - Direct logs directory: {agents_direct_logs_dir}, exists: {agents_direct_logs_dir.exists()}, is_dir: {agents_direct_logs_dir.is_dir() if agents_direct_logs_dir.exists() else False}")
 
-            # Create agentlog directory if it doesn't exist
-            agentlog_dir.mkdir(exist_ok=True)
+            # Create agents_direct_logs directory if it doesn't exist
+            agents_direct_logs_dir.mkdir(exist_ok=True)
+            log.info(f"DirectAgentLogger - After mkdir: exists: {agents_direct_logs_dir.exists()}, is_dir: {agents_direct_logs_dir.is_dir() if agents_direct_logs_dir.exists() else False}")
 
-            self.log_file_path = agentlog_dir / f"direct_agentlog_{ts}.log"
+            self.log_file_path = agents_direct_logs_dir / f"direct_agentlog_{ts}.log"
+            log.info(f"DirectAgentLogger - Log file path: {self.log_file_path}")
         except Exception as e:
-            log.debug("Failed to initialize log file: %s", e)
-            self.log_file_path = None
+            log.error(f"DirectAgentLogger - Failed to initialize log file: {e}")
+            # Try fallback to root directory
+            try:
+                ts = self.start_time.strftime("%Y%m%d%H%M%S")
+                repo_root = Path(__file__).resolve().parents[1]
+                self.log_file_path = repo_root / f"direct_agentlog_{ts}.log"
+                log.warning(f"DirectAgentLogger - Using fallback path: {self.log_file_path}")
+            except Exception as fallback_e:
+                log.error(f"DirectAgentLogger - Fallback also failed: {fallback_e}")
+                self.log_file_path = None
     
     def _safe_write(self, lines: List[str]):
         """Safely write lines to the log file."""
         if not self.log_file_path:
+            log.warning("DirectAgentLogger - No log file path available, not writing logs")
             return
         try:
+            log.info(f"DirectAgentLogger - Writing {len(lines)} lines to log file: {self.log_file_path}")
             with self.log_file_path.open("a", encoding="utf-8") as f:
                 for line in lines:
                     f.write(line)
                     if not line.endswith("\n"):
                         f.write("\n")
+            log.info(f"DirectAgentLogger - Successfully wrote to log file: {self.log_file_path}")
         except Exception as e:
-            log.debug("Log file write failed: %s", e)
+            log.error(f"DirectAgentLogger - Log file write failed: {e}, path: {self.log_file_path}")
+            # Try writing to a fallback location in the root directory
+            try:
+                fallback_path = Path(__file__).resolve().parents[1] / f"direct_agentlog_{datetime.now().strftime('%Y%m%d%H%M%S')}.log"
+                log.warning(f"DirectAgentLogger - Attempting to write to fallback location: {fallback_path}")
+                with fallback_path.open("a", encoding="utf-8") as f:
+                    for line in lines:
+                        f.write(line)
+                        if not line.endswith("\n"):
+                            f.write("\n")
+                log.info(f"DirectAgentLogger - Successfully wrote to fallback log file: {fallback_path}")
+            except Exception as fallback_e:
+                log.error(f"DirectAgentLogger - Fallback log write also failed: {fallback_e}")
+                # Give up at this point
     
     def _write_log_header(self):
         """Write the initial log header."""

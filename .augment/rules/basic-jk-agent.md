@@ -13,6 +13,5 @@ SUPER IMPORTANT :
 - always create documenatation in the docs folder
 - Ensure whatever you code is written should work in mac and windows.
 - check the current system (Windows or macos) and adjust the terminal commands correctly.
-- Never mock up anything to make something work
-- when you need to use a new library - do deep reserach and ensure this the best fit for the task
-- Always move the fixes docs to fixes_docs folder and other docs in docs folder
+- use uv to create virtual env and add packages.
+- use this to kill api and create again if needed : lsof -ti:8000 | xargs kill -9

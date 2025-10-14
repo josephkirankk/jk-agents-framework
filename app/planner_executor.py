@@ -122,7 +122,45 @@ def _sanitize_for_moderation(text: str, max_chars: int = 2000) -> str:
 
 
 async def llm_verify(check_prompt: str, model: str):
-    chat = init_chat_model(model)
+    # Handle Azure OpenAI models with our custom wrapper
+    if model.startswith("azure/"):
+        try:
+            from .azure_litellm_wrapper import AzureLiteLLMChat
+            chat = AzureLiteLLMChat(model=model)
+        except ImportError:
+            # Fallback to standard init_chat_model
+            chat = init_chat_model(model)
+    # Handle Google Gemini models
+    elif model.startswith("google:"):
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            import os
+            # Load environment variables
+            try:
+                from dotenv import load_dotenv
+                load_dotenv()
+            except ImportError:
+                pass
+            
+            # Extract the model name after the prefix
+            model_name = model.split("google:", 1)[1]
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                log.error(f"GOOGLE_API_KEY not found for verification with model {model}")
+                # Fallback to standard init_chat_model
+                chat = init_chat_model(model)
+            else:
+                log.info(f"Using Google Gemini model {model_name} for verification")
+                chat = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    google_api_key=api_key,
+                    temperature=0.2,
+                )
+        except ImportError:
+            # Fallback to standard init_chat_model
+            chat = init_chat_model(model)
+    else:
+        chat = init_chat_model(model)
     messages = [
         {"role": "system", "content": "You are an objective verifier."},
         {"role": "user", "content": check_prompt},
@@ -201,26 +239,53 @@ async def execute_plan(
     base_thread_id = get_or_create_thread_id(thread_id)
     supervisor_thread_id = create_supervisor_thread_id(base_thread_id)
 
-    # Prepare log file with timestamped name at repo root
+    # Prepare log file with timestamped name in agentlogs directory
     log_file_path: Optional[Path] = None
     try:
         ts = datetime.now().strftime("%Y%m%d%H%M%S")
         repo_root = Path(__file__).resolve().parents[1]
-        log_file_path = repo_root / f"agentlog_{ts}.log"
-    except Exception:
+        log.info(f"Repository root directory: {repo_root}")
+        
+        agentlogs_dir = repo_root / "agentlogs"
+        log.info(f"Agent logs directory: {agentlogs_dir}, exists: {agentlogs_dir.exists()}, is_dir: {agentlogs_dir.is_dir() if agentlogs_dir.exists() else False}")
+        
+        # Create agentlogs directory if it doesn't exist
+        agentlogs_dir.mkdir(exist_ok=True)
+        log.info(f"After mkdir: exists: {agentlogs_dir.exists()}, is_dir: {agentlogs_dir.is_dir() if agentlogs_dir.exists() else False}")
+        
+        log_file_path = agentlogs_dir / f"agentlog_{ts}.log"
+        log.info(f"Log file path: {log_file_path}")
+    except Exception as e:
+        log.error(f"Failed to create log file path: {e}")
         log_file_path = None
 
     def _safe_write(lines: List[str]):
         if not log_file_path:
+            log.warning("No log file path available, not writing logs")
             return
         try:
+            log.info(f"Writing {len(lines)} lines to log file: {log_file_path}")
             with log_file_path.open("a", encoding="utf-8") as f:
                 for line in lines:
                     f.write(line)
                     if not line.endswith("\n"):
                         f.write("\n")
+            log.info(f"Successfully wrote to log file: {log_file_path}")
         except Exception as e:
-            log.debug("Log file write failed: %s", e)
+            log.error(f"Log file write failed: {e}, path: {log_file_path}")
+            # Try writing to a fallback location in the root directory
+            try:
+                fallback_path = Path(__file__).resolve().parents[1] / f"agentlog_{datetime.now().strftime('%Y%m%d%H%M%S')}.log"
+                log.warning(f"Attempting to write to fallback location: {fallback_path}")
+                with fallback_path.open("a", encoding="utf-8") as f:
+                    for line in lines:
+                        f.write(line)
+                        if not line.endswith("\n"):
+                            f.write("\n")
+                log.info(f"Successfully wrote to fallback log file: {fallback_path}")
+            except Exception as fallback_e:
+                log.error(f"Fallback log write also failed: {fallback_e}")
+                # Give up at this point
 
     def _extract_usage(msg: Any) -> Dict[str, int]:
         usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
@@ -409,7 +474,7 @@ async def execute_plan(
     except Exception as e:
         log.warning("Failed to print supervisor invocation messages: %s", e)
     try:
-        config = {"configurable": {"thread_id": supervisor_thread_id}}
+        config = {"configurable": {"thread_id": supervisor_thread_id, "checkpoint_ns": ""}}
         # Log supervisor request
         _safe_write([
             "--- Supervisor Request ---",
@@ -438,7 +503,7 @@ async def execute_plan(
             time.perf_counter() - t0,
         )
     except AttributeError:
-        config = {"configurable": {"thread_id": supervisor_thread_id}}
+        config = {"configurable": {"thread_id": supervisor_thread_id, "checkpoint_ns": ""}}
         _safe_write([
             "--- Supervisor Request ---",
             f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
@@ -524,11 +589,13 @@ async def execute_plan(
 
     # Print the complete plan JSON for visibility/debugging
     try:
-        plan_json_str = json.dumps(plan.dict(), indent=2, ensure_ascii=False)
+        plan_dict = plan.dict() if hasattr(plan, 'dict') else plan.__dict__
+        plan_json_str = json.dumps(plan_dict, indent=2, ensure_ascii=False)
         log.info("Complete plan JSON:\n%s", plan_json_str)
         print("Complete plan JSON:\n" + plan_json_str)
     except Exception as e:
         log.warning("Failed to serialize plan to JSON: %s", e)
+        log.warning("Plan object: %s", plan)
 
     for step in plan.plan:
         if step.agent not in agents_map:
@@ -589,6 +656,10 @@ async def execute_plan(
             system_context = f"Business context:\n{business_context}"
             if dependent_req_resp:
                 system_context += f"\n\n{dependent_req_resp}"
+            
+            # Add original user request to system context so agents can see file references
+            if user_input:
+                system_context += f"\n\nUser: {user_input}"
 
             worker_state = {
                 "messages": [
@@ -607,7 +678,7 @@ async def execute_plan(
             try:
                 step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
-                    "configurable": {"thread_id": step_thread_id}
+                    "configurable": {"thread_id": step_thread_id, "checkpoint_ns": ""}
                 }
                 # Log worker request
                 _safe_write([
@@ -657,7 +728,7 @@ async def execute_plan(
             except AttributeError:
                 step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
-                    "configurable": {"thread_id": step_thread_id}
+                    "configurable": {"thread_id": step_thread_id, "checkpoint_ns": ""}
                 }
                 _safe_write([
                     (
@@ -926,8 +997,13 @@ async def execute_plan(
                             max_total_retries,
                         )
                         if human_in_loop:
+                            try:
+                                plan_dict = plan.dict() if hasattr(plan, 'dict') else plan.__dict__
+                            except Exception as e:
+                                log.warning(f"Error serializing plan in retry limit: {e}")
+                                plan_dict = {"error": f"Plan serialization failed: {e}"}
                             return {
-                                "plan": plan.dict(),
+                                "plan": plan_dict,
                                 "steps": step_results,
                                 "status": "paused_for_human",
                                 "failed_step": step.id,
@@ -953,8 +1029,13 @@ async def execute_plan(
                     continue
                 # Local retries exhausted
                 if human_in_loop:
+                    try:
+                        plan_dict = plan.dict() if hasattr(plan, 'dict') else plan.__dict__
+                    except Exception as e:
+                        log.warning(f"Error serializing plan in local retries: {e}")
+                        plan_dict = {"error": f"Plan serialization failed: {e}"}
                     return {
-                        "plan": plan.dict(),
+                        "plan": plan_dict,
                         "steps": step_results,
                         "status": "paused_for_human",
                         "failed_step": step.id,
@@ -972,10 +1053,19 @@ async def execute_plan(
                     )
                 )
 
-    final_agg = {
-        sid: {"summary": info["output_summary"], "raw": info["raw"]}
-        for sid, info in step_results.items()
-    }
+    final_agg = {}
+    for sid, info in step_results.items():
+        try:
+            final_agg[sid] = {
+                "summary": info.get("output_summary", ""),
+                "raw": info.get("raw", "")
+            }
+        except Exception as e:
+            log.warning(f"Error processing step {sid} for final aggregation: {e}")
+            final_agg[sid] = {
+                "summary": f"Error processing step: {e}",
+                "raw": f"Error processing step: {e}"
+            }
 
     # Write summary to log
     total_calls = calls["supervisor"] + calls["worker"]
@@ -1003,8 +1093,15 @@ async def execute_plan(
         "",
         "End of log",
     ])
+    # Safe plan serialization to prevent KeyError issues
+    try:
+        plan_dict = plan.dict() if hasattr(plan, 'dict') else plan.__dict__
+    except Exception as e:
+        log.warning(f"Error serializing plan: {e}")
+        plan_dict = {"error": f"Plan serialization failed: {e}"}
+    
     return {
-        "plan": plan.dict(),
+        "plan": plan_dict,
         "steps": step_results,
         "final_result": final_agg,
         "status": "completed",

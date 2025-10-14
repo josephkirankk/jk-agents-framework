@@ -82,6 +82,8 @@ desktop.ini
 *.log
 logs/
 log/
+agentlogs/
+agents_direct_logs/
 
 # Azure Developer CLI local state (if used)
 .azure/
@@ -97,7 +99,6 @@ node_modules/
 okta_token.json
 user_responses
 vectordb_wrapper/vectorlogs
-agentlog/
 test_chroma_db/
 
 config/vars.local.yaml
@@ -105,3 +106,4 @@ chroma_memory/
 test_chromadb_memory/
 jk_agents_memory/
 test_jk_agents_memory/
+simple_memory/

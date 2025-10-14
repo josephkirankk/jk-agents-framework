@@ -9,16 +9,17 @@ Provides optimized ChromaDB integration with:
 - Async-first design for concurrency
 """
 
-from __future__ import annotations
 import asyncio
-import hashlib
-import logging
+import json
 import time
-from contextlib import asynccontextmanager
-from typing import Dict, List, Any, Optional, AsyncGenerator
-from datetime import datetime, timedelta
-import threading
+from typing import Optional, Dict, Any, List, AsyncGenerator
+import logging
 from dataclasses import dataclass, field
+import hashlib
+import uuid
+import random
+from contextlib import asynccontextmanager
+from datetime import datetime
 
 try:
     import chromadb
@@ -213,7 +214,7 @@ class ChromaCheckpointStore:
         """Get cache key for checkpoint."""
         return CacheKey("checkpoint", user_id, thread_id)
     
-    async def _ensure_collection(self, client: chromadb.Client, user_id: str):
+    def _ensure_collection(self, client: chromadb.Client, user_id: str):
         """Ensure user collection exists."""
         collection_name = self._get_collection_name(user_id)
         try:
@@ -232,11 +233,41 @@ class ChromaCheckpointStore:
         checkpoint_data: bytes
     ) -> None:
         """Store a checkpoint with caching and batching."""
+        # Decode payload to a Python structure to avoid double-encoding during storage
+        if isinstance(checkpoint_data, bytes):
+            try:
+                raw_payload = checkpoint_data.decode('utf-8')
+            except UnicodeDecodeError as err:
+                log.error(
+                    "Failed to decode checkpoint payload for thread %s: %s",
+                    thread_id,
+                    err,
+                )
+                raw_payload = None
+        else:
+            raw_payload = checkpoint_data
+
+        payload: Dict[str, Any]
+        if isinstance(raw_payload, str):
+            try:
+                payload = json.loads(raw_payload)
+            except json.JSONDecodeError as err:
+                log.error(
+                    "Checkpoint payload for thread %s is not valid JSON: %s",
+                    thread_id,
+                    err,
+                )
+                payload = {"checkpoint_blob": raw_payload}
+        elif isinstance(raw_payload, dict):
+            payload = raw_payload
+        else:
+            payload = {"checkpoint_blob": raw_payload}
+
         # Create optimized checkpoint
         checkpoint = OptimizedCheckpoint.create(
             intern_string(thread_id),
             user_id,
-            {"data": checkpoint_data.decode('utf-8') if isinstance(checkpoint_data, bytes) else checkpoint_data}
+            payload,
         )
         
         # Update cache
@@ -263,11 +294,12 @@ class ChromaCheckpointStore:
     ):
         """Store checkpoint immediately in ChromaDB."""
         async with self.pool.acquire() as client:
-            collection = await self._ensure_collection(client, user_id)
+            collection = self._ensure_collection(client, user_id)
             
-            # Store in ChromaDB
+            # Store in ChromaDB with unique ID
+            unique_id = f"{thread_id}_{checkpoint.timestamp}_{uuid.uuid4().hex[:8]}_{random.randint(1000, 9999)}"
             collection.upsert(
-                ids=[f"{thread_id}_{checkpoint.timestamp}"],
+                ids=[unique_id],
                 documents=[checkpoint.data.decode('utf-8')],
                 metadatas=[{
                     "user_hash": str(checkpoint.user_hash),
@@ -276,6 +308,9 @@ class ChromaCheckpointStore:
                     "size": checkpoint.size
                 }]
             )
+            
+            # Log successful storage for debugging
+            log.debug(f"Stored checkpoint with ID: {unique_id} for thread: {thread_id}")
     
     async def retrieve_checkpoint(
         self, 
@@ -289,35 +324,48 @@ class ChromaCheckpointStore:
         if cached:
             return cached.data
         
-        # Query ChromaDB
+        # Query ChromaDB using key-based retrieval and choose the latest by timestamp
         async with self.pool.acquire() as client:
             try:
-                collection = await self._ensure_collection(client, user_id)
-                
-                # Query for latest checkpoint
-                results = collection.query(
-                    query_texts=[f"thread:{thread_id}"],
+                collection = self._ensure_collection(client, user_id)
+
+                # Fetch all items for this thread_id and pick the latest by metadata.timestamp
+                results = collection.get(
                     where={"thread_id": thread_id},
-                    n_results=1
+                    include=["metadatas", "documents"],
                 )
-                
-                if results["documents"] and results["documents"][0]:
-                    document = results["documents"][0][0]
-                    metadata = results["metadatas"][0][0]
-                    
-                    # Create checkpoint from results
-                    checkpoint = OptimizedCheckpoint(
-                        thread_id=thread_id,
-                        user_hash=int(metadata["user_hash"]),
-                        timestamp=int(metadata["timestamp"]),
-                        data=document.encode('utf-8'),
-                        size=int(metadata["size"])
-                    )
-                    
-                    # Cache for next time
-                    self._cache.set(cache_key, checkpoint)
-                    return checkpoint.data
-                    
+
+                metadatas = results.get("metadatas") or []
+                documents = results.get("documents") or []
+                if metadatas and documents:
+                    # metadatas is a list; align with documents list
+                    latest_idx = None
+                    latest_ts = -1
+                    for idx, md in enumerate(metadatas):
+                        try:
+                            ts_val = int(md.get("timestamp", -1))
+                        except Exception:
+                            ts_val = -1
+                        if ts_val > latest_ts:
+                            latest_ts = ts_val
+                            latest_idx = idx
+
+                    if latest_idx is not None:
+                        document = documents[latest_idx]
+                        metadata = metadatas[latest_idx]
+
+                        checkpoint = OptimizedCheckpoint(
+                            thread_id=thread_id,
+                            user_hash=int(metadata.get("user_hash", 0)),
+                            timestamp=int(metadata.get("timestamp", 0)),
+                            data=(document or "").encode('utf-8'),
+                            size=int(metadata.get("size", 0))
+                        )
+
+                        # Cache for next time
+                        self._cache.set(cache_key, checkpoint)
+                        return checkpoint.data
+
             except Exception as e:
                 log.error(f"Error retrieving checkpoint: {e}")
                 return None
@@ -332,25 +380,31 @@ class ChromaCheckpointStore:
         """List all checkpoints for a thread."""
         async with self.pool.acquire() as client:
             try:
-                collection = await self._ensure_collection(client, user_id)
-                
-                results = collection.query(
-                    query_texts=[f"thread:{thread_id}"],
+                collection = self._ensure_collection(client, user_id)
+
+                results = collection.get(
                     where={"thread_id": thread_id},
-                    n_results=100  # Reasonable limit
+                    include=["metadatas"],
                 )
-                
+
+                # Some clients always include ids; others only when requested.
+                ids = results.get("ids") or []
+                metadatas = results.get("metadatas") or []
+
                 checkpoints = []
-                for i, metadata in enumerate(results["metadatas"][0]):
-                    checkpoints.append({
-                        "thread_id": metadata["thread_id"],
-                        "timestamp": metadata["timestamp"],
-                        "size": metadata["size"],
-                        "id": results["ids"][0][i]
-                    })
-                
+                for i, md in enumerate(metadatas):
+                    try:
+                        checkpoints.append({
+                            "thread_id": md.get("thread_id"),
+                            "timestamp": int(md.get("timestamp", 0)),
+                            "size": int(md.get("size", 0)),
+                            "id": ids[i] if i < len(ids) else None,
+                        })
+                    except Exception:
+                        continue
+
                 return sorted(checkpoints, key=lambda x: x["timestamp"], reverse=True)
-                
+
             except Exception as e:
                 log.error(f"Error listing checkpoints: {e}")
                 return []
@@ -363,24 +417,23 @@ class ChromaCheckpointStore:
         """Clean up old checkpoints."""
         async with self.pool.acquire() as client:
             try:
-                collection = await self._ensure_collection(client, user_id)
-                
-                # Query old checkpoints
+                collection = self._ensure_collection(client, user_id)
+
                 cutoff_timestamp = int(older_than.timestamp())
-                results = collection.query(
-                    query_texts=["cleanup"],
+                # Use where-based delete; count items first for return value
+                results = collection.get(
                     where={"timestamp": {"$lt": cutoff_timestamp}},
-                    n_results=1000
+                    include=["metadatas"],
                 )
-                
-                if results["ids"] and results["ids"][0]:
-                    # Delete old checkpoints
-                    collection.delete(ids=results["ids"][0])
-                    return len(results["ids"][0])
-                    
+                count = len(results.get("metadatas") or [])
+                if count:
+                    # Prefer where-based deletion to avoid requiring ids
+                    collection.delete(where={"timestamp": {"$lt": cutoff_timestamp}})
+                    return count
+
             except Exception as e:
                 log.error(f"Error cleaning up checkpoints: {e}")
-        
+
         return 0
     
     async def _batch_processor(self):
@@ -429,7 +482,7 @@ class ChromaCheckpointStore:
         for user_id, user_items in user_batches.items():
             try:
                 async with self.pool.acquire() as client:
-                    collection = await self._ensure_collection(client, user_id)
+                    collection = self._ensure_collection(client, user_id)
                     
                     # Prepare batch data
                     ids = []
@@ -439,7 +492,9 @@ class ChromaCheckpointStore:
                     for item in user_items:
                         if item["operation"] == "store":
                             checkpoint = item["checkpoint"]
-                            ids.append(f"{item['thread_id']}_{checkpoint.timestamp}")
+                            # Generate unique ID to prevent duplicates
+                            unique_id = f"{item['thread_id']}_{checkpoint.timestamp}_{uuid.uuid4().hex[:8]}_{random.randint(1000, 9999)}"
+                            ids.append(unique_id)
                             documents.append(checkpoint.data.decode('utf-8'))
                             metadatas.append({
                                 "user_hash": str(checkpoint.user_hash),

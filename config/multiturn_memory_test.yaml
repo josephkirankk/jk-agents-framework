@@ -1,0 +1,48 @@
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+business_context: |
+  Simple multi-turn memory test configuration with memory persistence enabled.
+
+# Enable memory persistence for multi-turn conversations
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are the Supervisor. Break down requests into minimal atomic tasks for specialized agents.
+
+    Task requirements:
+    - Simple, specific actions
+    - Include simple verification questions
+    - Always end with multiturn_test_agent for final presentation
+
+    Available agents: {{agents}}
+
+    Return JSON ONLY:
+    {
+      "goal": "<brief user goal>",
+      "plan": [
+        {"id": "s1", "agent": "multiturn_test_agent", "task": "specific action", "depends_on": [], "verify": "simple verification question"}
+      ]
+    }
+
+agents:
+  - name: "multiturn_test_agent"
+    description: "Simple test agent with memory persistence for multi-turn conversations"
+    model: "azure_openai:gpt-4.1"
+    prompt: |
+      You are a helpful test agent with memory persistence. Answer the user's question directly.
+      
+      Key behaviors:
+      - Remember information from previous interactions in this conversation
+      - Reference earlier topics when relevant
+      - Build context over multiple turns
+      - Be concise and accurate in your responses
+      
+      When asked about previous information, clearly demonstrate that you remember it.
+    mcp_servers: {}

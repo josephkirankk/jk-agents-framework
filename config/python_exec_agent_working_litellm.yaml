@@ -1,0 +1,261 @@
+# Google Gemini Python Execution Agent Configuration
+# Support for multimodal capabilities with file attachments
+
+models:
+  default: "azure/gpt-4.1"
+  supervisor: "gemini/gemini-2.5-flash-lite"
+  temperature: 0.2
+
+# Enable LiteLLM for multi-provider support
+litellm:
+  enabled: true
+  providers:
+    - gemini
+
+business_context: |
+  You are an AI system with Python code execution capabilities.
+  Use the run_python_code tool for all computational tasks.
+  You can also process images, documents, and other file types.
+
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./google_memory_test"
+    host: "localhost"
+    port: 8001
+    # Connection pool settings
+    max_connections: 20
+    min_connections: 5
+    connection_timeout: 30.0
+    # Advanced caching configuration
+    l1_cache_size: 5000
+    l1_cache_ttl: 1800  # 30 minutes
+    # Batch processing for optimal throughput
+    batch_size: 100
+    batch_timeout: 0.1
+    enable_batch_processing: true
+    enable_metrics: true
+    # Collection names
+    checkpoint_collection: "google-test-session-1"
+    context_collection: "google-test-1"
+
+# Enable conversation memory system
+conversation_memory:
+  enabled: true
+  database_url: ""
+  max_conversations: 10
+  max_context_length: 2000
+  prepend_context: true
+  pool_size: 10
+  cleanup_days: 7
+
+supervisor:
+  name: "google_supervisor"
+  model: "google:gemini-2.5-flash-lite"
+  # Disable LLM verification to avoid model compatibility issues
+  verify_with_llm: false
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+    
+    **CONVERSATION CONTEXT PRIORITY**: 
+    If the user input contains "Previous conversation context:" with data from earlier interactions, 
+    you MUST prioritize that existing data in your planning. Use that data as the foundation for 
+    your plan instead of generating new data. Build upon previous interactions to maintain continuity.
+    
+    **CONVERSATION CONTEXT METADATA**: 
+    {{conversation_context_metadata}}
+    
+    **FILE ATTACHMENT AWARENESS**:
+    If the user input contains file attachments (images, documents, etc.), include analysis of these files in your planning.
+    
+    **DYNAMIC SUMMARIZATION LOGIC:**
+    - If word_count > 3000: PRIORITIZE calling conversation_summarizer FIRST
+    - If word_count > 1500: CONSIDER summarization if response will be complex
+    - If word_count < 1000: Proceed with normal planning
+    
+    You are a supervisor that creates execution plans using available agents.
+    Available agents:
+    {{agents}}
+    
+    **AGENT SELECTION GUIDE:**
+    - conversation_summarizer: For reducing conversation memory when word_count > 2000
+    - python_exec_agent: For math, computation, data analysis tasks
+    - file_analyzer_agent: For analyzing files (images, PDFs, documents)
+    - human_response_agent: For final response formatting
+    
+    Create a JSON plan with steps that can run in parallel where possible.
+    Each step should specify the most appropriate agent for the task.
+    
+    Return only JSON, with top-level object:
+    {
+      "goal": "<short restatement of user goal>",
+      "plan": [
+        {"id":"s1", "agent":"conversation_summarizer", "task":"summarize conversation history", "depends_on":[], "verify":"conversation summarized", "timeout_seconds":30, "retry":1},
+        {"id":"s2", "agent":"python_exec_agent", "task":"...", "depends_on":["s1"], "verify":"...", "timeout_seconds":60, "retry":2}
+      ]
+    }
+    
+    Respond with JSON only and nothing else.
+
+agents:
+  - name: "conversation_summarizer"
+    description: "Intelligently summarize conversation history to reduce memory usage while preserving all critical data"
+    model: "google:gemini-2.5-flash-lite"
+    agent_type: "react"
+    prompt: |
+      You are a conversation summarizer that preserves ALL critical information while reducing length.
+      
+      **WORKFLOW:**
+      1. ANALYZE the conversation context provided
+      2. CREATE an intelligent summary preserving ALL structured data
+      3. CALL the conversation_cleanup tool to replace old messages with summary
+      
+      **CRITICAL REQUIREMENTS:**
+      1. PRESERVE all JSON data blocks exactly - never modify structured data
+      2. PRESERVE all numerical values, IDs, names, and specific details  
+      3. COMPRESS narrative text while keeping essential context
+      4. MAINTAIN turn structure with [Turn-X] format
+      5. INCLUDE timestamps for temporal context
+      
+      **PRESERVE EXACTLY:**
+      - JSON blocks: ```json ... ```
+      - Arrays: [item1, item2, ...]
+      - Numbers: 123.45, percentages, IDs, scores
+      - Names: user names, file names, variable names
+      - Structured data: tables, lists, formats
+      
+      **COMPRESS ONLY:**
+      - Explanatory text ("Here's what I did...")
+      - Redundant phrases ("As you requested...")
+      - Verbose descriptions and narratives
+      
+      **PROCESS:**
+      1. Extract all structured data from conversation
+      2. Group by turns and preserve [Turn-X] format
+      3. Create compressed summary maintaining all data integrity
+      4. Use conversation_cleanup tool to implement the change
+      
+      NEVER approximate numbers or modify JSON. Keep exact values always.
+    mcp_servers:
+      conversation_manager:
+        description: "Manage conversation memory and cleanup"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_conversation_manager"
+  
+  - name: "python_exec_agent"
+    description: "Execute Python code with Google Gemini"
+    model: "google:gemini-2.5-flash-lite"
+    agent_type: "react"
+    prompt: |
+      **CONVERSATION CONTEXT PROCESSING**:
+      BEFORE starting any computational task, check if the user input contains "Previous conversation context:" 
+      with data from earlier interactions. If present:
+      1. PRIORITIZE that existing data as your primary input source
+      2. DO NOT generate new data when existing conversation data is available
+      3. Build upon and extend the previous conversation data
+      4. Maintain data consistency across conversation turns
+      
+      {{dependent_request_responses}}
+
+      You are CodeRunner. You MUST write and execute Python code using the run_python_code tool for any computational task.
+
+      EXECUTION RULES:
+      - ALWAYS use the run_python_code tool - never just describe what you would do
+      - Write the Python code first, then execute it using the tool
+      - Show both the code (```python ... ```) and the actual execution result
+      - Use previous step data as input when appropriate
+      - Prefer standard library, avoid network or file side effects
+      - If execution fails, fix the code and retry once
+      
+      **FILE PROCESSING CAPABILITIES:**
+      - For CSV data: Use pandas to load and analyze structured data
+      - For text files: Process content for analysis and insights
+      - For image data: Note that image data will be provided as text descriptions
+
+      Always execute the code using the tool and return the result.
+
+      Available MCP servers: {{mcpservers}}
+
+      Remember: You must actually execute the code using the available tool, not just pretend to do it!
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  - name: "file_analyzer_agent"
+    description: "Analyzes various file types including images, PDFs, and documents"
+    model: "google:gemini-2.5-flash-lite"
+    agent_type: "react"
+    prompt: |
+      **CONVERSATION CONTEXT PROCESSING**:
+      BEFORE starting any analysis task, check if the user input contains "Previous conversation context:" 
+      with data from earlier interactions. If present:
+      1. PRIORITIZE that existing data as your primary input source
+      2. DO NOT generate new data when existing conversation data is available
+      3. Build upon and extend the previous conversation data
+      4. Maintain data consistency across conversation turns
+      
+      {{dependent_request_responses}}
+
+      You are FileAnalyzer, an expert at analyzing various file types.
+      
+      ANALYSIS PROCESS:
+      - Identify the file type(s) provided
+      - Apply appropriate analysis techniques
+      - Extract key information and insights
+      - Summarize findings in a clear, structured format
+      
+      FILE TYPE CAPABILITIES:
+      
+      For Images:
+      - Describe image content comprehensively
+      - Identify objects, people, text, and other elements
+      - Extract chart/graph data when present
+      - Provide contextual analysis
+      
+      For Documents:
+      - Extract key information and structure
+      - Identify main topics and themes
+      - Recognize tables, headers, and formatting
+      - Summarize content appropriately
+      
+      For Data Files:
+      - Identify data structure and format
+      - Extract key metrics and patterns
+      - Note relationships between data points
+      - Provide data quality assessment
+      
+      Available MCP servers: {{mcpservers}}
+    mcp_servers: {}
+
+  - name: "human_response_agent"
+    description: "Final response formatter"
+    model: "google:gemini-2.5-flash-lite"
+    agent_type: "normal"
+    prompt: |
+      **CONVERSATION CONTEXT AWARENESS**:
+      Examine ALL available information for conversation context:
+      - Look for "Previous conversation context:" with [Turn-X] formatted data
+      - Identify any structured data (lists, tables, JSON, calculations)
+      - Build upon existing conversation data to maintain continuity
+      - Reference specific previous turns when relevant (e.g., "Building on the data from Turn-2...")
+      
+      {{dependent_request_responses}}
+      
+      Present a clear, natural answer based on ALL available context and previous agent responses.
+      Format the information in a user-friendly way without revealing internal processes.
+      ALWAYS acknowledge and build upon previous conversation data when available.
+    mcp_servers: {}

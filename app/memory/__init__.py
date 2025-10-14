@@ -10,9 +10,32 @@ Available Components:
 - High-performance backends (optional)
 """
 
-# Core simple components (always available)
-from .simple_chromadb_memory import SimpleChromaDBMemory, create_memory_enabled_graph
-from .chromadb_checkpointer import ChromaDBCheckpointer, create_chromadb_checkpointer
+# Core simple components (try to import, fail gracefully if dependencies missing)
+try:
+    from .simple_chromadb_memory import SimpleChromaDBMemory, create_memory_enabled_graph
+    _HAS_SIMPLE_CHROMADB = True
+except ImportError:
+    SimpleChromaDBMemory = None
+    create_memory_enabled_graph = None
+    _HAS_SIMPLE_CHROMADB = False
+
+try:
+    from .chromadb_checkpointer import ChromaDBCheckpointer, create_chromadb_checkpointer
+    _HAS_CHROMADB_CHECKPOINTER = True
+except ImportError:
+    ChromaDBCheckpointer = None
+    create_chromadb_checkpointer = None
+    _HAS_CHROMADB_CHECKPOINTER = False
+
+# Memory transaction logging (always available - no external dependencies)
+try:
+    from .transaction_logger import MemoryTransactionLogger, get_memory_logger, initialize_memory_logger
+    from .conversation_store import ConversationStore, ConversationEntry
+    from .context_enhancer import ConversationContextEnhancer
+    from .memory_integration import initialize_conversation_memory, enhance_system_message_with_memory
+    _HAS_MEMORY_LOGGING = True
+except ImportError:
+    _HAS_MEMORY_LOGGING = False
 
 # Import optional advanced components only if available
 try:
@@ -49,13 +72,21 @@ except ImportError:
     MemorySaverReplacement = None
     _HAS_LANGGRAPH_ADAPTER = False
 
-# Core exports (always available)
-__all__ = [
-    'SimpleChromaDBMemory',
-    'create_memory_enabled_graph',
-    'ChromaDBCheckpointer', 
-    'create_chromadb_checkpointer',
-]
+# Core exports (conditionally available)
+__all__ = []
+
+if _HAS_SIMPLE_CHROMADB:
+    __all__.extend(['SimpleChromaDBMemory', 'create_memory_enabled_graph'])
+    
+if _HAS_CHROMADB_CHECKPOINTER:
+    __all__.extend(['ChromaDBCheckpointer', 'create_chromadb_checkpointer'])
+    
+if _HAS_MEMORY_LOGGING:
+    __all__.extend([
+        'MemoryTransactionLogger', 'get_memory_logger', 'initialize_memory_logger',
+        'ConversationStore', 'ConversationEntry', 'ConversationContextEnhancer',
+        'initialize_conversation_memory', 'enhance_system_message_with_memory'
+    ])
 
 # Add optional exports
 if _HAS_PROTOCOLS:

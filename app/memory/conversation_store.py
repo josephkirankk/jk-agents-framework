@@ -16,6 +16,8 @@ from contextlib import asynccontextmanager
 import asyncpg
 from pydantic import BaseModel
 
+from .transaction_logger import get_memory_logger
+
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +130,8 @@ class ConversationStore:
         user_message: str,
         assistant_response: str,
         metadata: Optional[Dict] = None,
-        timestamp: Optional[datetime] = None
+        timestamp: Optional[datetime] = None,
+        app_config = None
     ) -> None:
         """
         Store a conversation entry.
@@ -139,8 +142,47 @@ class ConversationStore:
             assistant_response: The agent's response
             metadata: Optional metadata dictionary
             timestamp: Optional timestamp (defaults to now)
+            app_config: Optional app configuration for logging settings
         """
         import json
+        
+        # Log the transaction
+        try:
+            memory_logger = get_memory_logger()
+            from .transaction_logger import prepare_content_for_logging
+            
+            # Get logging settings from app config or use defaults
+            include_content = True  # Default to include content
+            max_content_length = 1000  # Default limit
+            
+            if app_config and hasattr(app_config, 'memory_logging'):
+                include_content = app_config.memory_logging.include_content
+                max_content_length = app_config.memory_logging.max_content_length
+            
+            log_data = {
+                'has_metadata': metadata is not None,
+                'timestamp': timestamp.isoformat() if timestamp else None,
+                'operation_source': 'conversation_store'
+            }
+            
+            # Add user message content
+            user_content = prepare_content_for_logging(user_message, include_content, max_content_length)
+            log_data.update({f'user_message_{k}': v for k, v in user_content.items()})
+            
+            # Add assistant response content
+            assistant_content = prepare_content_for_logging(assistant_response, include_content, max_content_length)
+            log_data.update({f'assistant_response_{k}': v for k, v in assistant_content.items()})
+            
+            # Add metadata if present and content logging is enabled
+            if metadata and include_content:
+                log_data['metadata'] = metadata
+            elif metadata:
+                log_data['metadata_keys'] = list(metadata.keys())
+            
+            memory_logger.log_transaction(thread_id, 'STORE_CONVERSATION', log_data)
+        except Exception as e:
+            # Never let logging break the main functionality
+            logger.warning(f"Failed to log STORE_CONVERSATION for thread {thread_id}: {e}")
         
         if timestamp is None:
             timestamp = datetime.now(timezone.utc)
@@ -191,6 +233,17 @@ class ConversationStore:
         Returns:
             List of ConversationEntry objects in chronological order
         """
+        # Log the retrieval
+        try:
+            memory_logger = get_memory_logger()
+            memory_logger.log_transaction(thread_id, 'GET_CONVERSATION_HISTORY', {
+                'limit': limit,
+                'offset': offset,
+                'retrieval_type': 'history'
+            })
+        except Exception as e:
+            logger.warning(f"Failed to log GET_CONVERSATION_HISTORY for thread {thread_id}: {e}")
+        
         select_sql = """
         SELECT thread_id, user_message, assistant_response, timestamp, metadata
         FROM conversations
@@ -234,6 +287,16 @@ class ConversationStore:
         Returns:
             List of recent ConversationEntry objects in chronological order
         """
+        # Log the retrieval
+        try:
+            memory_logger = get_memory_logger()
+            memory_logger.log_transaction(thread_id, 'GET_RECENT_CONVERSATIONS', {
+                'limit': limit,
+                'retrieval_type': 'recent'
+            })
+        except Exception as e:
+            logger.warning(f"Failed to log GET_RECENT_CONVERSATIONS for thread {thread_id}: {e}")
+        
         select_sql = """
         SELECT thread_id, user_message, assistant_response, timestamp, metadata
         FROM conversations
@@ -275,6 +338,15 @@ class ConversationStore:
         Returns:
             Total number of conversation entries
         """
+        # Log the count operation
+        try:
+            memory_logger = get_memory_logger()
+            memory_logger.log_transaction(thread_id, 'COUNT_CONVERSATIONS', {
+                'operation_type': 'count'
+            })
+        except Exception as e:
+            logger.warning(f"Failed to log COUNT_CONVERSATIONS for thread {thread_id}: {e}")
+        
         count_sql = """
         SELECT COUNT(*) FROM conversations WHERE thread_id = $1
         """

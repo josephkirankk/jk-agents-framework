@@ -137,27 +137,25 @@ agents:
 2. Configure API keys for desired providers
 3. Create agent configuration YAML files
 4. Start the FastAPI server: `uvicorn api:app --reload`
-
 ## Key Technologies
 
 - **FastAPI**: High-performance async web framework
 - **LangChain**: LLM integration and agent orchestration
 - **Pydantic**: Data validation and configuration management
 - **Model Context Protocol**: Extensible tool integration
-- **Docker**: Containerization and deployment
-- **YAML**: Configuration management
 
-## Use Cases
-
-### Enterprise AI Automation
-- Multi-step business process automation
-- Document processing and analysis
+## Testing and Validation Documentation
+- [Framework Demo Guide](docs/FRAMEWORK_DEMO.md) - Step-by-step guide for running framework demos
+- [Memory Performance Analysis](docs/MEMORY_PERFORMANCE_ANALYSIS.md) - Detailed analysis of jk-agents memory system performance
+- [Test Results Documentation](TEST_RESULTS.md) - Comprehensive test results and analysis
+- [**Advanced Memory Agent Test Documentation**](docs/ADVANCED_MEMORY_AGENT_TEST_DOCUMENTATION.md) - Complete test suite documentation
+- [Test Suite Quick Reference](docs/TEST_SUITE_QUICK_REFERENCE.md) - Quick reference for test execution and results
+- [Test Results Template](docs/TEST_RESULTS_TEMPLATE.md) - Template for documenting test runs
 - Customer support workflow orchestration
 
 ### Business Process Automation
 - Document processing and analysis workflows
 - Multi-step data transformation pipelines
-- Structured decision-making processes
 
 ### Research and Development
 - Multi-modal AI experimentation

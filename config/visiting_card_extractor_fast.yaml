@@ -1,0 +1,120 @@
+# =============================================================================
+# JK Agents Framework - Visiting Card Fast Extraction Config
+# =============================================================================
+# Ultra-low latency configuration focused on extracting structured text directly
+# from visiting card images using a single-tool workflow.
+# =============================================================================
+
+version: "1.0"
+name: "visiting_card_extractor_fast"
+
+models:
+  default: "google:gemini-2.0-flash-exp"  # Fast Google Gemini for all tasks
+  multimodal: "gemini/gemini-2.0-flash-exp"  # Fast Gemini vision model
+  supervisor: "google:gemini-2.0-flash-exp"  # Gemini for planning
+  temperature: 0.0
+  fallback: "google:gemini-2.0-flash-exp"
+
+business_context: |
+  **FAST VISITING CARD OCR**
+
+  Deliver the fastest possible extraction of visiting card content directly from
+  uploaded images. Avoid optional processing such as company research or deep
+  normalization unless explicitly requested by the user. Always prioritize speed.
+
+conversation_memory:
+  enabled: false
+
+resource_limits:
+  max_memory_mb: 1024
+  max_connections: 10
+
+timeouts:
+  ocr_processing: 25
+  overall_request_timeout_seconds: 60
+
+supervisor:
+  name: "fast_vc_supervisor"
+  model: "google:gemini-2.0-flash-exp"
+  prompt: |
+    You are the fast visiting card extraction supervisor. Your only job is to create a
+    single-step plan that extracts text from uploaded images immediately.
+
+    **CRITICAL: ALWAYS create this exact plan structure:**
+    
+    {
+      "goal": "Extract visiting card details using fast OCR",
+      "plan": [
+        {
+          "id": "ocr_extraction",
+          "agent": "fast_ocr_agent",
+      "task": "Extract all text and contact details from uploaded visiting card images using extract_visiting_card_text_fast tool.",
+          "depends_on": [],
+          "verify": "OCR results returned with extracted text",
+          "timeout_seconds": 30,
+          "retry": 1
+        }
+      ]
+    }
+    
+    **RULES:**
+    - Do NOT add research, validation, or formatting steps unless explicitly requested
+    - Do NOT create multi-step plans unless user explicitly asks for it
+    - Default to this single-step OCR extraction plan always
+    - If no images uploaded, return plan with message asking for image upload
+
+agents:
+  - name: "fast_ocr_agent"
+    agent_type: "react"  # ReAct agents are forced to generate reasoning + response
+    model: "google:gemini-2.0-flash-exp"
+    description: "Ultra-fast OCR agent powered by Google Gemini 2.0 Flash"
+    tools: []
+    python_tools:
+      fast_ocr:
+        module_path: "tools.fast_ocr_tool"
+        tool_names: ["extract_visiting_card_text_fast"]
+        description: "Fast OCR extraction with hardcoded Gemini 2.0 Flash model"
+      file_listing:
+        module_path: "tools.file_retrieval_tools"
+        tool_names: ["list_available_files"]
+        description: "List uploaded files"
+
+    prompt: |
+      You are a visiting card OCR extraction assistant.
+      
+      Your task: Extract all text and contact information from uploaded visiting card images.
+      
+      Process:
+      1. First call list_available_files() to get the image reference IDs
+      2. Then call extract_visiting_card_text_fast() with those IDs to extract text
+      3. Parse the OCR results and provide a structured JSON response
+      
+      Final answer format:
+      {
+        "cards": [
+          {
+            "filename": "...",
+            "name": "Full Name",
+            "title": "Job Title", 
+            "company": "Company Name",
+            "phone": ["numbers"],
+            "email": ["addresses"],
+            "website": ["urls"],
+            "address": "Full Address",
+            "raw_text": "All extracted text"
+          }
+        ]
+      }
+      
+      Always provide a final answer with the structured data from the OCR results.
+
+timeouts_override: {}
+
+# =============================================================================
+# USAGE EXAMPLE
+# =============================================================================
+# curl -X POST http://localhost:8000/v1/query \
+#   -F "question=Extract the text from this visiting card fast" \
+#   -F "file=@card_front.jpg" \
+#   -F "config_name=visiting_card_extractor_fast.yaml"
+# =============================================================================
