@@ -464,7 +464,7 @@ class TestAPICriticalFlows:
         # Send invalid request (missing required fields)
         invalid_request = {
             "input": "",  # Empty input
-            "config_name": "default"
+            "config_path": "config/default.yaml"
         }
         
         response1 = requests.post(

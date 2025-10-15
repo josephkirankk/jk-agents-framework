@@ -72,8 +72,8 @@ class TestApiToLlmFlow:
             pytest.skip("API server not running. Start with: uvicorn api:app")
         
         payload = {
-            "query": "What is 25 + 17? Give me just the number.",
-            "config_name": "python_exec_agent_working",
+            "input": "What is 25 + 17? Give me just the number.",
+            "config_path": "config/python_exec_agent_working.yaml",
             "thread_id": test_thread_id
         }
         
@@ -108,8 +108,8 @@ class TestApiToLlmFlow:
             pytest.skip("API server not running")
         
         payload = {
-            "query": "What is Python? Answer in one sentence.",
-            "config_name": "python_exec_agent_working",
+            "input": "What is Python? Answer in one sentence.",
+            "config_path": "config/python_exec_agent_working.yaml",
             "thread_id": test_thread_id
         }
         
@@ -145,8 +145,8 @@ class TestApiToLlmFlow:
         
         # First query
         payload1 = {
-            "query": "My favorite number is 42. Remember this.",
-            "config_name": "python_exec_agent_working",
+            "input": "My favorite number is 42. Remember this.",
+            "config_path": "config/python_exec_agent_working.yaml",
             "thread_id": thread_id
         }
         
@@ -163,8 +163,8 @@ class TestApiToLlmFlow:
         
         # Second query
         payload2 = {
-            "query": "What is my favorite number?",
-            "config_name": "python_exec_agent_working",
+            "input": "What is my favorite number?",
+            "config_path": "config/python_exec_agent_working.yaml",
             "thread_id": thread_id
         }
         
@@ -195,8 +195,8 @@ class TestApiToLlmFlow:
             pytest.skip("API server not running")
         
         payload = {
-            "query": "test query",
-            "config_name": "non_existent_config_xyz123",
+            "input": "test query",
+            "config_path": "config/non_existent_config_xyz123.yaml",
             "thread_id": test_thread_id
         }
         
@@ -223,8 +223,8 @@ class TestApiToLlmFlow:
             pytest.skip("API server not running")
         
         payload = {
-            "query": "What is 5 + 5?",
-            "config_name": "python_exec_agent_working",
+            "input": "What is 5 + 5?",
+            "config_path": "config/python_exec_agent_working.yaml",
             "thread_id": test_thread_id
         }
         
@@ -279,8 +279,8 @@ class TestApiToLlmFlow:
         
         # Create conversation
         payload = {
-            "query": "Remember that my name is Alice.",
-            "config_name": "python_exec_agent_working",
+            "input": "Remember that my name is Alice.",
+            "config_path": "config/python_exec_agent_working.yaml",
             "thread_id": thread_id
         }
         
@@ -313,8 +313,8 @@ class TestApiToLlmFlow:
         
         async def send_request(query_num):
             payload = {
-                "query": f"What is {query_num} + {query_num}?",
-                "config_name": "python_exec_agent_working",
+                "input": f"What is {query_num} + {query_num}?",
+                "config_path": "config/python_exec_agent_working.yaml",
                 "thread_id": f"{test_thread_id}_concurrent_{query_num}"
             }
             

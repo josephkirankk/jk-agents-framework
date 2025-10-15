@@ -63,12 +63,21 @@ class TestADOMCPConnection:
         
         ado_mcp = ado_agent.mcp_servers["azure_devops"]
         print(f"✓ ADO MCP server config:")
-        print(f"  Command: {ado_mcp.get('command')}")
-        print(f"  Transport: {ado_mcp.get('transport')}")
-        print(f"  Env vars: {list(ado_mcp.get('env', {}).keys())}")
+        
+        # Convert to dict if it's a Pydantic model
+        if hasattr(ado_mcp, 'model_dump'):
+            ado_mcp_dict = ado_mcp.model_dump()
+        elif hasattr(ado_mcp, 'dict'):
+            ado_mcp_dict = ado_mcp.dict()
+        else:
+            ado_mcp_dict = ado_mcp
+        
+        print(f"  Command: {ado_mcp_dict.get('command')}")
+        print(f"  Transport: {ado_mcp_dict.get('transport')}")
+        print(f"  Env vars: {list(ado_mcp_dict.get('env', {}).keys())}")
         
         # Check PAT token in config
-        env_config = ado_mcp.get('env', {})
+        env_config = ado_mcp_dict.get('env', {})
         pat_in_config = env_config.get('AZURE_DEVOPS_EXT_PAT', '')
         print(f"  PAT in config: {pat_in_config}")
         

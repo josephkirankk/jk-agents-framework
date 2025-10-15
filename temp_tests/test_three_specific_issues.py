@@ -6,6 +6,9 @@ Comprehensive test for the three specific issues:
 3. Singleton Patterns
 
 Tests each issue in detail to verify fixes.
+
+NOTE: This is a standalone test script, not a pytest test.
+Run directly with: python temp_tests/test_three_specific_issues.py
 """
 
 import sys
@@ -17,6 +20,12 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Only run if executed directly, not during pytest collection
+if __name__ != "__main__":
+    # Skip module-level execution when imported by pytest
+    import pytest
+    pytest.skip("This is a standalone script, not a pytest test", allow_module_level=True)
 
 print("=" * 70)
 print("🔍 DETAILED REVIEW OF THREE SPECIFIC ISSUES")

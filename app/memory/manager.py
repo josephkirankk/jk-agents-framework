@@ -285,8 +285,11 @@ class HighPerformanceMemoryManager:
         if self._initialized:
             return
         
+        # Get backend type, defaulting to chromadb if not specified
+        backend_type = config.get("memory", {}).get("backend", "chromadb")
+        
         # Create and initialize backend
-        if config.get("memory", {}).get("backend") == "chromadb":
+        if backend_type == "chromadb" or backend_type is None:
             chromadb_config = ChromaDBConfig()
             
             # Apply configuration
@@ -298,7 +301,7 @@ class HighPerformanceMemoryManager:
             self._backend = ChromaDBBackend(chromadb_config)
             await self._backend.initialize(config)
         else:
-            raise ValueError(f"Unsupported backend: {config.get('memory', {}).get('backend', 'none')}")
+            raise ValueError(f"Unsupported backend: {backend_type}")
         
         # Start monitoring
         self._monitoring_task = asyncio.create_task(self._monitoring_loop())

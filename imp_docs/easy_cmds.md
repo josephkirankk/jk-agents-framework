@@ -31,6 +31,10 @@ source .venv/bin/activate && python tests/test_conversation_fix.py
 source .venv/bin/activate && python tests/test_turn_tracking.py
 ```
 
+## Integration Tests
+```bash
+pytest integration_tests/ -v --tb=no -q
+```
 
 ```
 # Run comprehensive verification

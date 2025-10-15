@@ -95,8 +95,9 @@ class CheckpointerManager:
         self._memory_backend = (
             (self._config.get("memory") or {}).get("backend")
             or (self._config.get("persistence") or {}).get("type")
-            or "standard"
+            or "chromadb"  # Default to chromadb instead of "standard"
         )
+        log.debug(f"Detected memory backend: {self._memory_backend}")
 
         # Initialize based on configuration, preferring optimized backend when available
         self._checkpointer = None
@@ -109,11 +110,13 @@ class CheckpointerManager:
                 self._checkpointer = get_optimized_checkpointer(self._config)
                 log.info("Initialized optimized high-performance checkpointer (ChromaDB backend)")
             except Exception as e:
+                log.warning(f"Failed to initialize optimized checkpointer: {e}")
                 init_errors.append(f"optimized_checkpointer: {e}")
                 self._checkpointer = None
 
-        # 2) Fallback to legacy simple ChromaDB checkpointer if explicitly requested and available
-        if self._checkpointer is None and self._memory_backend == "chromadb" and HAS_CHROMADB:
+        # 2) Fallback to legacy simple ChromaDB checkpointer if available
+        # Try this if optimized failed OR if explicitly requested
+        if self._checkpointer is None and HAS_CHROMADB:
             try:
                 chromadb_cfg = (self._config.get("memory") or {}).get("chromadb", {})
                 persist_directory = chromadb_cfg.get("path", "./jk_agents_memory")
