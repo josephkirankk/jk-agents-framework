@@ -26,6 +26,10 @@ langchain-community>=0.2.0
 langchain-core>=0.2.0
 langchain-text-splitters>=0.3.9
 
+# Multi-provider support via LiteLLM
+litellm>=1.43.0
+langchain-litellm>=0.0.1
+
 # ChromaDB memory backend dependencies - verified working versions
 chromadb>=1.0.0
 langchain-chroma>=0.2.4
@@ -50,6 +54,8 @@ asyncpg>=0.29.0
 
 # Data generation and testing utilities
 faker>=18.0.0
+jsonschema>=4.20.0  # JSON Schema validation (Draft 2020-12 support)
+rstr>=3.2.0  # Random string generation from regex patterns
 
 # Development and testing dependencies
 pytest>=7.4.3

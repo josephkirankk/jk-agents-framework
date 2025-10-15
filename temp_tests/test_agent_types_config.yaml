@@ -1,0 +1,72 @@
+# Test configuration showing both react and normal agent types
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.1
+
+business_context: |
+  Test configuration to demonstrate both react and normal agent types.
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are a test supervisor. Create simple execution plans.
+    
+    Available agents: {{agents}}
+    
+    Return only JSON:
+    {
+      "goal": "<user goal>",
+      "plan": [
+        {"id":"s1", "agent":"react_test_agent", "task":"handle with tools", "depends_on":[], "verify":"completed", "timeout_seconds":30, "retry":1},
+        {"id":"s2", "agent":"normal_test_agent", "task":"provide response", "depends_on":["s1"], "verify":"completed", "timeout_seconds":30, "retry":1}
+      ]
+    }
+
+agents:
+  # React agent - uses tools and reasoning
+  - name: "react_test_agent"
+    description: "React agent that can use tools"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"  # ReAct agent with tool calling
+    prompt: |
+      You are a React agent with tool calling capabilities.
+      Use tools when appropriate to solve problems.
+      You can execute code, make calculations, etc.
+    mcp_servers:
+      python_runner:
+        description: "Python code execution"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  # Normal agent - pure conversation without tools
+  - name: "normal_test_agent"
+    description: "Normal conversational agent"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "normal"  # Normal agent without tool calling
+    prompt: |
+      You are a conversational agent that provides helpful responses.
+      You cannot use tools, but you can have natural conversations
+      and provide informative answers based on your knowledge.
+      
+      Format your responses in a friendly, helpful manner.
+    mcp_servers: {}
+
+  # Default agent - no agent_type specified (should default to react)
+  - name: "default_test_agent"
+    description: "Agent with default type (should be react)"
+    model: "azure_openai:gpt-4.1"
+    # No agent_type specified - should default to "react"
+    prompt: |
+      You are an agent with default configuration.
+      Since no agent_type is specified, you should default to react behavior.
+    mcp_servers: {}

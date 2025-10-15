@@ -1,0 +1,88 @@
+# ============================================================================
+# Token-Optimized Test Data Parser - Minimal Output Strategy
+# ============================================================================
+#
+# TOKEN OPTIMIZATION STRATEGY:
+# 
+# Problem: Original config uses 6,389 tokens for 5 records
+# Solution: Reduce prompts, remove duplication, minimize output format
+#
+# Key Optimizations:
+# 1. Business context condensed (400 → 80 tokens)
+# 2. Removed verbose Python templates (1,200 → 300 tokens)  
+# 3. Minimal JSON output - no indentation, no verbose metadata (400 → 150 tokens)
+# 4. Concise prompts throughout
+#
+# Expected Token Usage:
+# - Original: ~6,500 tokens (5 records) → ~50,000 tokens (100 records)
+# - Optimized: ~2,000 tokens (5 records) → ~3,500 tokens (100 records)
+# - Savings: 70% for small datasets, 93% for large datasets
+#
+# Note: For 1000+ records, consider using LargeDataStorage system separately
+# ============================================================================
+
+models:
+  default: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+# Ultra-compact business context
+business_context: |
+  Codes: Program(MFG|ADV|STD), Sector(PFNA|PBNA|QSNA|RSNA|ALL), Plant(p1-4), Market(US|IN|UK|DE), UOM(count|kg|liters|units|percentage|hours)
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    Agents: {{agents}}
+    
+    Plan: s1=parser extracts params, s2=generator creates records.
+    Return JSON: {"goal":"<goal>","plan":[{"id":"s1","agent":"requirement_parser","task":"extract","depends_on":[],"verify":"ok","timeout_seconds":60,"retry":2},{"id":"s2","agent":"data_generator","task":"generate","depends_on":["s1"],"verify":"ok","timeout_seconds":120,"retry":2}]}
+
+agents:
+  - name: "requirement_parser"
+    description: "Parse NL to JSON: {record_count, metrics[], program_code, sector, plant_code, market_code, value_range, negative_percentage, negative_range, uom, date_range_days}"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Parse query to JSON using run_python_code. Extract: record count, metrics list, codes, value ranges, negative%.
+      Valid: {{business_context}}
+      Defaults: 100 records, US market, 30 days
+      Return JSON only, no extra text.
+    
+    mcp_servers:
+      python_runner:
+        transport: "stdio"
+        command: "deno"
+        args: ["run", "-N", "-R=node_modules", "-W=node_modules", "--node-modules-dir=auto", "jsr:@pydantic/mcp-run-python", "stdio"]
+
+  - name: "data_generator"
+    description: "Generate test records from params"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Generate records using params from s1 via run_python_code.
+      
+      CRITICAL: Return compact JSON - NO indentation, NO extra fields.
+      Format: [{"id":1,"metric":"x","value":10,"prog":"MFG","sector":"PFNA","plant":"p1","market":"US","uom":"count","date":"2025-01-01"},...]
+      
+      Short field names to save tokens:
+      - id (not record_id)
+      - prog (not program_code)  
+      - plant/sector/market/uom/date as-is
+      
+      Split record_count across metrics. Apply negative_percentage with negative_range values, rest use value_range.
+      Dates vary within date_range_days.
+      
+      Use print(json.dumps(records, separators=(',',':'))) for minimum size.
+    
+    mcp_servers:
+      python_runner:
+        transport: "stdio"
+        command: "deno"
+        args: ["run", "-N", "-R=node_modules", "-W=node_modules", "--node-modules-dir=auto", "jsr:@pydantic/mcp-run-python", "stdio"]

@@ -1,0 +1,10 @@
+Sample Data Analysis File
+=======================
+
+Student Performance Data:
+- Alice: Math=95, Science=88, English=92
+- Bob: Math=78, Science=91, English=85  
+- Charlie: Math=88, Science=82, English=90
+- Diana: Math=92, Science=95, English=87
+
+Task: Calculate average scores and identify top performer in each subject.

@@ -1,0 +1,145 @@
+# ============================================================================
+# Token-Optimized Test Data Parser
+# ============================================================================
+#
+# Optimizations Applied:
+# 1. Removed business_context repetition (save ~800 tokens)
+# 2. Condensed Python templates to essential logic (save ~1000 tokens)
+# 3. Simplified prompts, removed redundancy (save ~500 tokens)
+# 4. Total savings: ~2300 tokens (36% reduction)
+#
+# Expected performance: ~3000-4000 tokens (vs 6389 original)
+# ============================================================================
+
+models:
+  default: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+# Compact business context - used only once
+business_context: |\
+  Valid codes: Programs(MFG|ADV|STD), Sectors(PFNA|PBNA|QSNA|RSNA|ALL), 
+  Plants(p1-p4), Markets(US|IN|UK|DE), UOM(count|kg|liters|units|percentage|hours)
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |\
+    Available agents:
+    {{agents}}
+    
+    Create a TWO-STEP plan: 1) requirement_parser extracts JSON params, 2) data_generator creates records.
+    
+    Output JSON only:
+    {
+      "goal": "<brief goal>",
+      "plan": [
+        {"id":"s1", "agent":"requirement_parser", "task":"extract params", "depends_on":[], "verify":"params ready", "timeout_seconds":60, "retry":2},
+        {"id":"s2", "agent":"data_generator", "task":"generate records from s1", "depends_on":["s1"], "verify":"records ready", "timeout_seconds":120, "retry":2}
+      ]
+    }
+
+agents:
+  - name: "requirement_parser"
+    description: "Parses natural language to JSON params using Python"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |\
+      {{dependent_request_responses}}
+      
+      Parse the user query into JSON params using run_python_code tool.
+      
+      Schema: {record_count, metrics[], program_code, sector, plant_code, market_code, 
+      value_range{min,max}, negative_percentage, negative_range{min,max}, uom, date_range_days}
+      
+      Defaults: record_count=100, market_code=US, date_range_days=30
+      Valid codes: {{business_context}}
+      
+      Extract using regex/string matching. Return ONLY the JSON output, no explanation.
+      
+      Python template:
+      ```python
+      import re, json
+      query = '''USER_QUERY'''
+      
+      # Extract with regex: r'(\d+) records?', r'metric[s]?\s+([\w\s,]+)', 
+      # r'(\d+)\s+to\s+(\d+)', r'(\d+)%\s*negative', etc.
+      # Set defaults for missing fields
+      
+      result = {
+        "record_count": extracted_or_100,
+        "metrics": extracted_list,
+        "program_code": extracted_or_"MFG",
+        # ... other fields with extraction logic or defaults
+      }
+      print(json.dumps(result))
+      ```
+    
+    mcp_servers:
+      python_runner:
+        description: "Python via Deno"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  - name: "data_generator"
+    description: "Generates test data records from parsed params"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |\
+      {{dependent_request_responses}}
+      
+      Generate test records using parameters from previous step. Use run_python_code tool.
+      
+      Requirements: Generate record_count records split across metrics. Apply negative_percentage 
+      with negative_range values, rest use value_range. Include all fields: record_id, metric, 
+      value, program_code, sector, plant_code, market_code, uom, date (within date_range_days).
+      
+      Return JSON array of records only.
+      
+      Python template:
+      ```python
+      import json, random
+      from datetime import datetime, timedelta
+      
+      params = json.loads('''PARAMS_FROM_S1''')
+      records = []
+      per_metric = params['record_count'] // len(params['metrics'])
+      neg_count = int(params['record_count'] * params['negative_percentage'])
+      
+      rid = 1
+      for metric in params['metrics']:
+          for _ in range(per_metric):
+              val = random.randint(params['negative_range' if rid <= neg_count else 'value_range']['min'], 
+                                   params['negative_range' if rid <= neg_count else 'value_range']['max'])
+              date = (datetime.now() - timedelta(days=random.randint(0, params['date_range_days']))).strftime('%Y-%m-%d')
+              records.append({"record_id": rid, "metric": metric, "value": val, 
+                            "program_code": params['program_code'], "sector": params['sector'],
+                            "plant_code": params['plant_code'], "market_code": params['market_code'],
+                            "uom": params['uom'], "date": date})
+              rid += 1
+      
+      print(json.dumps(records))
+      ```
+    
+    mcp_servers:
+      python_runner:
+        description: "Python via Deno"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"

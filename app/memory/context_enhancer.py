@@ -10,6 +10,7 @@ import logging
 from typing import List, Optional
 
 from .conversation_store import ConversationStore, ConversationEntry, get_conversation_store
+from .transaction_logger import get_memory_logger
 
 
 logger = logging.getLogger(__name__)
@@ -92,7 +93,8 @@ class ConversationContextEnhancer:
         self,
         thread_id: str,
         max_conversations: int = 5,
-        max_length: Optional[int] = 2000
+        max_length: Optional[int] = 2000,
+        app_config = None
     ) -> str:
         """
         Get formatted conversation context for a thread.
@@ -101,10 +103,35 @@ class ConversationContextEnhancer:
             thread_id: Thread identifier to get history for
             max_conversations: Maximum number of recent conversations to include
             max_length: Optional maximum length of formatted context
+            app_config: Optional app configuration for logging settings
             
         Returns:
             Formatted conversation context string
         """
+        # Log the context retrieval operation with content if enabled
+        try:
+            memory_logger = get_memory_logger()
+            from .transaction_logger import prepare_content_for_logging
+            
+            # Get logging settings from app config or use defaults
+            include_content = True  # Default to include content
+            max_content_length = 1000  # Default limit
+            
+            if app_config and hasattr(app_config, 'memory_logging'):
+                include_content = app_config.memory_logging.include_content
+                max_content_length = app_config.memory_logging.max_content_length
+            
+            log_data = {
+                'max_conversations': max_conversations,
+                'max_length': max_length,
+                'operation_type': 'context_retrieval',
+                'operation_source': 'context_enhancer'
+            }
+            
+            memory_logger.log_transaction(thread_id, 'GET_CONVERSATION_CONTEXT', log_data)
+        except Exception as e:
+            logger.warning(f"Failed to log GET_CONVERSATION_CONTEXT for thread {thread_id}: {e}")
+        
         try:
             store = self._get_store()
             conversations = await store.get_recent_conversations(
@@ -116,6 +143,34 @@ class ConversationContextEnhancer:
                 conversations=conversations,
                 max_length=max_length
             )
+            
+            # Log the retrieved context content if enabled
+            try:
+                memory_logger = get_memory_logger()
+                from .transaction_logger import prepare_content_for_logging
+                
+                # Get logging settings from app config or use defaults
+                include_content = True  # Default to include content
+                max_content_length = 1000  # Default limit
+                
+                if app_config and hasattr(app_config, 'memory_logging'):
+                    include_content = app_config.memory_logging.include_content
+                    max_content_length = app_config.memory_logging.max_content_length
+                
+                log_data = {
+                    'conversations_retrieved': len(conversations),
+                    'operation_source': 'context_enhancer',
+                    'operation_result': 'context_retrieved'
+                }
+                
+                # Add context content if logging configuration allows
+                if context:
+                    context_content = prepare_content_for_logging(context, include_content, max_content_length)
+                    log_data.update({f'context_{k}': v for k, v in context_content.items()})
+                
+                memory_logger.log_transaction(thread_id, 'GET_CONVERSATION_CONTEXT_RESULT', log_data)
+            except Exception as e:
+                logger.warning(f"Failed to log GET_CONVERSATION_CONTEXT_RESULT for thread {thread_id}: {e}")
             
             if context:
                 logger.debug(f"Generated conversation context for thread {thread_id}: {len(context)} chars")
@@ -133,7 +188,8 @@ class ConversationContextEnhancer:
         thread_id: str,
         max_conversations: int = 5,
         max_length: Optional[int] = 2000,
-        prepend: bool = False
+        prepend: bool = False,
+        app_config = None
     ) -> str:
         """
         Enhance a system message with conversation context.
@@ -144,14 +200,45 @@ class ConversationContextEnhancer:
             max_conversations: Maximum number of conversations to include
             max_length: Maximum length of conversation context
             prepend: If True, prepend context to message; otherwise append
+            app_config: Optional app configuration for logging settings
             
         Returns:
             Enhanced system message with conversation context
         """
+        # Log the system message enhancement operation
+        try:
+            memory_logger = get_memory_logger()
+            from .transaction_logger import prepare_content_for_logging
+            
+            # Get logging settings from app config or use defaults
+            include_content = True  # Default to include content
+            max_content_length = 1000  # Default limit
+            
+            if app_config and hasattr(app_config, 'memory_logging'):
+                include_content = app_config.memory_logging.include_content
+                max_content_length = app_config.memory_logging.max_content_length
+            
+            log_data = {
+                'max_conversations': max_conversations,
+                'max_length': max_length,
+                'prepend': prepend,
+                'operation_type': 'message_enhancement',
+                'operation_source': 'context_enhancer'
+            }
+            
+            # Add original message content if logging configuration allows
+            original_content = prepare_content_for_logging(original_message, include_content, max_content_length)
+            log_data.update({f'original_message_{k}': v for k, v in original_content.items()})
+            
+            memory_logger.log_transaction(thread_id, 'ENHANCE_SYSTEM_MESSAGE', log_data)
+        except Exception as e:
+            logger.warning(f"Failed to log ENHANCE_SYSTEM_MESSAGE for thread {thread_id}: {e}")
+        
         context = await self.get_conversation_context(
             thread_id=thread_id,
             max_conversations=max_conversations,
-            max_length=max_length
+            max_length=max_length,
+            app_config=app_config
         )
         
         if not context:
@@ -162,6 +249,33 @@ class ConversationContextEnhancer:
             enhanced_message = f"{context}\n\n{original_message}"
         else:
             enhanced_message = f"{original_message}\n\n{context}"
+        
+        # Log the enhanced message result if logging configuration allows
+        try:
+            memory_logger = get_memory_logger()
+            from .transaction_logger import prepare_content_for_logging
+            
+            # Get logging settings from app config or use defaults
+            include_content = True  # Default to include content
+            max_content_length = 1000  # Default limit
+            
+            if app_config and hasattr(app_config, 'memory_logging'):
+                include_content = app_config.memory_logging.include_content
+                max_content_length = app_config.memory_logging.max_content_length
+            
+            log_data = {
+                'enhancement_added': len(enhanced_message) - len(original_message),
+                'operation_source': 'context_enhancer',
+                'operation_result': 'message_enhanced'
+            }
+            
+            # Add enhanced message content if logging configuration allows
+            enhanced_content = prepare_content_for_logging(enhanced_message, include_content, max_content_length)
+            log_data.update({f'enhanced_message_{k}': v for k, v in enhanced_content.items()})
+            
+            memory_logger.log_transaction(thread_id, 'ENHANCE_SYSTEM_MESSAGE_RESULT', log_data)
+        except Exception as e:
+            logger.warning(f"Failed to log ENHANCE_SYSTEM_MESSAGE_RESULT for thread {thread_id}: {e}")
             
         return enhanced_message
 
@@ -170,7 +284,8 @@ class ConversationContextEnhancer:
         thread_id: str,
         user_message: str,
         assistant_response: str,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
+        app_config = None
     ) -> None:
         """
         Store a new conversation entry.
@@ -180,14 +295,50 @@ class ConversationContextEnhancer:
             user_message: User's message/question
             assistant_response: Agent's response
             metadata: Optional metadata
+            app_config: Optional app configuration for logging settings
         """
+        # Log the storage operation (via context enhancer) with content if enabled
+        try:
+            memory_logger = get_memory_logger()
+            from .transaction_logger import prepare_content_for_logging
+            
+            # Get logging settings from app config or use defaults
+            include_content = True  # Default to include content
+            max_content_length = 1000  # Default limit
+            
+            if app_config and hasattr(app_config, 'memory_logging'):
+                include_content = app_config.memory_logging.include_content
+                max_content_length = app_config.memory_logging.max_content_length
+            
+            log_data = {
+                'has_metadata': metadata is not None,
+                'operation_source': 'context_enhancer'
+            }
+            
+            # Add actual message content if logging configuration allows
+            user_content = prepare_content_for_logging(user_message, include_content, max_content_length)
+            log_data.update({f'user_message_{k}': v for k, v in user_content.items()})
+            
+            assistant_content = prepare_content_for_logging(assistant_response, include_content, max_content_length)
+            log_data.update({f'assistant_response_{k}': v for k, v in assistant_content.items()})
+            
+            if metadata and include_content:
+                log_data['metadata'] = metadata
+            elif metadata:
+                log_data['metadata_keys'] = list(metadata.keys())
+            
+            memory_logger.log_transaction(thread_id, 'STORE_CONVERSATION_ENTRY_VIA_ENHANCER', log_data)
+        except Exception as e:
+            logger.warning(f"Failed to log STORE_CONVERSATION_ENTRY_VIA_ENHANCER for thread {thread_id}: {e}")
+        
         try:
             store = self._get_store()
             await store.store_conversation(
                 thread_id=thread_id,
                 user_message=user_message,
                 assistant_response=assistant_response,
-                metadata=metadata
+                metadata=metadata,
+                app_config=app_config
             )
             logger.debug(f"Stored conversation entry for thread {thread_id}")
             

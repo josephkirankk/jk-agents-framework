@@ -21,6 +21,13 @@ import logging
 from contextlib import contextmanager
 from queue import Queue, Empty
 
+# Import centralized database configuration
+try:
+    from app.database_config import get_large_data_config
+except ImportError:
+    # Fallback for standalone usage
+    get_large_data_config = None
+
 # Import your existing memory structures
 try:
     from app.memory.structures import LRUCache, get_memory_stats
@@ -50,6 +57,10 @@ except ImportError:
         
         def stats(self):
             return {"size": len(self._cache), "maxsize": self.maxsize}
+        
+        def clear(self):
+            with self._lock:
+                self._cache.clear()
     
     def get_memory_stats():
         return {"string_intern": {}, "memory_pool": {}}
@@ -128,14 +139,44 @@ class LargeDataStorage:
     }
     
     def __init__(self, 
-                 storage_path: str = "./data/large_data_storage.db",
-                 file_storage_path: str = "./data/large_files",
+                 storage_path: Optional[str] = None,
+                 file_storage_path: Optional[str] = None,
                  max_file_size_mb: int = 100,
-                 compression_enabled: bool = True,
+                 compression_enabled: Optional[bool] = None,
                  cleanup_interval: int = 3600,
                  cache_size: int = 1000,
                  enable_caching: bool = True,
                  connection_pool_size: int = 10):
+        """
+        Initialize Large Data Storage with centralized configuration support
+        
+        Args:
+            storage_path: Path to SQLite database. If None, loads from environment.
+            file_storage_path: Path to file storage. If None, loads from environment.
+            max_file_size_mb: Maximum file size for SQLite storage
+            compression_enabled: Enable compression. If None, loads from environment.
+            cleanup_interval: Cleanup interval in seconds
+            cache_size: LRU cache size
+            enable_caching: Enable caching
+            connection_pool_size: Database connection pool size
+        """
+        # Load from centralized config if parameters not provided
+        if storage_path is None or file_storage_path is None:
+            if get_large_data_config is not None:
+                config = get_large_data_config(format="core")
+                storage_path = storage_path or config.get("storage_path", "./data/large_data_storage.db")
+                file_storage_path = file_storage_path or config.get("file_storage_path", "./data/large_files")
+                if compression_enabled is None:
+                    compression_enabled = config.get("compression_enabled", True)
+                logger.info("Using centralized database configuration")
+            else:
+                # Fallback to defaults
+                storage_path = storage_path or "./data/large_data_storage.db"
+                file_storage_path = file_storage_path or "./data/large_files"
+                logger.warning("Using fallback database configuration")
+        
+        if compression_enabled is None:
+            compression_enabled = True
         
         self.storage_path = Path(storage_path)
         self.file_storage_path = Path(file_storage_path)

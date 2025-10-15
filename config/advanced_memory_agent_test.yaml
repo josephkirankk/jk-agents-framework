@@ -2,8 +2,8 @@
 # This configuration demonstrates a production-ready setup with advanced memory capabilities
 
 models:
-  default: "google:gemini-2.5-flash"
-  fallback: "google:gemini-2.5-flash"
+  default: "azure_openai:gpt-4.1"
+  fallback: "azure_openai:gpt-4.1"
 
 business_context: |
   You are an AI assistant for TechCorp, a software development company.
@@ -52,7 +52,7 @@ temperature: 0.2
 
 supervisor:
   name: "TechCorp AI Supervisor"
-  model: "google:gemini-2.5-flash"
+  model: "azure_openai:gpt-4.1"
   prompt: |
     You are the supervisor for TechCorp's AI assistant system.
     Route user requests to the most appropriate specialist agent based on the query type.
@@ -69,7 +69,7 @@ supervisor:
 agents:
   - name: "coding_assistant"
     description: "Advanced coding assistant with memory of previous interactions"
-    model: "google:gemini-2.5-flash"
+    model: "azure_openai:gpt-4.1"
     prompt_file: "prompts/advanced_coding_assistant_prompt.txt"
     mcp_servers:
       filesystem:
@@ -85,7 +85,7 @@ agents:
 
   - name: "architecture_advisor"
     description: "System architecture and design advisor with contextual memory"
-    model: "google:gemini-2.5-flash"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are TechCorp's senior architecture advisor with advanced memory capabilities.
       
@@ -113,7 +113,7 @@ agents:
 
   - name: "documentation_helper"
     description: "Technical documentation assistant with conversation memory"
-    model: "google:gemini-2.5-flash"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are TechCorp's documentation specialist with advanced memory capabilities.
       

@@ -48,7 +48,7 @@ memory:
   chromadb:
     path: "./advanced_memory_test"
     host: "localhost"
-    port: 8000
+    port: 8001
     # Connection pool settings for high performance
     max_connections: 20
     min_connections: 5
@@ -64,14 +64,49 @@ memory:
     # Collection names for organization
     checkpoint_collection: "devops_checkpoints"
     context_collection: "devops_contexts"
-
+# Conversation memory for multi-turn context
+conversation_memory:
+  enabled: true
+  database_url: ""
+  max_conversations: 10
+  max_context_length: 3000
+  
 supervisor:
   name: "ado_orchestrator"
   model: "azure_openai:gpt-4.1"
   prompt: |
     {{business_context}}
     
-    You are the ADO Intelligence Supervisor. Analyze requests and choose the optimal execution path:
+    **CONVERSATION CONTEXT & PREVIOUS INTERACTIONS:**
+    {{dependent_request_responses}}
+    
+    You are the ADO Intelligence Supervisor. Analyze requests in context of previous conversation and choose the optimal execution path.
+    
+    **CONTEXT-AWARE PLANNING PRINCIPLES:**
+    
+    **1. CONVERSATION CONTINUITY ANALYSIS:**
+    - Review previous messages to understand conversation flow and context
+    - Identify if current request is: NEW TOPIC, FOLLOW-UP, REFINEMENT, or DRILL-DOWN
+    - Check for previously retrieved data that can be reused or built upon
+    - Maintain consistency in scope (area path, time periods, filters) unless explicitly changed
+    
+    **2. DATA REUSE OPTIMIZATION:**
+    - If similar ADO data was recently retrieved, consider reusing instead of re-querying
+    - For follow-up questions, determine if existing dataset can answer the question
+    - Avoid redundant API calls by leveraging previous agent outputs
+    - Build progressive analysis on existing data rather than starting fresh
+    
+    **3. INTELLIGENT ROUTING BASED ON CONTEXT:**
+    - NEW TOPIC → Standard routing based on complexity
+    - FOLLOW-UP/REFINEMENT → Often use analysis agents with existing data
+    - DRILL-DOWN → Use focused agents that build on previous results
+    - CLARIFICATION → Often fast-track with existing context
+    
+    **4. MEMORY SYSTEM INTEGRATION:**
+    - Leverage ChromaDB memory system for conversation continuity
+    - Consider previous analysis results when planning new requests
+    - Use conversation checkpoints to avoid duplicate work
+    - Build cumulative knowledge across multi-turn conversations
     
     **FAST-TRACK CRITERIA** (Use single ado_quick_query_agent):
     - Simple data queries ("get my work items", "show current sprint", "list team members")
@@ -108,22 +143,40 @@ supervisor:
     - report_generator_agent: Fast executive report generator that creates concise, actionable summaries from ADO analysis. Optimized for quick business insights.
     - human_response_agent: Produces the final user-facing response.
     
-    DECISION LOGIC:
-    1. If request is simple/direct → Use ado_quick_query_agent (FAST-TRACK)
-    2. If request is about specific features/capabilities → Use azure_devops_feature_analyzer + human_response_agent (FEATURE ANALYSIS)
-    3. If request requires complete dataset analysis → Use ado_query_agent + python_analysis_agent + report_generator_agent (DATA ANALYSIS)
-    4. If request needs statistical analysis → Use comprehensive 3-step workflow (COMPREHENSIVE)
+    **CONTEXT-AWARE DECISION LOGIC:**
+    
+    **STEP 1: ANALYZE CONVERSATION CONTEXT**
+    - Review previous messages to understand conversation state
+    - Determine request type: NEW_TOPIC | FOLLOW_UP | REFINEMENT | DRILL_DOWN | CLARIFICATION
+    - Identify any previously retrieved data that can be leveraged
+    - Check for scope consistency or changes
+    
+    **STEP 2: ROUTE BASED ON CONTEXT + COMPLEXITY**
+    1. **NEW_TOPIC + Simple/Direct** → Use ado_quick_query_agent (FAST-TRACK)
+    2. **NEW_TOPIC + Feature Analysis** → Use azure_devops_feature_analyzer + human_response_agent (FEATURE ANALYSIS)
+    3. **NEW_TOPIC + Complex Analysis** → Use full data analysis workflow (DATA ANALYSIS)
+    4. **FOLLOW_UP/REFINEMENT + Data Available** → Skip data collection, use python_analysis_agent + report_generator_agent
+    5. **DRILL_DOWN + Previous Analysis** → Use analysis agents with focus on specific aspect
+    6. **CLARIFICATION** → Use human_response_agent with context from previous results
+    
+    **STEP 3: OPTIMIZE EXECUTION PLAN**
+    - Reuse previously retrieved ADO data when applicable
+    - Build upon previous analysis results instead of starting fresh
+    - Adjust timeouts based on context (shorter for follow-ups)
+    - Reference specific outputs from previous agent executions
     
     RETURN JSON ONLY with this structure:
     
     **For FAST-TRACK (simple queries):**
     {
-      "goal": "<brief description of the simple query>",
+      "context_type": "NEW_TOPIC|FOLLOW_UP|CLARIFICATION",
+      "data_reuse": false,
+      "goal": "<brief description of the simple query, note if building on previous context>",
       "plan": [
         {
           "id": "quick_query",
           "agent": "ado_quick_query_agent",
-          "task": "<specific ADO query to execute>",
+          "task": "<specific ADO query to execute, reference previous context if applicable>",
           "depends_on": [],
           "verify": "Confirm data retrieved successfully",
           "timeout_seconds": 45,
@@ -159,12 +212,15 @@ supervisor:
     
     **For DATA ANALYSIS (complete dataset processing):**
     {
-      "goal": "<description of the complete data analysis request>",
+      "context_type": "NEW_TOPIC|FOLLOW_UP|REFINEMENT|DRILL_DOWN",
+      "data_reuse": true|false,
+      "previous_data_reference": "<reference to previous agent output if reusing data>",
+      "goal": "<description of the complete data analysis request, note context relationship>",
       "plan": [
         {
           "id": "complete_data_collection",
           "agent": "ado_query_agent",
-          "task": "Retrieve COMPLETE dataset of ADO work items using BATCH PROCESSING: [specify entities needed]. CRITICAL: Use 200-item batches with 2-second delays - get ALL relevant work items for accurate analysis. For assignment queries, retrieve all work items of specified type with assignee information using batched approach.",
+          "task": "Retrieve COMPLETE dataset of ADO work items using BATCH PROCESSING: [specify entities needed]. CRITICAL: Use 200-item batches with 2-second delays - get ALL relevant work items for accurate analysis. For assignment queries, retrieve all work items of specified type with assignee information using batched approach. NOTE: If similar data was retrieved in previous conversation, reference and build upon it.",
           "depends_on": [],
           "verify": "Confirm COMPLETE dataset retrieved - no sampling or partial data",
           "timeout_seconds": 120,
@@ -225,7 +281,35 @@ supervisor:
       ]
     }
     
-    Choose the path that delivers the most accurate answer in the shortest time.
+    **For CONTEXT-AWARE FOLLOW-UP (reusing previous data):**
+    {
+      "context_type": "FOLLOW_UP|REFINEMENT|DRILL_DOWN",
+      "data_reuse": true,
+      "previous_data_reference": "<specific reference to previous agent output with data>",
+      "goal": "<description of follow-up analysis building on previous work>",
+      "plan": [
+        {
+          "id": "context_analysis",
+          "agent": "python_analysis_agent",
+          "task": "Build upon previously retrieved data from [previous_data_reference]. Focus analysis on: [specific aspect]. REUSE existing dataset, do not re-query ADO unless additional data is explicitly needed.",
+          "depends_on": [],
+          "verify": "Confirm analysis built upon existing context successfully",
+          "timeout_seconds": 60,
+          "retry": 2
+        },
+        {
+          "id": "contextual_reporting",
+          "agent": "report_generator_agent", 
+          "task": "Generate focused report on [specific aspect] using context from previous conversation",
+          "depends_on": ["context_analysis"],
+          "verify": "Confirm contextual report created",
+          "timeout_seconds": 30,
+          "retry": 1
+        }
+      ]
+    }
+    
+    Choose the path that delivers the most accurate answer in the shortest time while leveraging conversation context.
 
 agents:
   - name: "azure_devops_feature_analyzer"

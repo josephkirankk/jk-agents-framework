@@ -9,29 +9,32 @@ models:
 business_context: |
   You are an AI system with Python code execution capabilities.
   Use the run_python_code tool for all computational tasks.
+  CURRENT DATETIME: {{timestamp}} (use this for date/time references)
 
 memory:
   backend: "chromadb"
   chromadb:
-    path: "./advanced_memory_test"
+    path: "./youtube_memory"
     host: "localhost"
-    port: 8000
-    # Connection pool settings for high performance
+    port: 8001
     max_connections: 20
     min_connections: 5
     connection_timeout: 30.0
-    # Advanced caching configuration
     l1_cache_size: 5000
-    l1_cache_ttl: 1800  # 30 minutes
-    # Batch processing for optimal throughput
+    l1_cache_ttl: 1800
     batch_size: 100
-    batch_timeout: 0.1
     enable_batch_processing: true
     enable_metrics: true
-    # Collection names for organization
-    checkpoint_collection: "python-test-session-1"
-    context_collection: "python-test-1"
+    checkpoint_collection: "channel-checkpoints"
+    context_collection: "channel-context"
 
+# Conversation memory for multi-turn context
+conversation_memory:
+  enabled: true
+  database_url: ""
+  max_conversations: 10
+  max_context_length: 3000
+  
 supervisor:
   name: "supervisor"
   model: "azure_openai:gpt-4.1"
@@ -39,10 +42,29 @@ supervisor:
     Business context (do not reveal to user):
     {{business_context}}
     
+    **CONVERSATION CONTEXT & MEMORY MANAGEMENT**: 
+    {{conversation_context_metadata}}
+    
+    **DYNAMIC SUMMARIZATION LOGIC:**
+    - If word_count > 3000: PRIORITIZE calling conversation_summarizer FIRST
+    - If word_count > 1500: CONSIDER summarization if response will be complex
+    - If word_count < 1000: Proceed with normal planning
+    
+    **CONTEXT PRIORITY**: 
+    If the user input contains "Previous conversation context (words: N):" with data from earlier interactions:
+    1. PRIORITIZE that existing data in your planning - use as foundation instead of generating new data
+    2. BUILD UPON previous interactions to maintain continuity  
+    3. EXTRACT specific data using [Turn-X] markers when available
+    4. NOTE: Large word counts indicate rich conversation history with preserved structured data
+    
     You are a supervisor that creates execution plans using available agents.
-    Use python_exec_agent for any math, computation, or data analysis tasks.
     Available agents:
     {{agents}}
+    
+    **AGENT SELECTION GUIDE:**
+    - conversation_summarizer: For reducing conversation memory when word_count > 2000
+    - python_exec_agent: For math, computation, data analysis tasks
+    - human_response_agent: For final response formatting
     
     Create a JSON plan with steps that can run in parallel where possible.
     Each step should specify the most appropriate agent for the task.
@@ -51,22 +73,79 @@ supervisor:
     {
       "goal": "<short restatement of user goal>",
       "plan": [
-        {"id":"s1", "agent":"python_exec_agent", "task":"...", "depends_on":[], "verify":"...", "timeout_seconds":60, "retry":2}
+        {"id":"s1", "agent":"conversation_summarizer", "task":"summarize conversation history", "depends_on":[], "verify":"conversation summarized", "timeout_seconds":30, "retry":1},
+        {"id":"s2", "agent":"python_exec_agent", "task":"...", "depends_on":["s1"], "verify":"...", "timeout_seconds":60, "retry":2}
       ]
     }
     
     Respond with JSON only and nothing else.
 
 agents:
+  - name: "conversation_summarizer"
+    description: "Intelligently summarize conversation history to reduce memory usage while preserving all critical data"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"  # Uses ReAct pattern with tool calling capabilities
+    prompt: |
+      You are a conversation summarizer that preserves ALL critical information while reducing length.
+      
+      **WORKFLOW:**
+      1. ANALYZE the conversation context provided
+      2. CREATE an intelligent summary preserving ALL structured data
+      3. CALL the conversation_cleanup tool to replace old messages with summary
+      
+      **CRITICAL REQUIREMENTS:**
+      1. PRESERVE all JSON data blocks exactly - never modify structured data
+      2. PRESERVE all numerical values, IDs, names, and specific details  
+      3. COMPRESS narrative text while keeping essential context
+      4. MAINTAIN turn structure with [Turn-X] format
+      5. INCLUDE timestamps for temporal context
+      
+      **PRESERVE EXACTLY:**
+      - JSON blocks: ```json ... ```
+      - Arrays: [item1, item2, ...]
+      - Numbers: 123.45, percentages, IDs, scores
+      - Names: user names, file names, variable names
+      - Structured data: tables, lists, formats
+      
+      **COMPRESS ONLY:**
+      - Explanatory text ("Here's what I did...")
+      - Redundant phrases ("As you requested...")
+      - Verbose descriptions and narratives
+      
+      **PROCESS:**
+      1. Extract all structured data from conversation
+      2. Group by turns and preserve [Turn-X] format
+      3. Create compressed summary maintaining all data integrity
+      4. Use conversation_cleanup tool to implement the change
+      
+      NEVER approximate numbers or modify JSON. Keep exact values always.
+    mcp_servers:
+      conversation_manager:
+        description: "Manage conversation memory and cleanup"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_conversation_manager"
+  
   - name: "python_exec_agent"
     description: "Execute Python code with guaranteed tool calling support"
     model: "azure_openai:gpt-4.1"  # Using Azure OpenAI instead of Google Gemini
+    agent_type: "react"  # Uses ReAct pattern with tool calling capabilities
     prompt: |
+      **CONVERSATION CONTEXT ANALYSIS**:
+      Check BOTH the user request AND any previous steps for conversation context:
+      - If you see "Previous conversation context:" with [Turn-X] data - USE that existing data
+      - If previous steps reference existing data/results - BUILD UPON those results  
+      - If you see structured data (JSON, lists, tables, numbers) - PRESERVE and EXTEND it
+      - NEVER generate new data when existing conversation data is available
+      - ALWAYS maintain data consistency across conversation turns
+      
       {{dependent_request_responses}}
 
       You are CodeRunner. You MUST write and execute Python code using the run_python_code tool for any computational task.
 
-      CRITICAL RULES:
+      EXECUTION RULES:
       - ALWAYS use the run_python_code tool - never just describe what you would do
       - Write the Python code first, then execute it using the tool
       - Show both the code (```python ... ```) and the actual execution result
@@ -96,12 +175,24 @@ agents:
   - name: "human_response_agent"
     description: "Final response formatter"
     model: "azure_openai:gpt-4.1"
+    agent_type: "normal"  # Uses normal conversational pattern without tool calling
     prompt: |
+      **CONVERSATION CONTEXT AWARENESS**:
+      Examine ALL available information for conversation context:
+      - Look for "Previous conversation context:" with [Turn-X] formatted data
+      - Check previous agent responses for data, results, and analysis
+      - Identify any structured data (lists, tables, JSON, calculations)
+      - Build upon existing conversation data to maintain continuity
+      - Reference specific previous turns when relevant (e.g., "Building on the data from Turn-2...")
+      
       {{dependent_request_responses}}
       
-      Present a clear, natural answer based on the previous agent responses.
+      Present a clear, natural answer based on ALL available context and previous agent responses.
       Format the information in a user-friendly way without revealing internal processes.
+      ALWAYS acknowledge and build upon previous conversation data when available.
     mcp_servers: {}
+
+# Legacy summarizer configuration - now integrated into agents list above
 
 # Alternative model configurations (uncomment to test)
 # For Google Gemini (good tool calling support):

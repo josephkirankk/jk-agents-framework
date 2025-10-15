@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Dict, List, Optional
+import os
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -62,6 +63,13 @@ class AgentConfig(BaseModel):
     model: Optional[str] = None
     prompt: Optional[str] = None
     prompt_file: Optional[str] = None
+    # Agent type configuration - defaults to "react" for backward compatibility
+    agent_type: Optional[str] = Field(
+        default="react",
+        description=(
+            "Type of agent to create. Options: 'react' (ReAct agent with tools and reasoning) or 'normal' (basic chat agent without tool calling). Default is 'react' for backward compatibility."
+        ),
+    )
     mcp_servers: Dict[str, MCPServerConfig] = Field(default_factory=dict)
     # Optional simple HTTP tools configuration (non-MCP)
     # Each entry defines a callable HTTP endpoint exposed as a LangChain Tool
@@ -80,6 +88,16 @@ class AgentConfig(BaseModel):
             "Enable or disable parallel tool calls for this agent. Overrides app-level setting when provided."
         ),
     )
+
+    @field_validator("agent_type")
+    @classmethod
+    def check_agent_type(cls, v):
+        """Validate agent_type is one of the supported options."""
+        if v is not None and v not in ("react", "normal"):
+            raise ValueError(
+                "agent_type must be one of: 'react', 'normal'"
+            )
+        return v
 
     @model_validator(mode='after')
     def validate_prompt_fields(self):
@@ -141,6 +159,36 @@ class ConversationMemoryConfig(BaseModel):
     )
 
 
+class MemoryLoggingConfig(BaseModel):
+    """Configuration for memory transaction logging."""
+    enabled: bool = Field(
+        default=False,
+        description="Enable memory transaction logging for debugging"
+    )
+    log_directory: str = Field(
+        default="memory_logs",
+        description="Directory where memory transaction logs will be stored"
+    )
+    include_content: bool = Field(
+        default=True,
+        description="Include actual message content in logs (disable for sensitive data)"
+    )
+    max_content_length: int = Field(
+        default=1000,
+        description="Maximum content length to log (truncated if longer)"
+    )
+    
+    @classmethod
+    def from_env(cls) -> 'MemoryLoggingConfig':
+        """Create MemoryLoggingConfig from environment variables."""
+        return cls(
+            enabled=os.getenv('MEMORY_LOGGING_ENABLED', 'false').lower() == 'true',
+            log_directory=os.getenv('MEMORY_LOGGING_DIRECTORY', 'memory_logs'),
+            include_content=os.getenv('MEMORY_LOGGING_INCLUDE_CONTENT', 'true').lower() == 'true',
+            max_content_length=int(os.getenv('MEMORY_LOGGING_MAX_CONTENT_LENGTH', '1000'))
+        )
+
+
 class AppConfig(BaseModel):
     models: Dict[str, str] = Field(
         default_factory=lambda: {"default": "openai:gpt-4o-mini"}
@@ -157,6 +205,15 @@ class AppConfig(BaseModel):
     conversation_memory: ConversationMemoryConfig = Field(
         default_factory=ConversationMemoryConfig,
         description="Configuration for conversation memory storage"
+    )
+    memory_logging: MemoryLoggingConfig = Field(
+        default_factory=MemoryLoggingConfig.from_env,
+        description="Configuration for memory transaction logging"
+    )
+    # Large data handling configuration for tools that generate large outputs
+    large_data_handling: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Configuration for handling large tool outputs (storage, summarization)"
     )
     supervisor: SupervisorConfig
     agents: List[AgentConfig] = Field(default_factory=list)

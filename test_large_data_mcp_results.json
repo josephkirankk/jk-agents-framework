@@ -1,0 +1,82 @@
+{
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "success_rate": 100.0
+  },
+  "tests": [
+    {
+      "test": "Storage Initialization",
+      "passed": true,
+      "message": "Database: ./test_data/large_data_storage.db, Files: test_data/large_files",
+      "timestamp": 1759804862.0088372
+    },
+    {
+      "test": "Store Small Dataset",
+      "passed": true,
+      "message": "Stored 100 records, 0.00MB in sqlite",
+      "timestamp": 1759804862.00916
+    },
+    {
+      "test": "Store Large Dataset",
+      "passed": true,
+      "message": "Stored 10000 records, 2.78MB in sqlite",
+      "timestamp": 1759804862.0601642
+    },
+    {
+      "test": "Retrieve Dataset",
+      "passed": true,
+      "message": "Successfully retrieved 100 records",
+      "timestamp": 1759804862.062609
+    },
+    {
+      "test": "Data Persistence",
+      "passed": true,
+      "message": "Data persists correctly, access count: 4",
+      "timestamp": 1759804862.062869
+    },
+    {
+      "test": "Token Efficiency",
+      "passed": true,
+      "message": "Token savings: 99.9% (728,640 \u2192 366 tokens)",
+      "timestamp": 1759804862.103489
+    },
+    {
+      "test": "Storage Statistics",
+      "passed": true,
+      "message": "Total references: 2, Total size: 2.78MB",
+      "timestamp": 1759804862.105954
+    },
+    {
+      "test": "List References",
+      "passed": true,
+      "message": "Found 2 stored datasets",
+      "timestamp": 1759804862.1060731
+    },
+    {
+      "test": "Compression",
+      "passed": true,
+      "message": "Compression: False, Size: 0.10MB",
+      "timestamp": 1759804862.1072042
+    },
+    {
+      "test": "MCP Server Standalone",
+      "passed": true,
+      "message": "MCP server module loaded successfully with all required components",
+      "timestamp": 1759804862.107234
+    },
+    {
+      "test": "Cleanup Expired",
+      "passed": true,
+      "message": "Cleanup mechanism works: 0 records, 0 files",
+      "timestamp": 1759804862.1072729
+    },
+    {
+      "test": "Error Handling",
+      "passed": true,
+      "message": "Error handling works correctly for invalid operations",
+      "timestamp": 1759804862.107444
+    }
+  ]
+}

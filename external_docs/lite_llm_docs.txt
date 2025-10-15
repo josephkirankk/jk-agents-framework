@@ -1,0 +1,1689 @@
+================
+CODE SNIPPETS
+================
+TITLE: Quick Start Docker Setup for LiteLLM
+DESCRIPTION: This snippet outlines the initial steps to get LiteLLM running using Docker. It includes cloning the repository, setting environment variables for master and salt keys, and starting the service with docker-compose.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/deploy.md#_snippet_0
+
+LANGUAGE: bash
+CODE:
+```
+git clone https://github.com/BerriAI/litellm
+
+cd litellm
+
+echo 'LITELLM_MASTER_KEY="sk-1234"' > .env
+
+echo 'LITELLM_SALT_KEY="sk-1234"' >> .env
+
+source .env
+
+docker-compose up
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM with Proxy Support
+DESCRIPTION: Provides the shell command to install the LiteLLM library with the necessary dependencies for its proxy server functionality.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_26
+
+LANGUAGE: shell
+CODE:
+```
+pip install 'litellm[proxy]'
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM
+DESCRIPTION: Installs the LiteLLM Python package using pip. This is the first step to using the LiteLLM SDK in your Python projects.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_0
+
+LANGUAGE: shell
+CODE:
+```
+pip install litellm
+```
+
+--------------------------------
+
+TITLE: Stream Completion with Azure OpenAI
+DESCRIPTION: Provides an example of setting Azure OpenAI API key, base URL, and API version, then making a streaming completion call. Replace placeholders with your specific deployment details.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_15
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["AZURE_API_KEY"] = ""
+os.environ["AZURE_API_BASE"] = ""
+os.environ["AZURE_API_VERSION"] = ""
+
+response = completion(
+  "azure/<your_deployment_name>",
+  messages = [{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM Proxy
+DESCRIPTION: Install the LiteLLM proxy package using pip. This command installs LiteLLM along with the necessary dependencies to run the proxy server, enabling it to function as an LLM gateway.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_23
+
+LANGUAGE: shell
+CODE:
+```
+pip install 'litellm[proxy]'
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM
+DESCRIPTION: This command installs the LiteLLM Python package using pip. It's the first step to using the LiteLLM SDK in your Python projects.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_0
+
+LANGUAGE: shell
+CODE:
+```
+pip install litellm
+```
+
+--------------------------------
+
+TITLE: Start LiteLLM Proxy Server (CLI)
+DESCRIPTION: Launch the LiteLLM proxy server from the command line using the `litellm` command, specifying the desired model. The server will start listening on a default port (e.g., 4000) and provide an LLM gateway.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_24
+
+LANGUAGE: shell
+CODE:
+```
+$ litellm --model huggingface/bigcode/starcoder
+
+#INFO: Proxy running on http://0.0.0.0:4000
+```
+
+--------------------------------
+
+TITLE: Start LiteLLM Proxy with Pip
+DESCRIPTION: Starts the LiteLLM proxy using the pip package, specifying a model to use. The proxy will be accessible at http://0.0.0.0:4000.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_27
+
+LANGUAGE: shell
+CODE:
+```
+$ litellm --model huggingface/bigcode/starcoder
+
+#INFO: Proxy running on http://0.0.0.0:4000
+```
+
+--------------------------------
+
+TITLE: Call xAI LLM with LiteLLM
+DESCRIPTION: Provides an example of using LiteLLM to interact with xAI models. It involves setting the XAI_API_KEY environment variable and defining the model and message content for the completion API.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_3
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["XAI_API_KEY"] = "your-api-key"
+
+response = completion(
+  model="xai/grok-2-latest",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+)
+```
+
+--------------------------------
+
+TITLE: Start LiteLLM Proxy
+DESCRIPTION: Starts the LiteLLM proxy server using a specified configuration file. Ensure the proxy master key is set and a database is connected before running.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/ui.md#_snippet_0
+
+LANGUAGE: bash
+CODE:
+```
+litellm --config /path/to/config.yaml
+
+#INFO: Proxy running on http://0.0.0.0:4000
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM
+DESCRIPTION: Installs or upgrades the LiteLLM library using pip. This is the first step to use LiteLLM functionalities.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/cookbook/VLLM_Model_Testing.ipynb#_snippet_0
+
+LANGUAGE: python
+CODE:
+```
+!pip install --upgrade litellm
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM
+DESCRIPTION: Installs the LiteLLM library using pip. This is the first step to using the SDK.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/cookbook/litellm_test_multiple_llm_demo.ipynb#_snippet_0
+
+LANGUAGE: python
+CODE:
+```
+!pip install litellm
+```
+
+--------------------------------
+
+TITLE: LiteLLM Proxy Configuration (YAML)
+DESCRIPTION: Define the configuration for the LiteLLM proxy server using a YAML file. This example shows how to set up a model list, specifying model names and their corresponding LiteLLM parameters, including API base and key.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_25
+
+LANGUAGE: yaml
+CODE:
+```
+model_list:
+  - model_name: gpt-3.5-turbo
+    litellm_params:
+      model: azure/<your-azure-model-deployment>
+      api_base: os.environ/AZURE_API_BASE # runs os.getenv("AZURE_API_BASE")
+      api_key: os.environ/AZURE_API_KEY # runs os.getenv("AZURE_API_KEY")
+      api_version: "2023-07-01-preview"
+```
+
+--------------------------------
+
+TITLE: Install pnpm and Run Docs
+DESCRIPTION: Installs pnpm globally, installs project dependencies using pnpm, and starts the development server for the LiteLLM documentation website.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/extras/contributing.md#_snippet_3
+
+LANGUAGE: shell
+CODE:
+```
+npm install --global pnpm
+pnpm install
+pnpm start
+```
+
+--------------------------------
+
+TITLE: Stream Completion with VertexAI
+DESCRIPTION: Provides an example of setting Vertex AI project and location environment variables, then making a streaming completion call with the 'chat-bison' model. Requires `gcloud auth application-default` to be run.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_12
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["VERTEX_PROJECT"] = "hardy-device-386718"
+os.environ["VERTEX_LOCATION"] = "us-central1"
+
+response = completion(
+  model="chat-bison",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM Proxy
+DESCRIPTION: Installs the LiteLLM proxy package, including necessary dependencies for proxy functionality.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/quick_start.md#_snippet_0
+
+LANGUAGE: shell
+CODE:
+```
+$ pip install 'litellm[proxy]'
+```
+
+--------------------------------
+
+TITLE: LiteLLM Proxy Server Setup and Usage
+DESCRIPTION: Provides instructions for setting up and using the LiteLLM Proxy Server to create vector stores. Includes an example of configuring 'config.yaml' and starting the proxy, followed by an OpenAI SDK example pointing to the proxy.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/vector_stores/create.md#_snippet_4
+
+LANGUAGE: yaml
+CODE:
+```
+model_list:
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+general_settings:
+  # Vector store settings can be added here if needed
+```
+
+LANGUAGE: bash
+CODE:
+```
+litellm --config /path/to/config.yaml
+```
+
+LANGUAGE: python
+CODE:
+```
+from openai import OpenAI
+
+# Point OpenAI SDK to LiteLLM proxy
+client = OpenAI(
+    base_url="http://0.0.0.0:4000",
+    api_key="sk-1234",  # Your LiteLLM API key
+)
+
+vector_store = client.beta.vector_stores.create(
+    name="My Document Store",
+    file_ids=["file-abc123", "file-def456"]
+)
+print(vector_store)
+```
+
+--------------------------------
+
+TITLE: Call Azure OpenAI LLM with LiteLLM
+DESCRIPTION: Provides an example for calling Azure OpenAI models via LiteLLM. It requires setting AZURE_API_KEY, AZURE_API_BASE, and AZURE_API_VERSION environment variables, and specifying the deployment name.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_7
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["AZURE_API_KEY"] = ""
+os.environ["AZURE_API_BASE"] = ""
+os.environ["AZURE_API_VERSION"] = ""
+
+# azure call
+response = completion(
+  "azure/<your_deployment_name>",
+  messages = [{ "content": "Hello, how are you?","role": "user"}]
+)
+```
+
+--------------------------------
+
+TITLE: Set OpenRouter API Key and Make Completion Call
+DESCRIPTION: Demonstrates how to set the OPENROUTER_API_KEY environment variable and then use the `completion` function to make a call to the OpenRouter API with a specified model and messages. It also shows how to enable streaming.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_20
+
+LANGUAGE: python
+CODE:
+```
+import os
+from litellm import completion
+
+os.environ["OPENROUTER_API_KEY"] = "openrouter_api_key"
+
+response = completion(
+  model="openrouter/google/palm-2-chat-bison",
+  messages = [{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Start LiteLLM Proxy with Docker
+DESCRIPTION: Starts the LiteLLM proxy using a Docker container. This method requires a `config.yaml` file to define the model list and associated parameters, such as API base and key. Environment variables are used to pass sensitive information like API keys.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_28
+
+LANGUAGE: yaml
+CODE:
+```
+model_list:
+  - model_name: gpt-3.5-turbo
+    litellm_params:
+      model: azure/<your-azure-model-deployment>
+      api_base: os.environ/AZURE_API_BASE # runs os.getenv("AZURE_API_BASE")
+      api_key: os.environ/AZURE_API_KEY # runs os.getenv("AZURE_API_KEY")
+      api_version: "2023-07-01-preview"
+```
+
+LANGUAGE: shell
+CODE:
+```
+docker run \
+    -v $(pwd)/litellm_config.yaml:/app/config.yaml \
+    -e AZURE_API_KEY=d6*********** \
+    -e AZURE_API_BASE=https://openai-***********/ \
+    -p 4000:4000 \
+    ghcr.io/berriai/litellm:main-latest \
+    --config /app/config.yaml --detailed_debug
+```
+
+--------------------------------
+
+TITLE: Install Yarn and Run Docs
+DESCRIPTION: Installs Yarn globally, installs project dependencies using Yarn, and starts the development server for the LiteLLM documentation website.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/extras/contributing.md#_snippet_2
+
+LANGUAGE: shell
+CODE:
+```
+npm install --global yarn
+yarn
+yarn start
+```
+
+--------------------------------
+
+TITLE: NVIDIA NIM Completion with Streaming
+DESCRIPTION: Sets NVIDIA NIM API key and base URL environment variables and makes a streaming completion request to a NVIDIA NIM model.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_15
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["NVIDIA_NIM_API_KEY"] = "nvidia_api_key"
+os.environ["NVIDIA_NIM_API_BASE"] = "nvidia_nim_endpoint_url"
+
+response = completion(
+  model="nvidia_nim/<model_name>",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM
+DESCRIPTION: Installs the LiteLLM package using pip. This is the first step to using the library for interacting with various LLM APIs.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/cookbook/liteLLM_Getting_Started.ipynb#_snippet_0
+
+LANGUAGE: python
+CODE:
+```
+!
+```
+
+--------------------------------
+
+TITLE: Stream Completion with Novita AI
+DESCRIPTION: Provides an example of setting the NOVITA_API_KEY and making a streaming completion call to a Novita AI model like 'novita/deepseek/deepseek-r1'.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_18
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["NOVITA_API_KEY"] = "novita_api_key"
+
+response = completion(
+  model="novita/deepseek/deepseek-r1",
+  messages = [{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Install vLLM
+DESCRIPTION: Installs the vLLM library, which is a dependency for using vLLM as a custom LLM provider with LiteLLM.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/cookbook/VLLM_Model_Testing.ipynb#_snippet_1
+
+LANGUAGE: python
+CODE:
+```
+!pip install vllm
+```
+
+--------------------------------
+
+TITLE: Stream Completion with HuggingFace
+DESCRIPTION: Shows how to set the HuggingFace API key and make a streaming completion call for a model hosted on HuggingFace Inference Endpoints. Example uses 'WizardLM/WizardCoder-Python-34B-V1.0'.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_14
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["HUGGINGFACE_API_KEY"] = "huggingface_api_key"
+
+response = completion(
+  model="huggingface/WizardLM/WizardCoder-Python-34B-V1.0",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  api_base="https://my-endpoint.huggingface.cloud",
+  stream=True,
+)
+
+print(response)
+```
+
+--------------------------------
+
+TITLE: Basic LiteLLM Usage
+DESCRIPTION: Demonstrates how to make basic completion calls to different LLM providers using LiteLLM. It shows setting environment variables for API keys and calling the completion function with messages for both OpenAI and Cohere.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/getting_started.md#_snippet_0
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+os.environ["COHERE_API_KEY"] = "your-api-key"
+
+messages = [{ "content": "Hello, how are you?","role": "user"}]
+
+# openai call
+response = completion(model="gpt-3.5-turbo", messages=messages)
+
+# cohere call
+response = completion("command-nightly", messages)
+```
+
+--------------------------------
+
+TITLE: Run Next.js Development Server
+DESCRIPTION: Commands to start the Next.js development server using different package managers. This allows for local development and testing of the application.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/ui/litellm-dashboard/README.md#_snippet_0
+
+LANGUAGE: bash
+CODE:
+```
+npm run dev
+```
+
+LANGUAGE: bash
+CODE:
+```
+yarn dev
+```
+
+LANGUAGE: bash
+CODE:
+```
+pnpm dev
+```
+
+LANGUAGE: bash
+CODE:
+```
+bun dev
+```
+
+--------------------------------
+
+TITLE: LiteLLM Streaming Usage
+DESCRIPTION: Illustrates how to enable streaming for LLM responses using LiteLLM. By setting `stream=True` in the completion arguments, users can receive responses incrementally. This example shows streaming for both OpenAI and Cohere.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/getting_started.md#_snippet_1
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["OPENAI_API_KEY"] = "openai key"
+os.environ["COHERE_API_KEY"] = "cohere key"
+
+messages = [{ "content": "Hello, how are you?","role": "user"}]
+
+# openai call
+response = completion(model="gpt-3.5-turbo", messages=messages, stream=True)
+
+# cohere call
+response = completion("command-nightly", messages, stream=True)
+
+print(response)
+```
+
+--------------------------------
+
+TITLE: Stream Completion with NVIDIA NIM
+DESCRIPTION: Demonstrates setting NVIDIA NIM API key and endpoint, then making a streaming completion call. Replace `<model_name>` with your specific model.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_13
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["NVIDIA_NIM_API_KEY"] = "nvidia_api_key"
+os.environ["NVIDIA_NIM_API_BASE"] = "nvidia_nim_endpoint_url"
+
+response = completion(
+  model="nvidia_nim/<model_name>",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Azure OpenAI Completion with Streaming
+DESCRIPTION: Sets Azure API key, base, and version environment variables and makes a streaming completion request to an Azure OpenAI deployment.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_17
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["AZURE_API_KEY"] = ""
+os.environ["AZURE_API_BASE"] = ""
+os.environ["AZURE_API_VERSION"] = ""
+
+response = completion(
+  "azure/<your_deployment_name>",
+  messages = [{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM
+DESCRIPTION: Installs the LiteLLM library using pip. This is a prerequisite for using LiteLLM functionalities.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/cookbook/LiteLLM_batch_completion.ipynb#_snippet_0
+
+LANGUAGE: python
+CODE:
+```
+!pip install litellm
+```
+
+--------------------------------
+
+TITLE: LiteLLM Exception Handling
+DESCRIPTION: Shows how LiteLLM maps exceptions from various providers to OpenAI's exception types. This allows for consistent error handling across different LLM services. The example demonstrates catching a potential `OpenAIError` when an invalid API key is used.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/getting_started.md#_snippet_2
+
+LANGUAGE: python
+CODE:
+```
+from openai.error import OpenAIError
+from litellm import completion
+import os
+
+os.environ["ANTHROPIC_API_KEY"] = "bad-key"
+try:
+    # some code
+    completion(model="claude-instant-1", messages=[{"role": "user", "content": "Hey, how's it going?"}])
+except OpenAIError as e:
+    print(e)
+```
+
+--------------------------------
+
+TITLE: Call OpenRouter LLM with LiteLLM
+DESCRIPTION: Shows how to use LiteLLM to interact with models available through OpenRouter. Requires setting the OPENROUTER_API_KEY environment variable.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_8
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["OPENROUTER_API_KEY"] = "openrouter_api_key"
+
+response = completion(
+  model="openrouter/google/palm-2-chat-bison",
+  messages = [{ "content": "Hello, how are you?","role": "user"}],
+)
+```
+
+--------------------------------
+
+TITLE: xAI Completion with Streaming
+DESCRIPTION: Sets the XAI_API_KEY environment variable and makes a streaming completion request to an xAI model.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_13
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["XAI_API_KEY"] = "your-api-key"
+
+response = completion(
+  model="xai/grok-2-latest",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Exception Handling with OpenAIError
+DESCRIPTION: Demonstrates how LiteLLM maps provider exceptions to OpenAI's exception types. This example shows setting an invalid API key for Anthropic and catching the resulting `OpenAIError`.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_23
+
+LANGUAGE: python
+CODE:
+```
+from openai.error import OpenAIError
+from litellm import completion
+import os
+
+os.environ["ANTHROPIC_API_KEY"] = "bad-key"
+try:
+    # some code
+    completion(model="claude-instant-1", messages=[{"role": "user", "content": "Hey, how's it going?"}])
+except OpenAIError as e:
+    print(e)
+```
+
+--------------------------------
+
+TITLE: Call VertexAI LLM with LiteLLM
+DESCRIPTION: Provides an example of calling a VertexAI model (e.g., chat-bison) using LiteLLM. Requires authentication via `gcloud auth application-default` and setting VERTEX_PROJECT and VERTEX_LOCATION environment variables.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_3
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+# auth: run 'gcloud auth application-default'
+os.environ["VERTEX_PROJECT"] = "hardy-device-386718"
+os.environ["VERTEX_LOCATION"] = "us-central1"
+
+response = completion(
+  model="chat-bison",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+)
+```
+
+--------------------------------
+
+TITLE: Stream Completion with OpenAI
+DESCRIPTION: Demonstrates how to set the OPENAI_API_KEY and make a streaming completion call using the 'gpt-3.5-turbo' model. This is a common pattern for real-time LLM interactions.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_10
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+response = completion(
+  model="gpt-3.5-turbo",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Stream Completion with Ollama
+DESCRIPTION: Demonstrates making a streaming completion call using Ollama with the 'ollama/llama2' model. Assumes Ollama is running locally on the default port.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_16
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+
+response = completion(
+            model="ollama/llama2",
+            messages = [{ "content": "Hello, how are you?","role": "user"}],
+            api_base="http://localhost:11434",
+            stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Install and Run Aider with LiteLLM Proxy
+DESCRIPTION: These shell commands demonstrate how to install the Aider command-line tool and then run it, pointing to a local LiteLLM proxy for its language model requests. It includes setting the API base and a placeholder API key.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/user_keys.md#_snippet_25
+
+LANGUAGE: shell
+CODE:
+```
+$ pip install aider 
+
+$ aider --openai-api-base http://0.0.0.0:4000 --openai-api-key fake-key
+```
+
+--------------------------------
+
+TITLE: Call Ollama LLM with LiteLLM
+DESCRIPTION: Demonstrates how to use LiteLLM to connect to a local Ollama instance. It requires specifying the model and setting the api_base to the Ollama server address.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_8
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+
+response = completion(
+            model="ollama/llama2",
+            messages = [{ "content": "Hello, how are you?","role": "user"}],
+            api_base="http://localhost:11434"
+)
+
+```
+
+--------------------------------
+
+TITLE: OpenAI Completion with Streaming
+DESCRIPTION: Sets the OPENAI_API_KEY environment variable and makes a streaming completion request to an OpenAI model.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_11
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+response = completion(
+  model="openai/gpt-4o",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Call Ollama LLM with LiteLLM
+DESCRIPTION: Demonstrates how to connect to a local Ollama instance to call LLMs using LiteLLM. Requires setting the api_base to the Ollama server address.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_7
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+
+response = completion(
+            model="ollama/llama2",
+            messages = [{ "content": "Hello, how are you?","role": "user"}],
+            api_base="http://localhost:11434"
+)
+```
+
+--------------------------------
+
+TITLE: LiteLLM Backend Development Setup
+DESCRIPTION: Instructions to set up the LiteLLM backend for development. This involves creating and activating a virtual environment, installing project dependencies including optional extras, and starting the proxy backend service.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/README.md#_snippet_13
+
+LANGUAGE: Shell
+CODE:
+```
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[all]"
+python3 /path/to/litellm/proxy_cli.py
+```
+
+--------------------------------
+
+TITLE: VertexAI Completion with Streaming
+DESCRIPTION: Sets Vertex AI project and location environment variables and makes a streaming completion request to a Vertex AI model.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_14
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["VERTEX_PROJECT"] = "hardy-device-386718"
+os.environ["VERTEX_LOCATION"] = "us-central1"
+
+response = completion(
+  model="vertex_ai/gemini-1.5-pro",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Start LiteLLM Proxy with Pip
+DESCRIPTION: Starts the LiteLLM Proxy using the installed Python package via the CLI. It requires a configuration file path and enables detailed debugging.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/docker_quick_start.md#_snippet_4
+
+LANGUAGE: shell
+CODE:
+```
+$ litellm --config /app/config.yaml --detailed_debug
+```
+
+--------------------------------
+
+TITLE: LiteLLM Logging and Observability
+DESCRIPTION: Demonstrates how to configure LiteLLM to send input/output data to various observability tools like MLflow, Lunary, Langfuse, and Helicone using success callbacks. It shows setting environment variables for these tools and defining the callbacks.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/getting_started.md#_snippet_3
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import litellm
+import os
+
+## set env variables for logging tools (API key set up is not required when using MLflow)
+os.environ["LUNARY_PUBLIC_KEY"] = "your-lunary-public-key" # get your public key at https://app.lunary.ai/settings
+os.environ["HELICONE_API_API_KEY"] = "your-helicone-key"
+os.environ["LANGFUSE_PUBLIC_KEY"] = ""
+os.environ["LANGFUSE_SECRET_KEY"] = ""
+
+os.environ["OPENAI_API_KEY"]
+
+# set callbacks
+litellm.success_callback = ["lunary", "mlflow", "langfuse", "helicone"] # log input/output to MLflow, langfuse, lunary, helicone
+
+#openai call
+response = completion(model="gpt-3.5-turbo", messages=[{"role": "user", "content": "Hi 👋 - i'm openai"}])
+```
+
+--------------------------------
+
+TITLE: Start Docusaurus Development Server
+DESCRIPTION: Navigates to the website directory and starts the local development server for Docusaurus.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/intro.md#_snippet_1
+
+LANGUAGE: bash
+CODE:
+```
+cd my-website
+npm run start
+```
+
+--------------------------------
+
+TITLE: Shell: Start LiteLLM Proxy
+DESCRIPTION: Command to start the LiteLLM proxy server, specifying the model to use. This output indicates the proxy is running and the address.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/user_keys.md#_snippet_20
+
+LANGUAGE: shell
+CODE:
+```
+litellm --model gpt-3.5-turbo
+
+#INFO: Proxy running on http://0.0.0.0:4000
+```
+
+--------------------------------
+
+TITLE: Call OpenAI LLM with LiteLLM
+DESCRIPTION: Demonstrates how to make a completion call to an OpenAI model using the LiteLLM Python SDK. Requires setting the OPENAI_API_KEY environment variable.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_1
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+response = completion(
+  model="gpt-3.5-turbo",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+)
+```
+
+--------------------------------
+
+TITLE: Run LiteLLM Proxy with Docker Compose
+DESCRIPTION: This snippet shows how to start the LiteLLM proxy service using Docker Compose. It's a common way to get the proxy up and running quickly for local development or testing.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/user_keys.md#_snippet_23
+
+LANGUAGE: shell
+CODE:
+```
+docker compose up
+```
+
+--------------------------------
+
+TITLE: Call NVIDIA NIM LLM with LiteLLM
+DESCRIPTION: Demonstrates calling LLMs hosted on NVIDIA NIM using LiteLLM. This requires setting the NVIDIA_NIM_API_KEY and NVIDIA_NIM_API_BASE environment variables, and specifying the model name.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_5
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["NVIDIA_NIM_API_KEY"] = "nvidia_api_key"
+os.environ["NVIDIA_NIM_API_BASE"] = "nvidia_nim_endpoint_url"
+
+response = completion(
+  model="nvidia_nim/<model_name>",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+)
+```
+
+--------------------------------
+
+TITLE: Stream Completion with OpenRouter
+DESCRIPTION: Shows how to set the OPENROUTER_API_KEY and make a streaming completion call using a model available through OpenRouter, such as 'openrouter/google/palm-2-chat-bison'.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_17
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["OPENROUTER_API_KEY"] = "openrouter_api_key"
+
+response = completion(
+  model="openrouter/google/palm-2-chat-bison",
+  messages = [{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Call Azure OpenAI LLM with LiteLLM
+DESCRIPTION: Illustrates how to configure and call Azure OpenAI models using LiteLLM. Requires setting AZURE_API_KEY, AZURE_API_BASE, and AZURE_API_VERSION environment variables.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_6
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["AZURE_API_KEY"] = ""
+os.environ["AZURE_API_BASE"] = ""
+os.environ["AZURE_API_VERSION"] = ""
+
+# azure call
+response = completion(
+  "azure/<your_deployment_name>",
+  messages = [{ "content": "Hello, how are you?","role": "user"}]
+)
+```
+
+--------------------------------
+
+TITLE: Start Local Development Server (Yarn)
+DESCRIPTION: Starts a local development server for the website. Changes are reflected live without manual restarts. Requires dependencies to be installed.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/README.md#_snippet_1
+
+LANGUAGE: bash
+CODE:
+```
+$ yarn start
+```
+
+--------------------------------
+
+TITLE: Call Azure OpenAI
+DESCRIPTION: Provides an example of calling an Azure OpenAI model. It highlights the need to prefix the model name with `azure/` and specifies how to set the deployment ID.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/cookbook/liteLLM_Getting_Started.ipynb#_snippet_7
+
+LANGUAGE: python
+CODE:
+```
+completion(model="azure/chatgpt-v-2", messages=[{ "content": "what's the weather in SF","role": "user"}])
+```
+
+--------------------------------
+
+TITLE: Call NVIDIA NIM LLM with LiteLLM
+DESCRIPTION: Demonstrates how to connect to NVIDIA NIM endpoints for LLM calls using LiteLLM. Requires setting NVIDIA_NIM_API_KEY and NVIDIA_NIM_API_BASE environment variables.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_4
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["NVIDIA_NIM_API_KEY"] = "nvidia_api_key"
+os.environ["NVIDIA_NIM_API_BASE"] = "nvidia_nim_endpoint_url"
+
+response = completion(
+  model="nvidia_nim/<model_name>",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+)
+```
+
+--------------------------------
+
+TITLE: Example requirements.txt for LiteLLM Pip Build
+DESCRIPTION: This is an example `requirements.txt` file specifying the LiteLLM package with a version and other necessary libraries like Prometheus client, Langfuse, and Prisma.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/deploy.md#_snippet_6
+
+LANGUAGE: python
+CODE:
+```
+litellm[proxy]==1.57.3 # Specify the litellm version you want to use
+prometheus_client
+langfuse
+prisma
+```
+
+--------------------------------
+
+TITLE: Handle LLM Exceptions with OpenAIError
+DESCRIPTION: Demonstrates how to catch LiteLLM exceptions, which are mapped to OpenAI's exception types. This example sets a bad Anthropic API key and prints the resulting OpenAIError.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_19
+
+LANGUAGE: Python
+CODE:
+```
+from openai.error import OpenAIError
+from litellm import completion
+
+os.environ["ANTHROPIC_API_KEY"] = "bad-key"
+try:
+    completion(model="claude-instant-1", messages=[{"role": "user", "content": "Hey, how's it going?"}])
+except OpenAIError as e:
+    print(e)
+```
+
+--------------------------------
+
+TITLE: Call HuggingFace LLM with LiteLLM
+DESCRIPTION: Shows how to call LLMs hosted on HuggingFace Inference Endpoints using LiteLLM. Requires setting HUGGINGFACE_API_KEY and specifying the model and api_base.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_5
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["HUGGINGFACE_API_KEY"] = "huggingface_api_key"
+
+# e.g. Call 'WizardLM/WizardCoder-Python-34B-V1.0' hosted on HF Inference endpoints
+response = completion(
+  model="huggingface/WizardLM/WizardCoder-Python-34B-V1.0",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  api_base="https://my-endpoint.huggingface.cloud"
+)
+
+print(response)
+```
+
+--------------------------------
+
+TITLE: Set Novita AI API Key and Make Completion Call
+DESCRIPTION: Shows how to set the NOVITA_API_KEY environment variable and use the `completion` function to interact with Novita AI models, including specifying the model and messages, with streaming enabled.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_21
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables. Visit https://novita.ai/settings/key-management to get your API key
+os.environ["NOVITA_API_KEY"] = "novita_api_key"
+
+response = completion(
+  model="novita/deepseek/deepseek-r1",
+  messages = [{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: HuggingFace Completion with Streaming
+DESCRIPTION: Sets the HUGGINGFACE_API_KEY environment variable and makes a streaming completion request to a HuggingFace model hosted on inference endpoints.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_16
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["HUGGINGFACE_API_KEY"] = "huggingface_api_key"
+
+response = completion(
+  model="huggingface/WizardLM/WizardCoder-Python-34B-V1.0",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  api_base="https://my-endpoint.huggingface.cloud",
+  stream=True,
+)
+
+print(response)
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM
+DESCRIPTION: This snippet shows how to install the LiteLLM library using pip. It's a prerequisite for using the library's functionalities.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/cookbook/litellm_model_fallback.ipynb#_snippet_0
+
+LANGUAGE: python
+CODE:
+```
+!pip install litellm
+```
+
+--------------------------------
+
+TITLE: LiteLLM Development Installation Commands
+DESCRIPTION: Commands for installing development dependencies for the LiteLLM project, including core, proxy, and testing dependencies.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/GEMINI.md#_snippet_0
+
+LANGUAGE: bash
+CODE:
+```
+make install-dev
+make install-proxy-dev
+make install-test-deps
+```
+
+--------------------------------
+
+TITLE: Run LiteLLM Proxy with Configuration
+DESCRIPTION: Starts the LiteLLM proxy server using a specified configuration file.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/quick_start.md#_snippet_22
+
+LANGUAGE: shell
+CODE:
+```
+litellm --config your_config.yaml
+```
+
+--------------------------------
+
+TITLE: Set Environment Variables for Logging Tools
+DESCRIPTION: Shows how to set environment variables for various logging and observability tools like Lunary, Helicone, and Langfuse. Note that API key setup is not required for MLflow.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_20
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["LUNARY_PUBLIC_KEY"] = "your-lunary-public-key"
+os.environ["HELICONE_API_KEY"] = "your-helicone-key"
+os.environ["LANGFUSE_PUBLIC_KEY"] = ""
+os.environ["LANGFUSE_SECRET_KEY"] = ""
+
+os.environ["OPENAI_API_KEY"]
+```
+
+--------------------------------
+
+TITLE: Call Command-Nightly
+DESCRIPTION: Demonstrates calling the Command-Nightly model via LiteLLM. This example sends a standard query about the weather in San Francisco.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/cookbook/liteLLM_Getting_Started.ipynb#_snippet_6
+
+LANGUAGE: python
+CODE:
+```
+completion(model="command-nightly", messages=[{ "content": "what's the weather in SF","role": "user"}])
+```
+
+--------------------------------
+
+TITLE: Run LiteLLM Proxy Server Locally
+DESCRIPTION: Installs proxy dependencies and starts the LiteLLM proxy server using Poetry. Requires a configuration file.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/CONTRIBUTING.md#_snippet_7
+
+LANGUAGE: bash
+CODE:
+```
+# Install proxy dependencies
+make install-proxy-dev
+
+# Start the proxy server
+poetry run litellm --config your_config.yaml
+```
+
+--------------------------------
+
+TITLE: Stream Completion with Anthropic
+DESCRIPTION: Shows how to set the ANTHROPIC_API_KEY and make a streaming completion call using the 'claude-2' model. This enables real-time responses from Anthropic's models.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_11
+
+LANGUAGE: Python
+CODE:
+```
+from litellm import completion
+import os
+
+os.environ["ANTHROPIC_API_KEY"] = "your-api-key"
+
+response = completion(
+  model="claude-2",
+  messages=[{ "content": "Hello, how are you?","role": "user"}],
+  stream=True,
+)
+```
+
+--------------------------------
+
+TITLE: Call OpenAI LLM with LiteLLM
+DESCRIPTION: Demonstrates how to make a completion call to an OpenAI model using the LiteLLM Python SDK. It requires setting the OPENAI_API_KEY environment variable and specifies the model and messages.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_1
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+response = completion(
+  model="openai/gpt-4o",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+)
+```
+
+--------------------------------
+
+TITLE: Logging LLM Input/Output with Callbacks
+DESCRIPTION: Shows how to configure LiteLLM to send input/output data to various observability platforms (Lunary, MLflow, Langfuse, Helicone) by setting the `success_callback` list. It also includes setting environment variables for these services.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_24
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import litellm
+import os
+
+## set env variables for logging tools (API key set up is not required when using MLflow)
+os.environ["LUNARY_PUBLIC_KEY"] = "your-lunary-public-key" # get your public key at https://app.lunary.ai/settings
+os.environ["HELICONE_API_KEY"] = "your-helicone-key"
+os.environ["LANGFUSE_PUBLIC_KEY"] = ""
+os.environ["LANGFUSE_SECRET_KEY"] = ""
+
+os.environ["OPENAI_API_KEY"]
+
+# set callbacks
+litellm.success_callback = ["lunary", "mlflow", "langfuse", "helicone"] # log input/output to lunary, mlflow, langfuse, helicone
+
+#openai call
+response = completion(model="gpt-3.5-turbo", messages=[{"role": "user", "content": "Hi 👋 - i'm openai"}])
+```
+
+--------------------------------
+
+TITLE: LiteLLM Frontend Development Setup
+DESCRIPTION: Steps to set up and run the LiteLLM frontend dashboard in development mode. This includes navigating to the UI directory, installing Node.js dependencies, and starting the development server.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/README.md#_snippet_14
+
+LANGUAGE: Shell
+CODE:
+```
+cd ui/litellm-dashboard
+npm install
+npm run dev
+```
+
+--------------------------------
+
+TITLE: Guardrail Configuration Example
+DESCRIPTION: Illustrates a YAML configuration for defining and applying guardrails, including specifying the guardrail name, LiteLLM parameters, and optional guardrail information.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/guardrails/quick_start.md#_snippet_9
+
+LANGUAGE: yaml
+CODE:
+```
+- guardrail_name: "aporia-post-guard"
+    litellm_params:
+      guardrail: aporia  # supported values: "aporia", "lakera"
+      mode: "post_call"
+      api_key: os.environ/APORIA_API_KEY_2
+      api_base: os.environ/APORIA_API_BASE_2
+    guardrail_info: # Optional field, info is returned on GET /guardrails/list
+      # you can enter any fields under info for consumers of your guardrail
+      params:
+        - name: "toxicity_score"
+          type: "float"
+          description: "Score between 0-1 indicating content toxicity level"
+        - name: "pii_detection"
+          type: "boolean"
+```
+
+--------------------------------
+
+TITLE: Setup Local Development Environment (Bash)
+DESCRIPTION: Clones the LiteLLM repository, creates a new branch, installs development dependencies, and verifies the setup.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/CONTRIBUTING.md#_snippet_0
+
+LANGUAGE: bash
+CODE:
+```
+git clone https://github.com/BerriAI/litellm.git
+cd litellm
+
+git checkout -b your-feature-branch
+
+make install-dev
+
+make help
+```
+
+--------------------------------
+
+TITLE: Configure Vertex AI Provider
+DESCRIPTION: Sets environment variables for Vertex AI project and location, then starts the LiteLLM proxy using the Gemini Pro model.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/quick_start.md#_snippet_9
+
+LANGUAGE: shell
+CODE:
+```
+$ export VERTEX_PROJECT="hardy-project"
+$ export VERTEX_LOCATION="us-west"
+```
+
+LANGUAGE: shell
+CODE:
+```
+$ litellm --model vertex_ai/gemini-pro
+```
+
+--------------------------------
+
+TITLE: Run LiteLLM Proxy with Docker
+DESCRIPTION: Deploy the LiteLLM proxy server using a Docker container. This involves mounting a configuration file and setting environment variables for API keys and base URLs, then mapping the container's port to the host.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/index.md#_snippet_26
+
+LANGUAGE: shell
+CODE:
+```
+docker run \
+    -v $(pwd)/litellm_config.yaml:/app/config.yaml \
+    -e AZURE_API_KEY=d6*********** \
+    -e AZURE_API_BASE=https://openai-***********/ \
+    -p 4000:4000 \
+    ghcr.io/berriai/litellm:main-latest \
+    --config /app/config.yaml --detailed_debug
+```
+
+--------------------------------
+
+TITLE: LiteLLM Proxy: Starting the Server (Bash)
+DESCRIPTION: Command to start the LiteLLM proxy server with a specified configuration file. This enables the server to handle requests for the configured models.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/extras/gemini_img_migration.md#_snippet_5
+
+LANGUAGE: bash
+CODE:
+```
+litellm --config /path/to/config.yaml
+
+# RUNNING on http://0.0.0.0:4000
+```
+
+--------------------------------
+
+TITLE: Next.js Page Component Example
+DESCRIPTION: An example of a Next.js page component written in TypeScript. This file, typically located in the 'app' directory, is where you can start editing your page content. The page auto-updates as you edit.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/ui/litellm-dashboard/README.md#_snippet_1
+
+LANGUAGE: typescript
+CODE:
+```
+app/page.tsx
+```
+
+--------------------------------
+
+TITLE: LiteLLM Baseten Quick Start
+DESCRIPTION: Demonstrates how to set your Baseten API key and make completion calls for both Baseten Model API and dedicated deployments using LiteLLM.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/providers/baseten.md#_snippet_0
+
+LANGUAGE: python
+CODE:
+```
+import os
+from litellm import completion
+
+os.environ['BASETEN_API_KEY'] = "your-api-key"
+
+# Model API (default)
+response = completion(
+    model="baseten/openai/gpt-oss-120b",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+# Dedicated deployment (8-digit ID)
+response = completion(
+    model="baseten/abcd1234",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+--------------------------------
+
+TITLE: Python: Quick Start Usage
+DESCRIPTION: A quick start guide for using LiteLLM's completion function in Python. It shows how to set the API key, make a completion request, and print the usage statistics from the response.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/completion/usage.md#_snippet_1
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+## set ENV variables
+os.environ["OPENAI_API_KEY"] = "your-api-key"
+
+response = completion(
+  model="gpt-3.5-turbo",
+  messages=[{ "content": "Hello, how are you?","role": "user"}]
+)
+
+print(response.usage)
+```
+
+--------------------------------
+
+TITLE: Start LiteLLM Proxy with Debugging
+DESCRIPTION: Starts the LiteLLM proxy server with detailed debug logs enabled, useful for troubleshooting.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/quick_start.md#_snippet_2
+
+LANGUAGE: shell
+CODE:
+```
+$ litellm --model huggingface/bigcode/starcoder --detailed_debug
+```
+
+--------------------------------
+
+TITLE: Instantiate LiteLLM Client with API Key
+DESCRIPTION: Shows the new method for instantiating the LiteLLM client, allowing users to directly pass their API key during initialization.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/migration.md#_snippet_2
+
+LANGUAGE: python
+CODE:
+```
+import litellm
+
+client = litellm.Litellm(api_key="sk-123")
+```
+
+--------------------------------
+
+TITLE: Install LiteLLM and Langchain
+DESCRIPTION: This command installs the necessary libraries, litellm and langchain, to use LiteLLM with Langchain. It's a prerequisite for the following examples.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/langchain/langchain.md#_snippet_0
+
+LANGUAGE: shell
+CODE:
+```
+!pip install litellm langchain
+```
+
+--------------------------------
+
+TITLE: Openrouter Completion
+DESCRIPTION: Makes a completion request to an Openrouter model.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/index.md#_snippet_19
+
+LANGUAGE: python
+CODE:
+```
+from litellm import completion
+import os
+
+
+```
+
+--------------------------------
+
+TITLE: Create Docusaurus Site
+DESCRIPTION: Generates a new Docusaurus site using the classic template and installs necessary dependencies.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/src/pages/intro.md#_snippet_0
+
+LANGUAGE: bash
+CODE:
+```
+npm init docusaurus@latest my-website classic
+```
+
+--------------------------------
+
+TITLE: AgentOps Integration
+DESCRIPTION: Adds integration with AgentOps for enhanced observability. Refer to the 'Get Started' documentation for setup.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/release_notes/v1.67.4-stable/index.md#_snippet_24
+
+LANGUAGE: Python
+CODE:
+```
+# No specific code snippet provided, only a reference to a PR and documentation.
+```
+
+--------------------------------
+
+TITLE: Start LiteLLM Proxy with Docker
+DESCRIPTION: This bash command starts the LiteLLM proxy using Docker, mounting a local configuration file and setting environment variables for API keys and base URL.
+
+SOURCE: https://github.com/berriai/litellm/blob/main/docs/my-website/docs/proxy/docker_quick_start.md#_snippet_7
+
+LANGUAGE: bash
+CODE:
+```
+docker run \
+    -v $(pwd)/litellm_config.yaml:/app/config.yaml \
+    -e AZURE_API_KEY=d6*********** \
+    -e AZURE_API_BASE=https://openai-***********/ \
+    -p 4000:4000 \
+    ghcr.io/berriai/litellm:main-latest \
+    --config /app/config.yaml --detailed_debug
+```

@@ -1,0 +1,223 @@
+# ============================================================================
+# Test Data Parser with File-Based Output - Zero Token Dataset
+# ============================================================================
+#
+# TOKEN OPTIMIZATION STRATEGY:
+# 
+# Problem: Datasets with 100+ records consume 5000-10000 output tokens
+# Solution: Write datasets to files, return only metadata (50-100 tokens)
+#
+# Key Changes:
+# 1. Business context condensed (400 → 150 tokens)
+# 2. Python templates removed, use concise instructions (1000 → 200 tokens)
+# 3. Data generator writes to files instead of returning data (N*100 → 50 tokens)
+# 4. Requirement parser returns compact JSON (no change needed)
+#
+# Expected Token Usage:
+# - Original: ~6,500 tokens (5 records) → ~50,000 tokens (100 records)
+# - Optimized: ~2,500 tokens (5 records) → ~2,800 tokens (100 records)
+# - Savings: 60% for small datasets, 95% for large datasets
+#
+# Output Location: outputs/test_data/{timestamp}_data.{csv|json}
+# ============================================================================
+
+models:
+  default: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+# Minimal business context - only essential validation rules
+business_context: |
+  Valid codes: Programs(MFG|ADV|STD), Sectors(PFNA|PBNA|QSNA|RSNA|ALL), 
+  Plants(p1-p4), Markets(US|IN|UK|DE), UOM(count|kg|liters|units|percentage|hours)
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    Available agents:
+    {{agents}}
+    
+    Create TWO-STEP plan for test data generation:
+    1. requirement_parser: Extract JSON parameters from natural language
+    2. data_generator: Generate records and save to file
+    
+    Output JSON only:
+    {
+      "goal": "<brief goal>",
+      "plan": [
+        {"id":"s1", "agent":"requirement_parser", "task":"extract params", "depends_on":[], "verify":"params extracted", "timeout_seconds":60, "retry":2},
+        {"id":"s2", "agent":"data_generator", "task":"generate and save records", "depends_on":["s1"], "verify":"file created", "timeout_seconds":120, "retry":2}
+      ]
+    }
+
+agents:
+  # ========================================================================
+  # Agent 1: Requirement Parser (No changes needed - output is already small)
+  # ========================================================================
+  - name: "requirement_parser"
+    description: "Parses natural language to JSON params using Python"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Parse user query into JSON parameters using run_python_code tool.
+      
+      **Output Schema:**
+      {record_count, metrics[], program_code, sector, plant_code, market_code, 
+       value_range{min,max}, negative_percentage, negative_range{min,max}, uom, date_range_days}
+      
+      **Valid Codes:** {{business_context}}
+      
+      **Defaults:** record_count=100, market_code=US, date_range_days=30
+      
+      **Task:** Write Python with regex extraction. Return ONLY the JSON result.
+      
+      Example extraction patterns:
+      - Count: r'(\d+)\s*records?' 
+      - Metrics: r'metric[s]?\s+([\w\s,]+)'
+      - Range: r'(\d+)\s+to\s+(\d+)'
+      - Negative: r'(\d+)%\s*negative'
+    
+    mcp_servers:
+      python_runner:
+        description: "Python execution via Deno"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  # ========================================================================
+  # Agent 2: Data Generator with FILE OUTPUT (Key Optimization)
+  # ========================================================================
+  - name: "data_generator"
+    description: "Generates test data and saves to file (no token waste)"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Generate test data records using parameters from previous step.
+      
+      **CRITICAL: DO NOT PRINT THE FULL DATASET!**
+      Instead, save data to files and return only summary metadata.
+      
+      **Requirements:**
+      - Generate exactly record_count records split across metrics
+      - Apply negative_percentage with values from negative_range
+      - Rest use value_range for values
+      - Include fields: record_id, metric, value, program_code, sector, plant_code, market_code, uom, date
+      - Date should vary within date_range_days from today
+      
+      **Output Format:**
+      1. Save data to ABSOLUTE path: /Users/A80997271/Documents/projects/jk-agents-core/outputs/test_data/{timestamp}_data.csv AND .json
+      2. Use timestamp format: YYYYMMDD_HHMMSS
+      3. CSV: Include headers, one record per row
+      4. JSON: Array of record objects
+      
+      **Return Format (DO NOT return the actual records!):**
+      ```json
+      {
+        "status": "success",
+        "total_records": <count>,
+        "files": {
+          "csv": "outputs/test_data/{timestamp}_data.csv",
+          "json": "outputs/test_data/{timestamp}_data.json"
+        },
+        "summary": {
+          "metrics": [list of metrics],
+          "date_range": "YYYY-MM-DD to YYYY-MM-DD",
+          "sample_record": <first record only>
+        }
+      }
+      ```
+      
+      **Python Code Structure:**
+      ```python
+      import json, csv, random
+      from datetime import datetime, timedelta
+      from pathlib import Path
+      
+      # Parse params from s1
+      params = json.loads('''<PARAMS_FROM_S1>''')
+      
+      # Generate records (in memory)
+      records = []
+      per_metric = params['record_count'] // len(params['metrics'])
+      neg_count = int(params['record_count'] * params['negative_percentage'])
+      
+      rid = 1
+      for metric in params['metrics']:
+          for _ in range(per_metric):
+              val = random.randint(
+                  params['negative_range' if rid <= neg_count else 'value_range']['min'],
+                  params['negative_range' if rid <= neg_count else 'value_range']['max']
+              )
+              date = (datetime.now() - timedelta(days=random.randint(0, params['date_range_days']))).strftime('%Y-%m-%d')
+              records.append({
+                  "record_id": rid, "metric": metric, "value": val,
+                  "program_code": params['program_code'], "sector": params['sector'],
+                  "plant_code": params['plant_code'], "market_code": params['market_code'],
+                  "uom": params['uom'], "date": date
+              })
+              rid += 1
+      
+      # Create output directory with absolute path
+      output_dir = Path("/Users/A80997271/Documents/projects/jk-agents-core/outputs/test_data")
+      output_dir.mkdir(parents=True, exist_ok=True)
+      
+      # Generate timestamp
+      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+      csv_path = str(output_dir / f"{timestamp}_data.csv")
+      json_path = str(output_dir / f"{timestamp}_data.json")
+      
+      # Write CSV
+      with open(csv_path, 'w', newline='') as f:
+          writer = csv.DictWriter(f, fieldnames=records[0].keys())
+          writer.writeheader()
+          writer.writerows(records)
+      
+      # Write JSON
+      with open(json_path, 'w') as f:
+          json.dump(records, f, indent=2)
+      
+      # Return ONLY metadata (not the records!)
+      result = {
+          "status": "success",
+          "total_records": len(records),
+          "files": {
+              "csv": csv_path,
+              "json": json_path
+          },
+          "summary": {
+              "metrics": list(set([r['metric'] for r in records])),
+              "date_range": f"{min([r['date'] for r in records])} to {max([r['date'] for r in records])}",
+              "sample_record": records[0] if records else None
+          }
+      }
+      print(json.dumps(result, indent=2))
+      ```
+      
+      Use run_python_code tool to execute and return metadata only.
+    
+    mcp_servers:
+      python_runner:
+        description: "Python execution via Deno"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"

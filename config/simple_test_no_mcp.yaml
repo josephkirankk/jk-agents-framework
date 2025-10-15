@@ -1,0 +1,50 @@
+# Simple Test Configuration - No MCP Servers
+# For basic integration tests without external dependencies
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+business_context: |
+  You are a helpful AI assistant for testing purposes.
+
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./test_memory"
+    max_connections: 5
+
+conversation_memory:
+  enabled: true
+  database_url: ""
+  max_conversations: 10
+  max_context_length: 2000
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are a supervisor that creates simple execution plans.
+    Available agents: {{agents}}
+    
+    Create a JSON plan with steps.
+    Return only JSON:
+    {
+      "goal": "user goal",
+      "plan": [
+        {"id":"s1", "agent":"test_agent", "task":"answer question", "depends_on":[], "verify":"answered", "timeout_seconds":30, "retry":1}
+      ]
+    }
+
+agents:
+  - name: "test_agent"
+    description: "Simple test agent without MCP dependencies"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "normal"
+    prompt: |
+      You are a helpful AI assistant. Answer questions clearly and concisely.
+      
+      For math questions, calculate the answer and respond with just the result.
+      For general questions, provide direct, accurate answers.
+    mcp_servers: {}

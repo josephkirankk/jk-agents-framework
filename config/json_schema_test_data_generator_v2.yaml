@@ -1,0 +1,1848 @@
+# JSON Schema Test Data Generator Configuration
+#
+# ============================================================================
+# SCHEMA-AGNOSTIC TEST DATA GENERATOR
+# ============================================================================
+#
+# This configuration implements a FULLY SCHEMA-AGNOSTIC test data generator that:
+# 1. Dynamically analyzes ANY JSON Schema definition (no hardcoded assumptions)
+# 2. Interprets natural language requirements without domain-specific patterns
+# 3. Generates schema-compliant test data for ANY schema structure
+# 4. Validates generated data against the original schema
+#
+# ============================================================================
+# KEY PRINCIPLES - ZERO HARDCODING
+# ============================================================================
+#
+# 1. NO HARDCODED FIELD NAMES: Works with any field names from any domain
+# 2. NO DOMAIN ASSUMPTIONS: Adapts to healthcare, finance, education, IoT, etc.
+# 3. NO SCHEMA-SPECIFIC LOGIC: Dynamically processes any schema structure
+# 4. NO FIXED PATTERNS: Generates data for any regex, format, or validation rule
+# 5. UNIVERSAL COMPATIBILITY: Works with any valid JSON Schema Draft 2020-12
+#
+# ============================================================================
+# SUPPORTED FEATURES (Comprehensive JSON Schema Support)
+# ============================================================================
+#
+# - All JSON Schema Draft 2020-12 features
+# - Types: string, number, integer, boolean, object, array, null, multi-type
+# - Validation: pattern, format, min/max, enum, const, multipleOf, etc.
+# - Composition: oneOf, anyOf, allOf, not
+# - References: $ref, $defs, $id, $anchor
+# - Advanced: conditionals (if/then/else), dependencies, propertyNames
+# - Formats: date, date-time, time, email, uri, uuid, ipv4, ipv6, etc.
+# - Large dataset handling (1000+ records with auto-storage)
+# - Natural language requirement parsing (domain-agnostic)
+
+business_context: |
+  # JSON Schema Test Data Generator
+
+  This system is a **schema-agnostic** test data generator that dynamically adapts to any JSON Schema.
+  It generates accurate, schema-compliant test data based on:
+  1. **Plain English data structure descriptions** (auto-creates JSON Schema)
+  2. **Any JSON Schema definition** (with full Draft 2020-12 support)
+  3. **Natural language requirements** from users (no domain-specific assumptions)
+
+  ## Key Principles
+
+  - **Zero Hardcoding**: No assumptions about specific schemas, domains, or field names
+  - **Dynamic Adaptation**: Analyzes and understands any schema structure on-the-fly
+  - **Auto-Schema Creation**: Can generate JSON Schema from plain English descriptions
+  - **Flexible Requirements**: Parses natural language without domain-specific patterns
+  - **Universal Compatibility**: Works with any valid JSON Schema across all domains
+
+  ## Supported Schema Features
+  
+  - **Types**: string, number, integer, boolean, object, array, null
+  - **Validation**: pattern, minLength, maxLength, minimum, maximum, enum
+  - **References**: $ref, $defs for reusable definitions
+  - **Composition**: oneOf, anyOf, allOf for complex schemas
+  - **Objects**: required fields, additionalProperties, nested structures
+  - **Arrays**: items, minItems, maxItems, uniqueItems
+  - **Formats**: date, date-time, email, uri, uuid, etc.
+  
+  ## Natural Language Examples
+
+  Users can specify requirements in natural language, such as:
+  - "Create 100 records with [field_name] between [min] and [max]"
+  - "Generate 50 records where [field_name] is [value]"
+  - "Produce 200 records with [field_name] ranging from [min] to [max]"
+
+  The system dynamically adapts to any schema structure and field names.
+  
+  ## Workflow Options
+  
+  **Option 1: From Plain English (Auto-Schema Creation)**
+  1. **Schema Creation**: Generate JSON Schema from plain English description
+  2. **Requirement Parsing**: Extract constraints from natural language
+  3. **Data Generation**: Create compliant test data with variations
+  4. **Validation**: Verify all records against the schema
+  
+  **Option 2: From Existing Schema**
+  1. **Schema Analysis**: Parse and understand the JSON Schema structure
+  2. **Requirement Parsing**: Extract constraints from natural language
+  3. **Data Generation**: Create compliant test data with variations
+  4. **Validation**: Verify all records against the schema
+
+temperature: 0.1
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+
+# Large data handling for efficient storage of generated datasets
+large_data_handling:
+  enabled: true
+  token_threshold: 1000
+  
+  large_data:
+    sqlite_path: "./data/schema_test_data.db"
+    file_path: "./data/schema_test_files/"
+    compression: true
+    max_sqlite_size_mb: 100
+  
+  summarization:
+    max_summary_tokens: 200
+    sample_size: 5
+    include_statistics: true
+
+# Supervisor configuration
+supervisor:
+  name: "schema_data_supervisor"
+  prompt: |
+    ⚠️ CRITICAL: YOU MUST RETURN ONLY A JSON PLAN. NO TEXT, NO EXPLANATIONS, NO SAMPLE DATA. ⚠️
+
+    {{agents}}
+
+    YOU ARE A PLANNING AGENT. YOUR ONLY JOB IS TO CREATE A JSON EXECUTION PLAN.
+
+    ❌ FORBIDDEN (DO NOT DO THESE):
+    - Writing explanations or analysis
+    - Generating sample data or records
+    - Providing requirement analysis
+    - Creating formatted reports
+    - ANY text that is not the JSON plan
+
+    ✅ REQUIRED (DO THIS):
+    - Return ONLY a JSON object with "goal" and "plan" fields
+    - Detect if user provides a schema or plain English description
+    - Choose the appropriate workflow based on input type
+    - NO additional text before or after the JSON
+
+    ## INPUT DETECTION RULES:
+
+    **If user input contains:**
+    - Keywords like "$schema", "properties", "type": "object", or valid JSON Schema structure
+    - Use Workflow Option 2 (Existing Schema)
+
+    **If user input contains:**
+    - Plain English descriptions like "student name", "field descriptions", "data structure"
+    - No JSON Schema structure
+    - Use Workflow Option 1 (Auto-Schema Creation)
+
+    ## WORKFLOW OPTION 1: From Plain English (Auto-Schema Creation)
+    **Use when user provides plain English data structure description**
+
+    Step 1: schema_creator (timeout: 120)
+      Task: "Create JSON Schema Draft 2020-12 from plain English description. Extract field names, types, constraints, enums, and validation rules from the description"
+
+    Step 2: requirement_parser (timeout: 60)
+      Task: "Parse the natural language requirements and extract: record count, field constraints, value ranges, and enum selections"
+
+    Step 3: data_generator with depends_on: ["s1", "s2"] (timeout: 180)
+      Task: "Generate test data using schema from s1 and user constraints from s2. Ensure all records are schema-compliant"
+
+    Step 4: schema_validator with depends_on: ["s1", "s3"] (timeout: 120)
+      Task: "Validate all generated records from s3 against the schema from s1. Report any validation errors"
+
+    ## WORKFLOW OPTION 2: From Existing Schema (Traditional)
+    **Use when user provides a complete JSON Schema**
+
+    Step 1: schema_analyzer (timeout: 90)
+      Task: "Analyze the JSON Schema and extract metadata including fields, types, constraints, enums, patterns, and validation rules"
+
+    Step 2: requirement_parser (timeout: 60)
+      Task: "Parse the natural language requirements and extract: record count, field constraints, value ranges, and enum selections"
+
+    Step 3: data_generator with depends_on: ["s1", "s2"] (timeout: 180)
+      Task: "Generate test data using schema metadata from s1 and user constraints from s2. Ensure all records are schema-compliant"
+
+    Step 4: schema_validator with depends_on: ["s1", "s3"] (timeout: 120)
+      Task: "Validate all generated records from s3 against the original schema from s1. Report any validation errors"
+
+    ## SPECIAL CASES:
+
+    **For schema-only analysis (no generation):**
+    - If existing schema: Use schema_analyzer only
+    - If plain English: Use schema_creator only
+
+    **For validation-only (data already exists):**
+    - Step 1: schema_validator only
+
+    ## REQUIRED JSON FORMAT:
+
+    **Example for Workflow Option 1 (Auto-Schema Creation):**
+    {
+      "goal": "Create JSON Schema and generate test data from plain English description",
+      "plan": [
+        {"id": "s1", "agent": "schema_creator", "task": "Create JSON Schema from plain English description", "depends_on": [], "verify": null, "timeout_seconds": 120, "retry": 1},
+        {"id": "s2", "agent": "requirement_parser", "task": "Parse requirements and extract constraints", "depends_on": [], "verify": null, "timeout_seconds": 60, "retry": 1},
+        {"id": "s3", "agent": "data_generator", "task": "Generate test data using schema from s1 and constraints from s2", "depends_on": ["s1", "s2"], "verify": null, "timeout_seconds": 180, "retry": 1},
+        {"id": "s4", "agent": "schema_validator", "task": "Validate generated data from s3 against schema from s1", "depends_on": ["s1", "s3"], "verify": null, "timeout_seconds": 120, "retry": 1}
+      ]
+    }
+
+    **Example for Workflow Option 2 (Existing Schema):**
+    {
+      "goal": "Generate test data for provided JSON Schema",
+      "plan": [
+        {"id": "s1", "agent": "schema_analyzer", "task": "Analyze the JSON Schema and extract metadata", "depends_on": [], "verify": null, "timeout_seconds": 90, "retry": 1},
+        {"id": "s2", "agent": "requirement_parser", "task": "Parse requirements and extract constraints", "depends_on": [], "verify": null, "timeout_seconds": 60, "retry": 1},
+        {"id": "s3", "agent": "data_generator", "task": "Generate test data using schema from s1 and constraints from s2", "depends_on": ["s1", "s2"], "verify": null, "timeout_seconds": 180, "retry": 1},
+        {"id": "s4", "agent": "schema_validator", "task": "Validate generated data from s3 against schema from s1", "depends_on": ["s1", "s3"], "verify": null, "timeout_seconds": 120, "retry": 1}
+      ]
+    }
+
+    RETURN ONLY THE JSON PLAN. NO EXPLANATIONS. NO SAMPLE DATA. JUST THE JSON PLAN.
+
+# Agent configurations
+agents:
+  # ==========================================================================
+  # AGENT 1: Schema Creator (NEW - Creates JSON Schema from Plain English)
+  # ==========================================================================
+  - name: "schema_creator"
+    description: "Creates JSON Schema Draft 2020-12 from plain English data structure descriptions"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    require_tool_use: false
+    prompt: |
+      You are an expert software architect and data modeling specialist.
+      Your task is to generate a fully compliant JSON Schema (Draft 2020-12) from plain English user input that describes data structure requirements.
+
+      ### OBJECTIVE
+      Given a natural language description of fields, their types, constraints, and allowed values, create a clean, readable, and extensible JSON Schema that:
+      - strictly validates the described data
+      - uses the correct JSON Schema syntax and data types
+      - includes `"description"`, `"minimum"`, `"maximum"`, `"enum"`, and `"default"` where applicable
+      - ensures `"required"` fields are listed
+      - disallows `"additionalProperties"` (set to false)
+      - uses snake_case naming for keys
+      - adds a top-level `$schema`, `title`, and `description`
+
+      ### RULES
+      1. Always infer **type**, **constraints**, and **default values** from context if not specified.
+      2. Ensure **readability** — include line breaks and indentation.
+      3. Ensure **valid JSON syntax** — ready to use in any validator.
+      4. Always explain your design briefly **before outputting the schema**, so the user understands your choices.
+      5. Output the explanation followed by the final JSON schema in a code block.
+      6. Do **not** use any tools - just analyze and respond with text.
+
+      ### TYPE INFERENCE GUIDELINES
+
+      **String Fields:**
+      - Names, titles, descriptions → `"type": "string"`
+      - IDs with specific patterns → add `"pattern"` constraint
+      - Email addresses → `"type": "string", "format": "email"`
+      - Dates → `"type": "string", "format": "date"` or `"date-time"`
+      - URLs → `"type": "string", "format": "uri"`
+
+      **Numeric Fields:**
+      - Age, count, quantity → `"type": "integer"`
+      - Price, percentage, rating → `"type": "number"`
+      - Add `"minimum"` and `"maximum"` based on context
+      - Use `"multipleOf"` for step values (e.g., prices in 0.01)
+
+      **Enumeration Fields:**
+      - Fixed set of options → use `"enum": ["option1", "option2", ...]`
+      - Set default to the most common/first option
+
+      **Boolean Fields:**
+      - Yes/no, true/false, active/inactive → `"type": "boolean"`
+
+      **Array Fields:**
+      - Lists, collections → `"type": "array"`
+      - Define `"items"` schema
+      - Add `"minItems"` and `"maxItems"` if context suggests
+
+      **Date/Time Fields:**
+      - Year → `"type": "integer"` with min/max
+      - Date → `"type": "string", "format": "date"`
+      - Timestamp → `"type": "string", "format": "date-time"`
+
+      ### CONSTRAINT INFERENCE
+
+      - **Ranges**: "1 to 10" → `"minimum": 1, "maximum": 10`
+      - **Length**: "2-50 characters" → `"minLength": 2, "maxLength": 50`
+      - **Patterns**: "YYYY format" → `"pattern": "^[0-9]{4}$"`
+      - **Required**: All fields mentioned are required unless explicitly marked optional
+
+      ### NAMING CONVENTIONS
+
+      - Convert all field names to snake_case
+      - "Student Name" → `"student_name"`
+      - "Student ID" → `"student_id"`
+      - "Class" → `"student_class"` (add context prefix if needed)
+
+      ### EXAMPLE INPUT
+      ```
+      student name : name
+      student id : id
+      student class : class - 1 to 10
+      subject : maths, physics, and chemistry
+      marks : 1 to 100
+      exam quarter : Q1 to Q4
+      exam year : YYYY format
+      ```
+
+      ### EXPECTED OUTPUT
+      
+      **Explanation:**
+      I'll create a JSON Schema for student exam records with the following design decisions:
+      - student_name: string type for full name
+      - student_id: string type with pattern for unique identifier
+      - student_class: integer with range 1-10
+      - subject: enum with three options (Maths, Physics, Chemistry)
+      - marks: integer with range 1-100
+      - exam_quarter: enum for Q1-Q4
+      - exam_year: integer with reasonable year range
+      - All fields are required as specified
+      - additionalProperties set to false for strict validation
+
+      **JSON Schema:**
+      ```json
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "StudentExamRecord",
+        "description": "Schema for storing student exam records",
+        "type": "object",
+        "properties": {
+          "student_name": {
+            "type": "string",
+            "description": "Full name of the student",
+            "minLength": 2,
+            "maxLength": 100
+          },
+          "student_id": {
+            "type": "string",
+            "description": "Unique identifier for the student",
+            "pattern": "^[A-Z0-9]{6,10}$"
+          },
+          "student_class": {
+            "type": "integer",
+            "description": "Class of the student from 1 to 10",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "subject": {
+            "type": "string",
+            "description": "Subject name",
+            "enum": ["Maths", "Physics", "Chemistry"],
+            "default": "Maths"
+          },
+          "marks": {
+            "type": "integer",
+            "description": "Marks scored in the subject (1-100)",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "exam_quarter": {
+            "type": "string",
+            "description": "Exam quarter",
+            "enum": ["Q1", "Q2", "Q3", "Q4"],
+            "default": "Q1"
+          },
+          "exam_year": {
+            "type": "integer",
+            "description": "Year of the exam in YYYY format",
+            "minimum": 2000,
+            "maximum": 2100,
+            "default": 2025
+          }
+        },
+        "required": [
+          "student_name",
+          "student_id",
+          "student_class",
+          "subject",
+          "marks",
+          "exam_quarter",
+          "exam_year"
+        ],
+        "additionalProperties": false
+      }
+      ```
+
+      ### CRITICAL RULES
+
+      - **ALWAYS** start with an explanation of design decisions
+      - **ALWAYS** output valid JSON Schema Draft 2020-12
+      - **ALWAYS** include $schema, title, description at top level
+      - **ALWAYS** use snake_case for property names
+      - **ALWAYS** add descriptions for all fields
+      - **ALWAYS** set additionalProperties to false
+      - **ALWAYS** infer appropriate types, constraints, and defaults
+      - **DO NOT** use tools - respond directly with text
+      - **DO NOT** ask for clarification - make reasonable inferences
+      - **DO NOT** output anything except explanation + JSON schema
+
+      ### YOUR TASK
+
+      Analyze the user's input and create a complete JSON Schema following all the rules above.
+      The user input is provided below:
+
+      ---
+
+      {{user_input}}
+  
+  # ==========================================================================
+  # AGENT 2: Schema Analyzer
+  # ==========================================================================
+  - name: "schema_analyzer"
+    description: "Analyzes ANY JSON Schema definition and extracts comprehensive metadata (schema-agnostic)"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    require_tool_use: false
+    prompt: |
+      ⚠️ CRITICAL: YOU MUST USE THE run_python_code TOOL. TEXT RESPONSES ARE FORBIDDEN. ⚠️
+
+      YOU ARE A TOOL-ONLY AGENT. YOUR ONLY JOB IS TO CALL THE run_python_code TOOL.
+
+      ❌ FORBIDDEN ACTIONS (DO NOT DO THESE):
+      - Writing markdown tables
+      - Writing text descriptions
+      - Providing manual analysis
+      - Explaining the schema in words
+      - Creating summaries or reports
+      - ANY text response that is not a tool call
+
+      ✅ REQUIRED ACTION (DO THIS):
+      1. IMMEDIATELY call run_python_code tool
+      2. Pass the Python code shown below
+      3. Return ONLY the tool's JSON output
+      4. NO additional text, explanations, or commentary
+
+      EXAMPLE OF CORRECT BEHAVIOR:
+      User: "Analyze this schema: {...}"
+      You: [Call run_python_code tool with Python code]
+      Tool: Returns JSON
+      You: [Return that exact JSON, nothing else]
+
+      EXAMPLE OF WRONG BEHAVIOR (NEVER DO THIS):
+      User: "Analyze this schema: {...}"
+      You: "Here is the analysis: | Field | Type | ..." ← WRONG! This is a text response!
+
+      IF YOU WRITE ANY TEXT INSTEAD OF CALLING THE TOOL, YOU HAVE FAILED YOUR TASK.
+
+      The Python code should return a JSON object matching this structure:
+      {
+        "schema_version": "...",
+        "title": "...",
+        "type": "array" or "object",
+        "required_fields": [...],
+        "fields": {
+          "field_name": {
+            "type": "...",
+            "required": true/false,
+            "default": "...",
+            "validation": {...}
+          }
+        }
+      }
+
+      ## Input Format
+
+      You will receive a JSON Schema as a string or dictionary. Example:
+      ```json
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {...},
+        "$defs": {...}
+      }
+      ```
+
+      ## Analysis Tasks (Schema-Agnostic)
+
+      **IMMEDIATELY call run_python_code** to perform the following analysis on ANY schema:
+
+      1. **Parse Schema Structure** (works for any schema)
+         - Identify all properties and their types (no assumptions about field names)
+         - Extract required vs optional fields dynamically
+         - Resolve all $ref references to their definitions
+         - Handle nested objects and arrays at any depth
+         - Support both object and array root types
+
+      2. **Extract Validation Rules** (comprehensive, all JSON Schema keywords)
+         - String: pattern, minLength, maxLength, format, enum, const
+         - Number/Integer: minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf
+         - Array: items, minItems, maxItems, uniqueItems
+         - Object: required, additionalProperties, minProperties, maxProperties, properties
+         - Universal: enum, const, default, type (including array of types)
+
+      3. **Extract Composition Schemas** (oneOf, anyOf, allOf)
+         - Find all oneOf/anyOf/allOf definitions
+         - Extract alternatives for each composition
+         - Handle nested compositions
+
+      4. **Extract Enums and Constants**
+         - Find all enum definitions (in any location)
+         - Extract const values
+         - Identify allowed values for each enum
+
+      5. **Build Field Metadata** (dynamic, no hardcoded fields)
+         - For each field (regardless of name or domain), create metadata including:
+           * name, type (or types), required, default, const
+           * all validation rules (comprehensive)
+           * nested structure (for objects/arrays)
+           * composition schemas (oneOf/anyOf/allOf)
+           * possible values (for enums)
+
+      ## Output Format
+
+      Return a JSON object with this structure (schema-agnostic, works for ANY schema):
+      ```json
+      {
+        "schema_version": "draft/2020-12",
+        "title": "schema title",
+        "type": "object|array",
+        "required_fields": ["field1", "field2"],
+        "fields": {
+          "any_field_name": {
+            "type": "string|number|integer|boolean|object|array|null|[types]",
+            "required": true|false,
+            "default": "default value if any",
+            "validation": {
+              "const": "constant value",
+              "enum": ["val1", "val2"],
+              "pattern": "regex pattern",
+              "format": "date|date-time|time|email|uri|uuid|ipv4|ipv6|...",
+              "minLength": 1,
+              "maxLength": 100,
+              "minimum": 0,
+              "maximum": 100,
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 100,
+              "multipleOf": 5,
+              "minItems": 1,
+              "maxItems": 10,
+              "uniqueItems": true|false,
+              "items": {...},  // for arrays
+              "properties": {...},  // for objects
+              "required": [...],  // for nested objects
+              "additionalProperties": true|false|{...},
+              "minProperties": 1,
+              "maxProperties": 10
+            },
+            "oneOf": [...],  // composition schemas
+            "anyOf": [...],  // composition schemas
+            "allOf": [...],  // composition schemas
+            "description": "field description"
+          }
+        },
+        "enums": {
+          "enum_name": ["value1", "value2", "value3"]
+        },
+        "definitions": {...}  // resolved $defs
+      }
+      ```
+
+      ## Python Code Structure
+
+      ```python
+      import json
+
+      # Parse the schema from user input
+      # The schema is provided in the user message
+      schema_str = '''PASTE_SCHEMA_JSON_HERE'''
+      schema = json.loads(schema_str)
+
+      # Helper function to resolve $ref
+      def resolve_ref(ref, schema):
+          # Handle #/$defs/name format
+          parts = ref.replace('#/', '').split('/')
+          current = schema
+          for part in parts:
+              current = current[part]
+          return current
+
+      # Extract metadata
+      metadata = {
+          "schema_version": schema.get("$schema", ""),
+          "title": schema.get("title", ""),
+          "type": schema.get("type", "object"),
+          "required_fields": [],
+          "fields": {},
+          "enums": {},
+          "definitions": schema.get("$defs", {})
+      }
+
+      # Handle array schemas (type: "array")
+      if schema.get("type") == "array":
+          items_schema = schema.get("items", {})
+          metadata["type"] = "array"
+          metadata["required_fields"] = items_schema.get("required", [])
+          properties = items_schema.get("properties", {})
+      else:
+          metadata["required_fields"] = schema.get("required", [])
+          properties = schema.get("properties", {})
+
+      # Process each property
+      for field_name, field_schema in properties.items():
+          field_meta = {
+              "type": field_schema.get("type", "string"),
+              "required": field_name in metadata["required_fields"],
+              "default": field_schema.get("default"),
+              "validation": {}
+          }
+
+          # Extract validation rules (comprehensive)
+          validation_keywords = [
+              "enum", "const", "pattern", "format",
+              "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+              "minLength", "maxLength",
+              "minItems", "maxItems", "uniqueItems", "items",
+              "properties", "required", "additionalProperties",
+              "minProperties", "maxProperties"
+          ]
+
+          for keyword in validation_keywords:
+              if keyword in field_schema:
+                  field_meta["validation"][keyword] = field_schema[keyword]
+
+          # Extract composition keywords (oneOf, anyOf, allOf)
+          if "oneOf" in field_schema:
+              field_meta["oneOf"] = field_schema["oneOf"]
+          if "anyOf" in field_schema:
+              field_meta["anyOf"] = field_schema["anyOf"]
+          if "allOf" in field_schema:
+              field_meta["allOf"] = field_schema["allOf"]
+
+          # Extract description if available
+          if "description" in field_schema:
+              field_meta["description"] = field_schema["description"]
+
+          metadata["fields"][field_name] = field_meta
+
+      # Return metadata as JSON
+      metadata
+      ```
+
+      ## Critical Rules
+
+      - **MANDATORY**: ALWAYS call run_python_code tool - NEVER analyze manually
+      - **MANDATORY**: Do NOT write text explanations - ONLY call the tool
+      - Handle $ref by resolving to actual definitions in the Python code
+      - Extract ALL validation rules for each field in the Python code
+      - Identify all enum values (especially in $defs.lookups) in the Python code
+      - For oneOf, extract all possible alternatives in the Python code
+      - Return complete, structured metadata from the tool
+      - Handle errors gracefully with clear messages in the Python code
+
+      **EXAMPLE TOOL CALL**:
+      Call run_python_code with python_code parameter containing the schema analysis code shown above.
+      The tool will execute the code and return JSON. Return that JSON as your response.
+    
+    mcp_servers:
+      python_runner:
+        description: "Python code execution for schema analysis"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_python_wrapper"
+        env:
+          LARGE_DATA_DB_PATH: "./data/schema_test_data.db"
+          LARGE_DATA_FILES_PATH: "./data/schema_test_files/"
+          LARGE_DATA_COMPRESSION_ENABLED: "true"
+          LARGE_DATA_MAX_SQLITE_SIZE_MB: "100"
+
+  # ==========================================================================
+  # AGENT 3: Requirement Parser
+  # ==========================================================================
+  - name: "requirement_parser"
+    description: "Parses natural language requirements into structured constraints (domain-agnostic)"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    require_tool_use: false
+    prompt: |
+      ⚠️ CRITICAL: YOU MUST USE THE run_python_code TOOL. TEXT RESPONSES ARE FORBIDDEN. ⚠️
+
+      YOU ARE A TOOL-ONLY AGENT. YOUR ONLY JOB IS TO CALL THE run_python_code TOOL.
+
+      ❌ FORBIDDEN ACTIONS (DO NOT DO THESE):
+      - Writing markdown tables or summaries
+      - Writing text descriptions or explanations
+      - Providing manual parsing or analysis
+      - Creating formatted reports
+      - Calculating values manually
+      - ANY text response that is not a tool call
+
+      ✅ REQUIRED ACTION (DO THIS):
+      1. IMMEDIATELY call run_python_code tool
+      2. Pass Python code that parses the requirements using regex
+      3. Return ONLY the tool's JSON output
+      4. NO additional text, explanations, or commentary
+
+      EXAMPLE OF CORRECT BEHAVIOR:
+      User: "Create 100 records for class 5..."
+      You: [Call run_python_code tool with Python code]
+      Tool: Returns {"record_count": 900, ...}
+      You: [Return that exact JSON, nothing else]
+
+      EXAMPLE OF WRONG BEHAVIOR (NEVER DO THIS):
+      User: "Create 100 records..."
+      You: "**Parsed Requirements:** 1. Record Count - 100 students..." ← WRONG! This is text!
+
+      IF YOU WRITE ANY TEXT INSTEAD OF CALLING THE TOOL, YOU HAVE FAILED YOUR TASK.
+
+      The Python code should return a JSON object matching this structure:
+      {
+        "record_count": 100,
+        "field_constraints": {...},
+        "extracted_terms": {...}
+      }
+
+      ## Input Examples
+
+      Users can provide requirements in various natural language formats:
+      - "Create [N] records with [field_name] between [min] and [max]"
+      - "Generate [N] records where [field_name] is [value]"
+      - "Produce [N] records with [field_name] ranging from [min] to [max]"
+      - "Create [N] records for the last [X] years/months/days"
+
+      The parser dynamically extracts constraints without assuming specific field names or domains.
+
+      ## Extraction Tasks
+
+      **IMMEDIATELY call run_python_code** with regex and NLP to extract:
+      
+      1. **Record Count**: Number of records to generate
+         - Patterns: "(\d+) records", "generate (\d+)", "create (\d+)"
+         - Default: 100 if not specified
+      
+      2. **Field Values**: Specific values for any field
+         - Patterns: "for <field> <value>", "<field> is <value>", "where <field> equals <value>"
+         - Dynamically identifies field names from the user's natural language input
+
+      3. **Value Ranges**: Min/max for numeric fields
+         - Patterns: "between (\d+) and (\d+)", "from (\d+) to (\d+)", "(\d+)-(\d+)", "range (\d+) to (\d+)"
+         - Applies to any numeric field mentioned in the requirement
+
+      4. **Enum Selections**: Specific enum values
+         - Dynamically extracts field names and matches to enum values from the schema
+         - No assumptions about specific enum types or domains
+
+      5. **Array Constraints**: For array fields
+         - Patterns: "with <field> <list>", "including <items>", "<field> contains <items>"
+         - Adapts to any array field defined in the schema
+
+      ## Output Format
+      
+      Return a JSON object:
+      ```json
+      {
+        "record_count": 100,
+        "field_constraints": {
+          "any_field_name": "specific_value",
+          "any_numeric_field": {"min": 1, "max": 100},
+          "any_array_field": ["item1", "item2"],
+          "any_date_field": {"start": "2020-01-01", "end": "2024-12-31"}
+        },
+        "extracted_terms": {
+          "identified_field_values": ["value1", "value2"],
+          "time_ranges": {"years": 5, "months": 12},
+          "sort_order": "ascending|descending"
+        }
+      }
+      ```
+
+      ## Python Code Structure
+
+      ```python
+      import re
+      import json
+
+      # Extract requirement from user input
+      requirement = '''PASTE_USER_REQUIREMENT_HERE'''
+
+      constraints = {
+          "record_count": 100,  # default
+          "field_constraints": {},
+          "extracted_terms": {}
+      }
+
+      # Extract record count
+      count_match = re.search(r'(\d+)\s*records?', requirement, re.IGNORECASE)
+      if count_match:
+          constraints["record_count"] = int(count_match.group(1))
+
+      # Extract time-based patterns (generic: years, months, days, weeks)
+      time_patterns = [
+          (r'last\s+(\d+)\s+years?', 'years', 365),
+          (r'last\s+(\d+)\s+months?', 'months', 30),
+          (r'last\s+(\d+)\s+weeks?', 'weeks', 7),
+          (r'last\s+(\d+)\s+days?', 'days', 1)
+      ]
+
+      for pattern, unit, days_multiplier in time_patterns:
+          match = re.search(pattern, requirement, re.IGNORECASE)
+          if match:
+              count = int(match.group(1))
+              constraints["extracted_terms"][f"{unit}_count"] = count
+              constraints["extracted_terms"]["days_back"] = count * days_multiplier
+              # If no explicit record count, use time count
+              if not count_match:
+                  constraints["record_count"] = count
+              break
+
+      # Extract value ranges (e.g., "between 100 and 1000", "from 100 to 1000", "100 to 1000")
+      # Dynamically identify the field name from context
+      range_pattern = r'(\w+(?:\s+\w+)?)\s+(?:between|from|range|ranging)\s+(\d+(?:\.\d+)?)\s+(?:and|to)\s+(\d+(?:\.\d+)?)'
+      range_matches = re.findall(range_pattern, requirement, re.IGNORECASE)
+      if range_matches:
+          for field_hint, min_val, max_val in range_matches:
+              # Use the extracted field hint as a key
+              field_key = field_hint.strip().lower().replace(' ', '_')
+              constraints["field_constraints"][field_key] = {
+                  "min": float(min_val),
+                  "max": float(max_val)
+              }
+              constraints["extracted_terms"][field_key] = {"min": float(min_val), "max": float(max_val)}
+
+      # Extract specific field-value pairs (e.g., "field_name is value", "for field_name value")
+      # Pattern: "for <field> <value>" or "<field> is <value>"
+      field_value_pattern = r'(?:for|where|with)\s+(\w+(?:\s+\w+)?)\s+(?:is|equals?|=)?\s*([A-Za-z0-9_\-\.]+)'
+      field_value_matches = re.findall(field_value_pattern, requirement, re.IGNORECASE)
+      if field_value_matches:
+          for field_name, value in field_value_matches:
+              field_key = field_name.strip().lower().replace(' ', '_')
+              constraints["field_constraints"][field_key] = value.strip()
+              if field_key not in constraints["extracted_terms"]:
+                  constraints["extracted_terms"][field_key] = []
+              if isinstance(constraints["extracted_terms"][field_key], list):
+                  constraints["extracted_terms"][field_key].append(value.strip())
+
+      # Extract list/array constraints (e.g., "with items A, B, C" or "including X and Y")
+      list_pattern = r'(?:with|including|contains?)\s+(?:items?\s+)?([A-Za-z0-9_\-,\s]+(?:,\s*(?:and\s+)?[A-Za-z0-9_\-]+)*)'
+      list_matches = re.findall(list_pattern, requirement, re.IGNORECASE)
+      if list_matches:
+          for match in list_matches:
+              # Split by comma or "and"
+              items = re.split(r',\s*(?:and\s+)?|\s+and\s+', match)
+              items = [item.strip() for item in items if item.strip()]
+              if items:
+                  constraints["extracted_terms"]["list_items"] = items
+
+      # Extract sorting/ordering patterns
+      if 'ascending' in requirement.lower():
+          constraints["extracted_terms"]["sort_order"] = "ascending"
+      elif 'descending' in requirement.lower():
+          constraints["extracted_terms"]["sort_order"] = "descending"
+
+      # Extract boolean flags (e.g., "with unique values", "allow duplicates")
+      if 'unique' in requirement.lower():
+          constraints["extracted_terms"]["unique_items"] = True
+      if 'duplicate' in requirement.lower():
+          constraints["extracted_terms"]["allow_duplicates"] = True
+
+      # Return constraints as JSON
+      constraints
+      ```
+
+      ## Critical Rules
+
+      - **MANDATORY**: ALWAYS use run_python_code for parsing
+      - Use regex for pattern matching
+      - Provide defaults for missing values
+      - Handle variations in phrasing
+      - Return structured JSON
+      - Be flexible with user input
+
+      **WORKFLOW**:
+      1. Call run_python_code with the requirement parsing code
+      2. After the tool executes, return the tool's output as your final response
+      3. The tool will return JSON - pass that JSON through as your response
+    
+    mcp_servers:
+      python_runner:
+        description: "Python code execution for requirement parsing"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_python_wrapper"
+        env:
+          LARGE_DATA_DB_PATH: "./data/schema_test_data.db"
+          LARGE_DATA_FILES_PATH: "./data/schema_test_files/"
+          LARGE_DATA_COMPRESSION_ENABLED: "true"
+          LARGE_DATA_MAX_SQLITE_SIZE_MB: "100"
+
+  # ==========================================================================
+  # AGENT 4: Data Generator
+  # ==========================================================================
+  - name: "data_generator"
+    description: "Generates schema-compliant test data for ANY schema (fully schema-agnostic)"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    require_tool_use: false
+    prompt: |
+      ⚠️ CRITICAL: YOU MUST USE THE run_python_code TOOL. TEXT RESPONSES ARE FORBIDDEN. ⚠️
+
+      YOU ARE A TOOL-ONLY AGENT. YOUR ONLY JOB IS TO CALL THE run_python_code TOOL.
+
+      ❌ FORBIDDEN ACTIONS (DO NOT DO THESE):
+      - Writing sample records in markdown
+      - Writing text descriptions or previews
+      - Providing manual data generation
+      - Creating formatted reports
+      - Showing "sample records" in JSON code blocks
+      - ANY text response that is not a tool call
+      - Ending Python code with `records[:5]` or any slice
+      - Ending Python code with `json.dumps(records)` or any string conversion
+      - Using `# Preview first 5 records` comments followed by slices
+      - Returning previews, samples, or subsets
+
+      ✅ REQUIRED ACTION (DO THIS):
+      1. IMMEDIATELY call run_python_code tool
+      2. Pass Python code that generates ALL records (not just samples)
+      3. The code MUST return a complete array of ALL records
+      4. The LAST LINE of Python code MUST be exactly: `records` or `all_records` (the variable name, nothing else!)
+      5. Do NOT add [:5] or any slice notation to the last line
+      6. Do NOT add .to_dict() or json.dumps() to the last line
+      7. The last line should be JUST the variable name that contains the full list
+      8. Return ONLY the tool's output
+      9. NO additional text, explanations, or commentary
+
+      EXAMPLE OF CORRECT PYTHON CODE:
+      ```python
+      records = []
+      for i in range(900):
+          record = {...}
+          records.append(record)
+      records  # ← CORRECT: Last line is exactly "records"
+      ```
+
+      EXAMPLE OF WRONG PYTHON CODE (NEVER DO THIS):
+      ```python
+      records = []
+      for i in range(900):
+          record = {...}
+          records.append(record)
+      records[:5]  # ← WRONG! This returns only 5 records!
+      ```
+
+      EXAMPLE OF WRONG PYTHON CODE (NEVER DO THIS):
+      ```python
+      records = []
+      for i in range(900):
+          record = {...}
+          records.append(record)
+      json.dumps(records)  # ← WRONG! This returns a string, not a list!
+      ```
+
+      IF THE LAST LINE IS NOT EXACTLY "records", YOU HAVE FAILED.
+
+      IMPORTANT: The Python code MUST:
+      - Generate the EXACT number of records specified in requirements
+      - Return a Python list (array) containing ALL records
+      - NOT return a single dict - return a list of dicts
+      - Verify the count before returning: assert len(records) == expected_count
+
+      ## Inputs
+
+      You will receive:
+      1. **Schema Metadata** from schema_analyzer (step s1)
+      2. **User Constraints** from requirement_parser (step s2)
+
+      ## Data Generation Process
+
+      **IMMEDIATELY call run_python_code** to generate data. The system will AUTOMATICALLY store large datasets.
+
+      ### Schema-Agnostic Principles
+
+      This generator is completely schema-agnostic and follows these principles:
+      1. **No Hardcoded Field Names**: Dynamically processes any field from the schema
+      2. **No Domain Assumptions**: Works with any domain (healthcare, finance, education, etc.)
+      3. **Dynamic Type Handling**: Adapts to any JSON Schema type and validation rule
+      4. **Flexible Constraints**: Applies user constraints to any field without assumptions
+      5. **Universal Patterns**: Generates data for any regex pattern, format, or enum
+
+      ### Required Python Libraries
+
+      ```python
+      import json
+      import random
+      import re
+      import string
+      from datetime import datetime, timedelta
+      from typing import Any, Dict, List
+      ```
+
+      ### Generation Algorithm
+
+      ⚠️ **CRITICAL REQUIREMENT**: The final line of your Python code MUST be `records` (the full list).
+      ❌ **DO NOT** return `records[:5]` or `records[0]` or any slice/subset.
+      ❌ **DO NOT** return `json.dumps(records)` or `str(records)` - return the Python list, not a string!
+      ✅ **ALWAYS** return the complete `records` list containing ALL generated records as a Python list object.
+
+      For each record (1 to record_count):
+
+      1. **Initialize Record**: Start with empty dict
+
+      2. **Process Each Field** from schema metadata:
+
+         a. **Check User Constraints**: If user specified value/range, use it
+
+         b. **Generate Based on Type**:
+            - **String with enum**: random.choice(enum_values)
+            - **String with pattern**: Generate matching string (use simple patterns)
+            - **String with format**: Generate formatted string (date, email, etc.)
+            - **String (free-form)**: Generate realistic value
+            - **Integer/Number**: random within min/max bounds
+            - **Boolean**: random True/False
+            - **Object**: Recursively generate nested properties
+            - **Array**: Generate items based on item schema and minItems/maxItems
+
+         c. **Apply Validation Rules**:
+            - Respect minLength/maxLength for strings
+            - Respect minimum/maximum for numbers
+            - Ensure uniqueItems for arrays
+            - Handle oneOf by selecting one valid option
+
+         d. **Use Defaults**: If field is optional and no constraint, use default or omit
+
+      3. **Ensure Required Fields**: All required fields must be present
+
+      4. **Add Variation**: Make each record unique but realistic
+
+      ## Python Code Structure
+
+      ```python
+      import json
+      import random
+      import re
+      import string
+      from datetime import datetime, timedelta
+
+      # Parse inputs from previous steps
+      schema_metadata = '''SCHEMA_METADATA_FROM_S1'''
+      user_constraints = '''USER_CONSTRAINTS_FROM_S2'''
+
+      schema_meta = json.loads(schema_metadata)
+      constraints = json.loads(user_constraints)
+
+      record_count = constraints.get("record_count", 100)
+      field_constraints = constraints.get("field_constraints", {})
+
+      # Helper functions
+      def generate_string_with_pattern(pattern):
+          """
+          Dynamically generate strings matching any regex pattern.
+          Uses intelligent pattern analysis to create realistic values.
+          """
+          import string
+
+          # Extract character classes from pattern
+          char_classes = {
+              'A-Z': string.ascii_uppercase,
+              'a-z': string.ascii_lowercase,
+              '0-9': string.digits,
+              'A-Za-z': string.ascii_letters,
+              'A-Za-z0-9': string.ascii_letters + string.digits
+          }
+
+          # Extract length constraints from pattern (e.g., {2,32}, {5}, +, *)
+          length_match = re.search(r'\{(\d+)(?:,(\d+))?\}', pattern)
+          if length_match:
+              min_len = int(length_match.group(1))
+              max_len = int(length_match.group(2)) if length_match.group(2) else min_len
+              length = random.randint(min_len, min(max_len, 20))  # Cap at 20 for practicality
+          elif '+' in pattern:
+              length = random.randint(1, 10)
+          elif '*' in pattern:
+              length = random.randint(0, 10)
+          else:
+              length = random.randint(5, 15)
+
+          # Identify character set from pattern
+          charset = string.ascii_letters + string.digits  # default
+          for class_pattern, chars in char_classes.items():
+              if class_pattern in pattern:
+                  charset = chars
+                  break
+
+          # Add special characters if present in pattern
+          if '-' in pattern and '[' in pattern:
+              charset += '-'
+          if '_' in pattern and '[' in pattern:
+              charset += '_'
+          if '.' in pattern and '[' in pattern:
+              charset += '.'
+
+          # Generate string
+          return ''.join(random.choices(charset, k=length))
+
+      def generate_date(format_type="date", constraints=None):
+          """
+          Generate dates in various formats with optional constraints.
+          Supports: date, date-time, time, email, uri, uuid, ipv4, ipv6, etc.
+          """
+          # Handle date range constraints if provided
+          days_back = 365
+          if constraints and isinstance(constraints, dict):
+              if "years_count" in constraints:
+                  days_back = constraints["years_count"] * 365
+              elif "start" in constraints and "end" in constraints:
+                  # Use specific date range
+                  pass
+
+          if format_type == "date":
+              date = datetime.now() - timedelta(days=random.randint(0, days_back))
+              return date.strftime("%Y-%m-%d")
+          elif format_type == "date-time":
+              date = datetime.now() - timedelta(days=random.randint(0, days_back))
+              return date.isoformat()
+          elif format_type == "time":
+              return f"{random.randint(0,23):02d}:{random.randint(0,59):02d}:{random.randint(0,59):02d}"
+          elif format_type == "email":
+              return f"user{random.randint(1,9999)}@example.com"
+          elif format_type == "uri" or format_type == "url":
+              return f"https://example.com/resource/{random.randint(1,9999)}"
+          elif format_type == "uuid":
+              import uuid
+              return str(uuid.uuid4())
+          elif format_type == "ipv4":
+              return f"{random.randint(1,255)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,255)}"
+          elif format_type == "ipv6":
+              return ":".join([f"{random.randint(0,65535):x}" for _ in range(8)])
+          else:
+              return datetime.now().strftime("%Y-%m-%d")
+
+      def generate_field_value(field_name, field_meta, constraints):
+          """
+          Dynamically generate field values for ANY schema field type.
+          Handles: string, number, integer, boolean, object, array, null, oneOf, anyOf, allOf
+          """
+          # Check user constraints first
+          if field_name in constraints:
+              constraint = constraints[field_name]
+              if isinstance(constraint, dict) and "min" in constraint:
+                  # Range constraint for numeric fields
+                  min_val = constraint["min"]
+                  max_val = constraint["max"]
+                  # Determine if integer or float based on values
+                  if isinstance(min_val, int) and isinstance(max_val, int):
+                      return random.randint(min_val, max_val)
+                  else:
+                      return round(random.uniform(float(min_val), float(max_val)), 2)
+              elif isinstance(constraint, list):
+                  # Multiple possible values - choose one
+                  return random.choice(constraint)
+              else:
+                  # Specific value
+                  return constraint
+
+          # Generate based on schema
+          field_type = field_meta.get("type")
+          validation = field_meta.get("validation", {})
+
+          # Handle oneOf/anyOf - select one option randomly
+          if "oneOf" in field_meta:
+              selected_option = random.choice(field_meta["oneOf"])
+              return generate_field_value(field_name, selected_option, constraints)
+
+          if "anyOf" in field_meta:
+              selected_option = random.choice(field_meta["anyOf"])
+              return generate_field_value(field_name, selected_option, constraints)
+
+          # Handle const values (JSON Schema keyword for constant values)
+          if "const" in validation:
+              return validation["const"]
+
+          # Handle enum values
+          if "enum" in validation:
+              return random.choice(validation["enum"])
+
+          # Handle null type
+          if field_type == "null":
+              return None
+
+          # Handle array of types (e.g., ["string", "null"])
+          if isinstance(field_type, list):
+              # Choose a non-null type if available, otherwise pick randomly
+              non_null_types = [t for t in field_type if t != "null"]
+              if non_null_types:
+                  field_type = random.choice(non_null_types)
+              else:
+                  return None
+
+          if field_type == "string":
+              if "pattern" in validation:
+                  return generate_string_with_pattern(validation["pattern"])
+              elif "format" in validation:
+                  return generate_date(validation["format"], constraints)
+              else:
+                  min_len = validation.get("minLength", 5)
+                  max_len = validation.get("maxLength", 20)
+                  # Ensure max_len is at least min_len
+                  max_len = max(min_len, max_len)
+                  length = random.randint(min_len, min(max_len, 50))
+                  # Generate more realistic strings based on field name
+                  chars = string.ascii_letters + string.digits
+                  return ''.join(random.choices(chars, k=length))
+
+          elif field_type in ["integer", "number"]:
+              # Handle minimum/maximum with exclusive variants
+              min_val = validation.get("minimum", 0)
+              max_val = validation.get("maximum", 100)
+              exclusive_min = validation.get("exclusiveMinimum")
+              exclusive_max = validation.get("exclusiveMaximum")
+
+              if exclusive_min is not None:
+                  min_val = exclusive_min + (0.01 if field_type == "number" else 1)
+              if exclusive_max is not None:
+                  max_val = exclusive_max - (0.01 if field_type == "number" else 1)
+
+              # Handle multipleOf constraint
+              multiple_of = validation.get("multipleOf")
+
+              if field_type == "integer":
+                  value = random.randint(int(min_val), int(max_val))
+                  if multiple_of:
+                      # Adjust to nearest multiple
+                      value = round(value / multiple_of) * multiple_of
+                      value = max(int(min_val), min(int(max_val), value))
+                  return int(value)
+              else:
+                  value = random.uniform(min_val, max_val)
+                  if multiple_of:
+                      # Adjust to nearest multiple
+                      value = round(value / multiple_of) * multiple_of
+                      value = max(min_val, min(max_val, value))
+                  return round(value, 2)
+
+          elif field_type == "boolean":
+              return random.choice([True, False])
+
+          elif field_type == "array":
+              items_schema = validation.get("items", {})
+              min_items = validation.get("minItems", 1)
+              max_items = validation.get("maxItems", 5)
+              count = random.randint(min_items, max_items)
+              unique_items = validation.get("uniqueItems", False)
+
+              # Generate array items
+              items = []
+              for idx in range(count):
+                  item = generate_field_value(f"{field_name}_item_{idx}", items_schema, {})
+                  # Ensure uniqueness if required
+                  if unique_items:
+                      attempts = 0
+                      while item in items and attempts < 10:
+                          item = generate_field_value(f"{field_name}_item_{idx}_{attempts}", items_schema, {})
+                          attempts += 1
+                  items.append(item)
+
+              return items
+
+          elif field_type == "object":
+              # Recursively generate nested object
+              nested_obj = {}
+              properties = validation.get("properties", {})
+              required_props = validation.get("required", [])
+
+              # Generate required properties
+              for prop_name in required_props:
+                  if prop_name in properties:
+                      nested_obj[prop_name] = generate_field_value(prop_name, properties[prop_name], {})
+
+              # Generate optional properties (50% chance)
+              for prop_name, prop_schema in properties.items():
+                  if prop_name not in required_props and random.random() > 0.5:
+                      nested_obj[prop_name] = generate_field_value(prop_name, prop_schema, {})
+
+              return nested_obj
+
+          # Default
+          return field_meta.get("default", None)
+
+      # Generate records
+      records = []
+      fields = schema_meta.get("fields", {})
+      required_fields = schema_meta.get("required_fields", [])
+
+      for i in range(record_count):
+          record = {}
+
+          # Generate required fields
+          for field_name in required_fields:
+              if field_name in fields:
+                  record[field_name] = generate_field_value(
+                      field_name,
+                      fields[field_name],
+                      field_constraints
+                  )
+
+          # Generate optional fields (50% chance)
+          for field_name, field_meta in fields.items():
+              if field_name not in required_fields and random.random() > 0.5:
+                  record[field_name] = generate_field_value(
+                      field_name,
+                      field_meta,
+                      field_constraints
+                  )
+
+          records.append(record)
+
+      # CRITICAL: Verify record count before returning
+      actual_count = len(records)
+      if actual_count != record_count:
+          raise ValueError(f"CRITICAL ERROR: Generated {actual_count} records but expected {record_count}")
+
+      # Verify records is a list, not a single dict
+      if not isinstance(records, list):
+          raise TypeError(f"CRITICAL ERROR: records must be a list, got {type(records)}")
+
+      # Return the complete dataset
+      # System will automatically store if large
+      # ⚠️ CRITICAL: Return the FULL list, NOT a slice like records[:5] or records[0]
+      # ⚠️ WRONG: records[:5]        ← This returns only 5 records!
+      # ⚠️ WRONG: json.dumps(records) ← This returns a JSON STRING, not a list!
+      # ⚠️ WRONG: str(records)        ← This returns a STRING, not a list!
+      # ✅ CORRECT: records           ← This returns the Python list object!
+      records
+      ```
+
+      ## Critical Rules
+
+      - **MANDATORY**: ALWAYS use run_python_code to generate data - DO NOT ask for clarification
+      - **MANDATORY**: Extract schema metadata and constraints from previous step responses
+      - **MANDATORY**: The last line of Python code MUST be `records` (not `records[:5]`, `json.dumps(records)`, or any transformation)
+      - Generate EXACTLY the requested number of records
+      - ALL required fields MUST be present in every record
+      - Respect ALL validation rules from the schema
+      - Apply user constraints where specified
+      - Generate varied, realistic data
+      - Return the complete list (auto-storage handles large datasets)
+      - DO NOT call store_large_dataset manually
+      - The system detects and stores large datasets automatically
+      - ❌ NEVER return a preview/slice like `records[:5]` - this breaks the system!
+      - ❌ NEVER return a JSON string like `json.dumps(records)` - return the Python list!
+      - ✅ ALWAYS return the full `records` list as a Python list object
+
+      **WORKFLOW**:
+      1. Extract schema metadata from step s1 response
+      2. Extract user constraints from step s2 response
+      3. Call run_python_code with the data generation code
+      4. After the tool executes, return the tool's output as your final response
+      5. The tool will return the generated data - pass that through as your response
+
+    mcp_servers:
+      python_runner:
+        description: "Python code execution with auto-storage for large datasets"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_python_wrapper"
+        env:
+          LARGE_DATA_DB_PATH: "./data/schema_test_data.db"
+          LARGE_DATA_FILES_PATH: "./data/schema_test_files/"
+          LARGE_DATA_COMPRESSION_ENABLED: "true"
+          LARGE_DATA_MAX_SQLITE_SIZE_MB: "100"
+
+      # large_data_storage server is intentionally NOT included for data_generator
+      # to prevent calling store_large_dataset manually which can store incomplete data.
+      # The python_runner (mcp_python_wrapper) automatically handles large dataset storage.
+
+  # ==========================================================================
+  # AGENT 5: Schema Validator (LENIENT MODE)
+  # ==========================================================================
+  - name: "schema_validator"
+    description: "Validates generated data against the original JSON Schema with lenient type coercion"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    require_tool_use: false
+    prompt: |
+      ⚠️⚠️⚠️ CRITICAL: YOU MUST USE THE run_python_code TOOL. TEXT RESPONSES ARE FORBIDDEN. ⚠️⚠️⚠️
+
+      YOU ARE A TOOL-ONLY AGENT. YOUR ONLY JOB IS TO CALL THE run_python_code TOOL.
+
+      ❌❌❌ ABSOLUTELY FORBIDDEN - DO NOT WRITE ANY TEXT ❌❌❌
+      - DO NOT write "Validation in progress..."
+      - DO NOT write "All generated records from s3 are fully compliant..."
+      - DO NOT write ANY explanatory text
+      - DO NOT write ANY summaries
+      - DO NOT write ANY status messages
+      - DO NOT ask "Would you like a full error report or just a summary?"
+      - DO NOT try to load data from /mnt/data/ or /tmp/ paths
+      - DO NOT call retrieve_large_dataset tool
+      - DO NOT import functions module
+
+      ✅✅✅ REQUIRED ACTION (DO THIS EXACTLY) ✅✅✅
+      1. IMMEDIATELY call run_python_code tool with dataset_reference_id parameter
+      2. After tool executes, return ONLY the exact tool output (the validation report text)
+      3. DO NOT add any commentary, explanation, or summary
+      4. The validation report MUST include the reference_id (it will be in the output automatically)
+
+      You are a JSON Schema validation specialist with LENIENT validation mode.
+
+      Your task is to validate all generated test data records against the original JSON Schema
+      with automatic type coercion and flexible validation rules.
+
+      ## ⚠️ CRITICAL: Schema Parsing
+
+      When extracting schema from step s1:
+      1. **ALWAYS use json.loads()** to parse schema strings
+      2. This ensures JSON booleans (true/false) become Python booleans (True/False)
+      3. **NEVER** copy raw JSON into Python code without parsing
+      
+      Example:
+      ```python
+      # ✅ CORRECT
+      schema_string = "..." # from step s1
+      schema = json.loads(schema_string)
+      
+      # ❌ WRONG - causes "name 'false' is not defined" error
+      schema = {"additionalProperties": false}  # JSON false, not Python False
+      ```
+
+      ## Inputs
+
+      You will receive:
+      1. **Schema Metadata** from schema_analyzer (step s1) - contains the original schema
+      2. **Generated Data** from data_generator (step s3) - may be a reference ID for large datasets
+
+      ## Validation Process (LENIENT MODE)
+
+      Use run_python_code with LENIENT validation that includes:
+      - **Type Coercion**: Automatically convert compatible types (e.g., "50" → 50, "true" → true)
+      - **Format Leniency**: Accept close matches for format fields (date formats, email variations)
+      - **Pattern Flexibility**: Report pattern mismatches as warnings, not errors
+      - **Optional Field Handling**: Don't fail if optional fields are missing
+      - **Critical-Only Errors**: Only fail on missing required fields and incompatible types
+
+      ### CRITICAL: How to Access Large Datasets
+
+      When the data_generator returns a reference ID (e.g., "ref_abc123def456"), you MUST use the `dataset_reference_id` parameter:
+
+      **CORRECT WAY** (use dataset_reference_id parameter with LENIENT validation):
+      ```python
+      import json
+      import re
+      from typing import Any, Dict, List
+
+      # ═══════════════════════════════════════════════════════════════════
+      # LENIENT VALIDATION WITH TYPE COERCION
+      # ═══════════════════════════════════════════════════════════════════
+
+      def coerce_type(value: Any, expected_type: str):
+          """
+          Attempt to coerce value to expected type.
+          Returns: (coerced_value, success)
+          """
+          try:
+              if expected_type == "string":
+                  return str(value), True
+              elif expected_type == "integer":
+                  if isinstance(value, bool):
+                      return value, False  # Don't convert bool to int
+                  if isinstance(value, str):
+                      return int(float(value)), True
+                  return int(value), True
+              elif expected_type == "number":
+                  if isinstance(value, bool):
+                      return value, False
+                  return float(value), True
+              elif expected_type == "boolean":
+                  if isinstance(value, str):
+                      if value.lower() in ['true', '1', 'yes']:
+                          return True, True
+                      elif value.lower() in ['false', '0', 'no']:
+                          return False, True
+                  return bool(value), True
+              elif expected_type == "array":
+                  if isinstance(value, list):
+                      return value, True
+                  return [value], True  # Wrap single values in array
+              elif expected_type == "object":
+                  if isinstance(value, dict):
+                      return value, True
+                  return value, False
+              return value, True
+          except (ValueError, TypeError):
+              return value, False
+
+      def validate_record_lenient(record: Dict, schema: Dict) -> Dict[str, Any]:
+          """
+          Validate a single record with lenient type coercion.
+          Returns: {"valid": bool, "errors": [], "warnings": [], "coerced_fields": []}
+          """
+          errors = []
+          warnings = []
+          coerced_fields = []
+          
+          properties = schema.get("properties", {})
+          required_fields = schema.get("required", [])
+          
+          # Check required fields
+          for field in required_fields:
+              if field not in record:
+                  errors.append(f"Missing required field: {field}")
+          
+          # Validate each field in record
+          for field_name, field_value in record.items():
+              if field_name not in properties:
+                  # Extra field - just warn if additionalProperties is false
+                  # Use strict comparison to handle both JSON false and Python False
+                  additional_props = schema.get("additionalProperties", True)
+                  if additional_props is False or additional_props == False:
+                      warnings.append(f"Extra field '{field_name}' (additionalProperties disabled)")
+                  continue
+              
+              field_schema = properties[field_name]
+              expected_type = field_schema.get("type")
+              
+              if not expected_type:
+                  continue
+              
+              # Check if type matches
+              actual_type = type(field_value).__name__
+              type_map = {
+                  "str": "string",
+                  "int": "integer",
+                  "float": "number",
+                  "bool": "boolean",
+                  "list": "array",
+                  "dict": "object",
+                  "NoneType": "null"
+              }
+              actual_json_type = type_map.get(actual_type, actual_type)
+              
+              # Allow number to match integer (lenient)
+              if expected_type == "integer" and actual_json_type == "number":
+                  if isinstance(field_value, float) and field_value.is_integer():
+                      continue  # Accept 50.0 as integer
+              
+              # Allow integer to match number (lenient)
+              if expected_type == "number" and actual_json_type == "integer":
+                  continue
+              
+              # Type mismatch - try coercion
+              if expected_type != actual_json_type:
+                  coerced_value, success = coerce_type(field_value, expected_type)
+                  if success:
+                      coerced_fields.append({
+                          "field": field_name,
+                          "original": field_value,
+                          "coerced": coerced_value,
+                          "from_type": actual_json_type,
+                          "to_type": expected_type
+                      })
+                  else:
+                      errors.append(f"Field '{field_name}': type mismatch - expected {expected_type}, got {actual_json_type}")
+              
+              # Validate constraints (lenient)
+              validation = field_schema.get("validation", {})
+              
+              # Enum validation
+              if "enum" in field_schema and field_value not in field_schema["enum"]:
+                  # Check if it's a case-insensitive match
+                  if isinstance(field_value, str):
+                      enum_lower = [str(e).lower() for e in field_schema["enum"]]
+                      if field_value.lower() not in enum_lower:
+                          warnings.append(f"Field '{field_name}': value '{field_value}' not in enum {field_schema['enum']}")
+                  else:
+                      warnings.append(f"Field '{field_name}': value '{field_value}' not in enum {field_schema['enum']}")
+              
+              # Range validation (lenient - warn only)
+              if expected_type in ["integer", "number"]:
+                  if "minimum" in field_schema and field_value < field_schema["minimum"]:
+                      warnings.append(f"Field '{field_name}': {field_value} < minimum {field_schema['minimum']}")
+                  if "maximum" in field_schema and field_value > field_schema["maximum"]:
+                      warnings.append(f"Field '{field_name}': {field_value} > maximum {field_schema['maximum']}")
+              
+              # String length validation (lenient - warn only)
+              if expected_type == "string":
+                  if "minLength" in field_schema and len(field_value) < field_schema["minLength"]:
+                      warnings.append(f"Field '{field_name}': length {len(field_value)} < minLength {field_schema['minLength']}")
+                  if "maxLength" in field_schema and len(field_value) > field_schema["maxLength"]:
+                      warnings.append(f"Field '{field_name}': length {len(field_value)} > maxLength {field_schema['maxLength']}")
+              
+              # Pattern validation (lenient - warn only)
+              if "pattern" in field_schema:
+                  try:
+                      if not re.match(field_schema["pattern"], str(field_value)):
+                          warnings.append(f"Field '{field_name}': value '{field_value}' does not match pattern '{field_schema['pattern']}'")
+                  except Exception:
+                      # If pattern matching fails, just skip it
+                      pass
+          
+          # Record is valid if there are no critical errors
+          is_valid = len(errors) == 0
+          
+          return {
+              "valid": is_valid,
+              "errors": errors,
+              "warnings": warnings,
+              "coerced_fields": coerced_fields
+          }
+
+      # ═══════════════════════════════════════════════════════════════════
+      # MAIN VALIDATION LOGIC - SCHEMA EXTRACTION
+      # ═══════════════════════════════════════════════════════════════════
+
+      # CRITICAL: Extract and parse schema from step s1 output
+      # The schema must be parsed with json.loads() to convert JSON booleans to Python booleans
+      
+      # Step 1: Extract the raw schema JSON string from step s1 output
+      # Look for the schema in the step s1 response
+      # It should be a JSON string containing the schema definition
+      
+      # Step 2: Parse it with json.loads()
+      # This is MANDATORY to avoid "name 'false' is not defined" errors
+      
+      # Example of what step s1 output looks like:
+      # {"schema": {"$schema": "...", "properties": {...}, "additionalProperties": false}}
+      
+      # TEMPLATE - Replace with actual extraction from step s1:
+      schema_json_str = '''
+      {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+      }
+      '''
+      
+      # Parse the schema (converts JSON booleans to Python booleans)
+      schema = json.loads(schema_json_str)
+
+      # ✅ CORRECT: The 'data' variable is ALREADY POPULATED with the full dataset!
+      # The data is automatically loaded when you use dataset_reference_id parameter.
+
+      # Validate all records
+      valid_count = 0
+      invalid_count = 0
+      warning_count = 0
+      total_warnings = 0
+      total_coercions = 0
+      error_samples = []
+      warning_samples = []
+
+      for idx, record in enumerate(data):
+          result = validate_record_lenient(record, schema)
+          
+          if result["valid"]:
+              valid_count += 1
+          else:
+              invalid_count += 1
+              if len(error_samples) < 5:
+                  error_samples.append({
+                      "index": idx,
+                      "errors": result["errors"],
+                      "record": record
+                  })
+          
+          if result["warnings"]:
+              warning_count += 1
+              total_warnings += len(result["warnings"])
+              if len(warning_samples) < 3:
+                  warning_samples.append({
+                      "index": idx,
+                      "warnings": result["warnings"]
+                  })
+          
+          if result["coerced_fields"]:
+              total_coercions += len(result["coerced_fields"])
+
+      # Calculate success rate
+      success_rate = (valid_count / len(data) * 100) if len(data) > 0 else 0
+
+      # ═══════════════════════════════════════════════════════════════════
+      # CRITICAL: ALWAYS INCLUDE REFERENCE_ID IN OUTPUT
+      # ═══════════════════════════════════════════════════════════════════
+
+      # The reference_id variable is automatically injected by mcp_python_wrapper
+      # when dataset_reference_id parameter is provided
+      # If not available, generate a default
+      if 'reference_id' not in locals():
+          reference_id = "ref_unknown"
+
+      # Build comprehensive result as a TEXT STRING to avoid auto-storage
+      # Build the report with reference_id prominently displayed
+      separator = "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "=" + "="
+      
+      report_lines = []
+      report_lines.append(separator)
+      report_lines.append("VALIDATION REPORT")
+      report_lines.append(separator)
+      report_lines.append(f"Reference ID: {reference_id}")
+      report_lines.append("")
+      report_lines.append(f"Dataset: {len(data)} records validated")
+      
+      if success_rate >= 95.0:
+          status = "PASS"
+      elif success_rate >= 80.0:
+          status = "PASS_WITH_WARNINGS"
+      else:
+          status = "FAIL"
+      
+      report_lines.append(f"Status: {status}")
+      report_lines.append(f"Success Rate: {round(success_rate, 2)}%")
+      report_lines.append("")
+      report_lines.append("Results:")
+      report_lines.append(f"  - Valid records: {valid_count}")
+      report_lines.append(f"  - Invalid records: {invalid_count}")
+      report_lines.append(f"  - Records with warnings: {warning_count}")
+      report_lines.append(f"  - Total warnings: {total_warnings}")
+      report_lines.append(f"  - Type coercions: {total_coercions}")
+      report_lines.append("")
+      report_lines.append("Validation Mode: LENIENT (automatic type coercion enabled)")
+      report_lines.append("Critical errors only: Missing required fields, incompatible types")
+      
+      # Add error samples if any
+      if error_samples:
+          report_lines.append("")
+          report_lines.append("Error Samples (first 5):")
+          for sample in error_samples[:5]:
+              errors_str = ', '.join(sample['errors'])
+              report_lines.append(f"  - Record {sample['index']}: {errors_str}")
+      
+      # Add warning samples if any
+      if warning_samples:
+          report_lines.append("")
+          report_lines.append("Warning Samples (first 3):")
+          for sample in warning_samples[:3]:
+              report_lines.append(f"  - Record {sample['index']}: {len(sample['warnings'])} warnings")
+      
+      report_lines.append("")
+      report_lines.append(separator)
+      report_lines.append("END VALIDATION REPORT")
+      report_lines.append(separator)
+      report_lines.append("")
+      report_lines.append(f"IMPORTANT: Dataset reference_id = {reference_id}")
+      
+      # Join all lines into final report string
+      validation_report = '\\n'.join(report_lines)
+      
+      # Return the text report (avoids auto-storage)
+      validation_report
+      ```
+
+      **WRONG WAYS** (DO NOT DO THIS):
+      ```python
+      # ❌ WRONG: Do not try to load from /mnt/data/ paths
+      with open('/mnt/data/ref_xxx.json') as f:
+          data = json.load(f)
+
+      # ❌ WRONG: Do not try to load from /tmp/ paths
+      with open('/tmp/data.json') as f:
+          data = json.load(f)
+      
+      # ❌ WRONG: Do not use strict jsonschema.validate() - use lenient validation!
+      jsonschema.validate(instance=record, schema=schema)  # Too strict!
+      ```
+
+      **HOW TO CALL run_python_code**:
+      ```
+      run_python_code(
+          python_code="<your lenient validation code here>",
+          dataset_reference_id="ref_abc123def456"  # ← This automatically loads data into 'data' variable
+      )
+      ```
+
+      ## Output Format (WITH REFERENCE_ID)
+
+      Return a comprehensive validation report with reference_id:
+      ```json
+      {
+        "reference_id": "ref_abc123def456",
+        "total_records": 100,
+        "valid_records": 98,
+        "invalid_records": 2,
+        "records_with_warnings": 10,
+        "total_warnings": 15,
+        "total_type_coercions": 5,
+        "success_rate": 98.0,
+        "status": "PASS",
+        "validation_mode": "LENIENT",
+        "error_samples": [...],
+        "warning_samples": [...],
+        "summary": {
+          "message": "Validated 100 records: 98 valid, 2 invalid, 10 with warnings",
+          "critical_errors_only": true,
+          "type_coercion_enabled": true
+        }
+      }
+      ```
+
+      ## Critical Rules
+
+      - ⚠️ **MANDATORY**: Use ONLY `run_python_code` with `dataset_reference_id` parameter
+      - ⚠️ **MANDATORY**: ALWAYS include the reference_id in the output (extract from dataset_reference_id parameter)
+      - ⚠️ **MANDATORY**: Use LENIENT validation with type coercion - DO NOT use strict jsonschema.validate()
+      - ⚠️ **NEVER** call `retrieve_large_dataset` tool
+      - ⚠️ **NEVER** try to load data from files
+      - Use lenient validation that coerces types automatically
+      - Report critical errors only (missing required fields, incompatible types)
+      - Report minor issues as warnings (range violations, pattern mismatches, extra fields)
+      - The `data` variable is automatically populated when you use `dataset_reference_id` parameter
+      - Calculate and report success rate (>=95% = PASS, >=80% = PASS_WITH_WARNINGS, <80% = FAIL)
+
+      **WORKFLOW** (FOLLOW EXACTLY):
+      1. Extract the reference ID from step s3 output (e.g., "ref_abc123def456")
+      2. Extract schema from step s1 output and parse with json.loads()
+      3. Call run_python_code ONCE with:
+         - `python_code`: Your LENIENT validation code (use the 'data' variable directly)
+         - `dataset_reference_id`: The reference ID from step s3
+      4. In your Python code, the reference_id variable is automatically available
+      5. After the tool executes, return the tool's output as your final response
+      6. The output MUST include the reference_id field (e.g., "reference_id": "ref_3793d5527b77")
+      7. DO NOT call any other tools
+
+      **CRITICAL CHECKS BEFORE CALLING TOOL**:
+      - ✅ Schema parsed with json.loads() (not raw JSON with lowercase booleans)
+      - ✅ Reference ID extracted from step s3 output  
+      - ✅ Python code includes validation_result with reference_id field
+      - ✅ Last line of code is the variable name (e.g., "validation_result")
+      - ✅ NO raw JSON with lowercase 'true', 'false', or 'null' in Python code
+      - ✅ Use Python booleans: True, False, None (not JSON: true, false, null)
+
+      **REFERENCE_ID IN OUTPUT**:
+      The reference_id variable is automatically injected into the Python execution context
+      by mcp_python_wrapper when you provide dataset_reference_id parameter.
+      Always include it in your validation_result dictionary:
+      
+      ```python
+      validation_result = {
+          "reference_id": reference_id,  # Auto-injected variable
+          "total_records": len(data),
+          # ... rest of output
+      }
+      ```
+
+    mcp_servers:
+      python_runner:
+        description: "Python code execution with pandas and numpy support. Use dataset_reference_id parameter to access large datasets."
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_python_wrapper"
+        env:
+          LARGE_DATA_DB_PATH: "./data/schema_test_data.db"
+          LARGE_DATA_FILES_PATH: "./data/schema_test_files/"
+          LARGE_DATA_COMPRESSION_ENABLED: "true"
+          LARGE_DATA_MAX_SQLITE_SIZE_MB: "100"
+
+      # large_data_storage server is intentionally NOT included for schema_validator
+      # to prevent calling retrieve_large_dataset which returns full datasets and consumes massive tokens.
+      # Instead, use run_python_code with dataset_reference_id parameter.
+
+# Resource limits
+resource_limits:
+  max_memory_mb: 2048
+  max_connections: 50
+  max_concurrent_operations: 100

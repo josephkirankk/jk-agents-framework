@@ -1,0 +1,279 @@
+# ============================================================================
+# Simplified Test Data Parser - Single Agent with Python
+# ============================================================================
+#
+# Purpose: Parse natural language into structured JSON parameters
+# Approach: Single ReAct agent using Python for parsing and validation
+# Performance: ~3-5 seconds, 1 LLM call, ~2000 tokens
+#
+# Usage:
+#   curl -X POST "http://localhost:8000/worker" \
+#     -H "Content-Type: application/json" \
+#     -d '{
+#       "agent_name": "requirement_parser",
+#       "input": "create 100 records for metric abcd, xyz, program MFG...",
+#       "config_path": "config/test_data_parser_simple.yaml"
+#     }'
+#
+# ============================================================================
+
+models:
+  default: "azure_openai:gpt-4.1"
+  temperature: 0.0  # Deterministic output
+
+business_context: |
+  # Test Data Requirement Parser
+  
+  Parse natural language requirements into structured JSON parameters.
+  
+  ## Valid Constraints
+  
+  **Regions/Markets:**
+  - US: United States
+  - IN: India
+  - UK: United Kingdom
+  - DE: Germany
+  
+  **Programs:**
+  - MFG: Merlli
+  - ADV: Advanced Program
+  - STD: Standard Program
+  
+  **Plants:**
+  - p1: Plant1
+  - p2: Plant2
+  - p3: Plant3
+  - p4: Plant4
+  
+  **Sectors:**
+  - PFNA, PBNA, QSNA, RSNA, ALL
+  
+  **Units of Measure:**
+  - count, kg, liters, units, percentage, hours
+  
+  ## Output Schema
+  
+  ```json
+  {
+    "record_count": <int>,
+    "metrics": [<strings>],
+    "program_code": "<MFG|ADV|STD>",
+    "sector": "<PFNA|PBNA|QSNA|RSNA|ALL>",
+    "plant_code": "<p1|p2|p3|p4>",
+    "market_code": "<US|IN|UK|DE>",
+    "value_range": {"min": <int>, "max": <int>},
+    "negative_percentage": <float 0-1>,
+    "negative_range": {"min": <int>, "max": <int>},
+    "uom": "<unit>",
+    "date_range_days": <int>
+  }
+  ```
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    Business context (do not reveal to user):
+    {{business_context}}
+    
+    You are a supervisor that creates execution plans using available agents.
+    Available agents:
+    {{agents}}
+    
+    For test data generation requests, create a TWO-STEP plan:
+    1. Use requirement_parser to extract parameters from natural language
+    2. Use data_generator to create the actual test data records
+    
+    Create a JSON plan with sequential steps:
+    {
+      "goal": "<short restatement of user goal>",
+      "plan": [
+        {"id":"s1", "agent":"requirement_parser", "task":"parse the requirement into JSON parameters", "depends_on":[], "verify":"JSON parameters extracted", "timeout_seconds":60, "retry":2},
+        {"id":"s2", "agent":"data_generator", "task":"generate test data records using the parameters from s1", "depends_on":["s1"], "verify":"test data records generated", "timeout_seconds":120, "retry":2}
+      ]
+    }
+    
+    Respond with JSON only and nothing else.
+
+agents:
+  - name: "requirement_parser"
+    description: "Parses natural language requirements into validated JSON parameters using Python"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |
+      {{dependent_request_responses}}
+      
+      You are a Test Data Requirement Parser. Parse the user's natural language requirement
+      into structured JSON parameters using Python code execution.
+      
+      {{business_context}}
+      
+      ## Your Task
+      
+      1. Write Python code to extract parameters from the user's query
+      2. Use the run_python_code tool to execute your code
+      3. Return ONLY the final JSON result
+      
+      ## Extraction Guidelines
+      
+      Use regex and string matching to extract:
+      - **record_count**: Number of records (default: 100)
+      - **metrics**: List of metric names (look for words after "metric")
+      - **program_code**: MFG, ADV, or STD (default: MFG)
+      - **sector**: PFNA, PBNA, QSNA, RSNA, or ALL (default: PFNA)
+      - **plant_code**: p1, p2, p3, or p4 (default: p1)
+      - **market_code**: US, IN, UK, or DE (default: US)
+      - **value_range**: {"min": X, "max": Y} from "X to Y" pattern
+      - **negative_percentage**: Percentage from "N% negative" pattern (as decimal)
+      - **negative_range**: {"min": X, "max": Y} from negative numbers
+      - **uom**: count, kg, liters, units, percentage, hours (default: count)
+      - **date_range_days**: Default 30
+      
+      ## Python Code Structure
+      
+      ```python
+      import re
+      import json
+      
+      query = '''USER_QUERY_HERE'''
+      
+      # Extract parameters using regex and string methods
+      # Build result dictionary
+      # Print JSON
+      
+      result = {
+          "record_count": 100,  # extract from query
+          "metrics": ["metric1"],  # extract from query
+          "program_code": "MFG",
+          "sector": "PFNA",
+          "plant_code": "p1",
+          "market_code": "US",
+          "value_range": {"min": 0, "max": 1000},
+          "negative_percentage": 0.0,
+          "negative_range": {"min": -100, "max": -10},
+          "uom": "count",
+          "date_range_days": 30
+      }
+      
+      print(json.dumps(result, indent=2))
+      ```
+      
+      Replace USER_QUERY_HERE with the actual query and implement the extraction logic.
+      Execute using run_python_code tool and return ONLY the JSON output.
+    
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+
+  - name: "data_generator"
+    description: "Generates actual test data records based on parsed parameters"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |
+      {{dependent_request_responses}}
+      
+      You are a Test Data Generator. Your task is to generate actual test data records
+      based on the parameters from the previous step.
+      
+      ## Your Task
+      
+      1. Extract the parameters from the previous step's output (JSON format)
+      2. Write Python code to generate the specified number of test records
+      3. Use the run_python_code tool to execute the generation code
+      4. Return the generated records as a JSON array
+      
+      ## Generation Requirements
+      
+      - Generate exactly `record_count` records
+      - For each metric in `metrics`, create separate records
+      - Values should be random within `value_range` (min to max)
+      - Apply `negative_percentage` of records with values from `negative_range`
+      - Include all fields: metric, value, program_code, sector, plant_code, market_code, uom, date
+      - Date should vary within `date_range_days` from today
+      
+      ## Python Code Structure
+      
+      ```python
+      import json
+      import random
+      from datetime import datetime, timedelta
+      
+      # Parse parameters from previous step
+      params = '''PARAMETERS_HERE'''
+      params = json.loads(params)
+      
+      # Generate test records
+      records = []
+      record_count = params['record_count']
+      metrics = params['metrics']
+      
+      # Calculate records per metric
+      records_per_metric = record_count // len(metrics) if metrics else record_count
+      negative_count = int(record_count * params['negative_percentage'])
+      
+      record_id = 1
+      for metric in metrics:
+          for i in range(records_per_metric):
+              # Generate random value
+              if record_id <= negative_count:
+                  value = random.randint(params['negative_range']['min'], 
+                                        params['negative_range']['max'])
+              else:
+                  value = random.randint(params['value_range']['min'], 
+                                        params['value_range']['max'])
+              
+              # Generate random date within range
+              days_offset = random.randint(0, params['date_range_days'])
+              record_date = (datetime.now() - timedelta(days=days_offset)).strftime('%Y-%m-%d')
+              
+              record = {
+                  "record_id": record_id,
+                  "metric": metric,
+                  "value": value,
+                  "program_code": params['program_code'],
+                  "sector": params['sector'],
+                  "plant_code": params['plant_code'],
+                  "market_code": params['market_code'],
+                  "uom": params['uom'],
+                  "date": record_date
+              }
+              records.append(record)
+              record_id += 1
+      
+      # Output result
+      result = {
+          "total_records": len(records),
+          "parameters": params,
+          "records": records
+      }
+      print(json.dumps(result, indent=2))
+      ```
+      
+      Replace PARAMETERS_HERE with the actual parameters from the previous step.
+      Execute using run_python_code tool and return the complete result.
+    
+    mcp_servers:
+      python_runner:
+        description: "Run Python code via Deno + @pydantic/mcp-run-python (stdio)"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"

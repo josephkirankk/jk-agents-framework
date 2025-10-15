@@ -1,0 +1,1235 @@
+================
+CODE SNIPPETS
+================
+### Install Dependencies (npm)
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+Installs project dependencies using npm. This is a common step for Node.js projects before running or building them.
+
+```sh
+npm install
+```
+
+--------------------------------
+
+### VS Code MCP Server Installation (NPX)
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+One-click installation links for the Azure DevOps MCP Server using NPX in VS Code and VS Code Insiders.
+
+```APIDOC
+VS Code MCP Server Installation:
+
+One-Click Install:
+  - VS Code: [![Install with NPX in VS Code](https://img.vscode.dev/redirect/mcp/install?name=ado&config=%7B%20%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22npx%22%2C%20%22args%22%3A%20%5B%22-y%22%2C%20%22%40azure-devops%2Fmcp%22%2C%20%22%24%7Binput%3Aado_org%7D%22%5D%7D&inputs=%5B%7B%22id%22%3A%20%22ado_org%22%2C%20%22type%22%3A%20%22promptString%22%2C%20%22description%22%3A%20%22Azure%20DevOps%20organization%20name%20%20%28e.g.%20%27contoso%27%29%22%7D%5D)](https://img.shields.io/badge/VS_Code-Install_AzureDevops_MCP_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)
+  - VS Code Insiders: [![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_AzureDevops_MCP_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=ado&quality=insiders&config=%7B%20%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22npx%22%2C%20%22args%22%3A%20%5B%22-y%22%2C%20%22%40azure-devops%2Fmcp%22%2C%20%22%24%7Binput%3Aado_org%7D%22%5D%7D&inputs=%5B%7B%22id%22%3A%20%22ado_org%22%2C%20%22type%22%3A%20%22promptString%22%2C%20%22description%22%3A%20%22Azure%20DevOps%20organization%20name%20%20%28e.g.%20%27contoso%27%29%22%7D%5D)
+
+Post-installation:
+  - Select GitHub Copilot Agent Mode.
+  - Refresh the tools list.
+  - Refer to [VS Code Documentation](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode) for Agent Mode details.
+```
+
+--------------------------------
+
+### MCP Server Configuration (Public Feed)
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+Configuration file for the Azure DevOps MCP Server when installed from the public feed. It specifies user inputs and server execution details using npx.
+
+```json
+{
+  "inputs": [
+    {
+      "id": "ado_org",
+      "type": "promptString",
+      "description": "Azure DevOps organization name  (e.g. 'contoso')"
+    }
+  ],
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp", "${input:ado_org}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### MCP Server Configuration (Dev Mode)
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+Configuration file for the Azure DevOps MCP Server when installed from source. It defines inputs for user prompts and server configurations, including the command to execute.
+
+```json
+{
+  "inputs": [
+    {
+      "id": "ado_org",
+      "type": "promptString",
+      "description": "Azure DevOps organization's name  (e.g. 'contoso')"
+    }
+  ],
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "mcp-server-azuredevops",
+      "args": ["${input:ado_org}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Start Azure DevOps MCP Server
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+Command to start the Azure DevOps MCP Server from the terminal. Replace 'Contoso' with your Azure DevOps organization name.
+
+```bash
+npx -y @azure-devops/mcp {Contoso}
+```
+
+--------------------------------
+
+### Azure CLI Login
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+Logs the user into the Azure DevOps environment using the Azure CLI.
+
+```sh
+az login
+```
+
+--------------------------------
+
+### VS Code MCP Server Configuration
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+Configuration file for the Azure DevOps MCP Server in Visual Studio Code, specifying inputs and server commands.
+
+```json
+{
+  "inputs": [
+    {
+      "id": "ado_org",
+      "type": "promptString",
+      "description": "Azure DevOps organization name  (e.g. 'contoso')"
+    }
+  ],
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp", "${input:ado_org}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### MCP Server Configuration for Source Installation
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TROUBLESHOOTING.md
+
+Example `mcp.json` configuration for installing the MCP server from source, including inputs for Azure DevOps organization and tenant ID.
+
+```json
+{
+  "inputs": [
+    {
+      "id": "ado_org",
+      "type": "promptString",
+      "description": "Azure DevOps organization name (e.g. 'contoso')"
+    },
+    {
+      "id": "ado_tenant",
+      "type": "promptString",
+      "description": "Azure tenant ID (required for multi-tenant scenarios)"
+    }
+  ],
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "mcp-server-azuredevops",
+      "args": ["${input:ado_org}", "--tenant", "${input:ado_tenant}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Azure CLI Login
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+Logs in to Azure DevOps using the Azure CLI. This is a prerequisite for using the MCP Server.
+
+```sh
+az login
+```
+
+--------------------------------
+
+### MCP Server Configuration for Public Feed Installation
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TROUBLESHOOTING.md
+
+Example `mcp.json` configuration for installing the MCP server from a public feed, including inputs for Azure DevOps organization and tenant ID.
+
+```json
+{
+  "inputs": [
+    {
+      "id": "ado_org",
+      "type": "promptString",
+      "description": "Azure DevOps organization name (e.g. 'contoso')"
+    },
+    {
+      "id": "ado_tenant",
+      "type": "promptString",
+      "description": "Azure tenant ID (required for multi-tenant scenarios)"
+    }
+  ],
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp", "${input:ado_org}", "--tenant", "${input:ado_tenant}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Cursor MCP Server Configuration
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+JSON configuration for Cursor to enable the Azure DevOps MCP Server. Replace '{Contoso}' with your Azure DevOps organization name.
+
+```json
+{
+  "mcpServers": {
+    "ado": {
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp", "{Contoso}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Claude Desktop MCP Server Configuration
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+JSON configuration for Claude Desktop to enable the Azure DevOps MCP Server. Replace '{Contoso}' with your Azure DevOps organization name.
+
+```json
+{
+  "mcpServers": {
+    "ado": {
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp", "{Contoso}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Get Work Items Assigned to Me
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Fetches a list of work items that are currently assigned to the user. This operation requires the project context to be specified.
+
+```text
+get my work items for project contoso
+```
+
+--------------------------------
+
+### Add Azure DevOps MCP Server to Claude Code
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md
+
+Command to add the Azure DevOps MCP Server to the Claude Code environment. It specifies the organization name as an argument.
+
+```bash
+claude mcp add azure-devops -- npx -y @azure-devops/mcp Contoso
+```
+
+--------------------------------
+
+### Get List of Azure DevOps Projects
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Retrieves a list of all Azure DevOps projects within the organization. This is often a prerequisite for other operations that require project context.
+
+```text
+get list of ado projects
+```
+
+--------------------------------
+
+### Manage Wiki Page Content
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Perform operations on Azure DevOps wiki pages, including retrieving a list of wikis, getting pages within a wiki, reading page content, and updating existing pages or creating new ones.
+
+```text
+Get list of wikis in project Contoso.
+```
+
+```text
+Get list of pages for Fabrikam wiki.
+```
+
+```text
+Get wiki page 'sample-page-name' content. Review and suggest improvements, then update the page with the revised content.
+```
+
+```text
+Create new wiki page called 'how to bake a cake' and add the following content:
+
+<content>
+```
+
+--------------------------------
+
+### MCP Configuration File Example
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TROUBLESHOOTING.md
+
+Example of an MCP server configuration file (`mcp.json`) that can be used in Workspace Settings.
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "MyMCP",
+      "url": "https://my.mcp.server.com"
+    }
+  ]
+}
+```
+
+--------------------------------
+
+### Create and Link Test Cases to a User Story
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Generates test cases with detailed steps based on a user story's description and links them back to the original user story. It includes a preview step before creating the test cases in Azure DevOps.
+
+```text
+Open work item 1234 in 'Contoso' project. Then look at the description and create 1-3 Test Cases with test steps. But show me a preview first before creating the Test Case in Azure DevOps. Be sure to link the new Test Case to the User Story 1234 when you do.
+```
+
+--------------------------------
+
+### Get List of Teams for a Project
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Retrieves a list of teams associated with a specific Azure DevOps project. This command requires the project name as input and relies on the organization defined in the `mcp.json` file.
+
+```text
+get list of teams for project contoso
+```
+
+--------------------------------
+
+### Install Azure DevOps MCP Server in VS Code
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+Provides instructions and links to install the Azure DevOps MCP Server extension in VS Code using NPX. It prompts the user for their Azure DevOps organization name.
+
+```bash
+npx @azure-devops/mcp <ado_org>
+```
+
+--------------------------------
+
+### Get Work Items from a Backlog
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Fetches a list of work items belonging to a specific backlog (e.g., Features) within a project and team context. This command is typically used after identifying the relevant backlog.
+
+```text
+get list of work items for Features backlog
+```
+
+--------------------------------
+
+### Get Backlogs for a Project and Team
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Retrieves the backlog levels (e.g., Epics, Stories, Features) for a specified Azure DevOps project and team. This provides the context needed to fetch work items within a specific backlog.
+
+```text
+get backlogs for Contoso project and Fabrikam team
+```
+
+--------------------------------
+
+### Retrieve and Summarize Work Item Details and Comments
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Retrieves specific fields and all comments for a given work item ID. The comments are then summarized.
+
+```text
+Get work item 12345 and show me fields ID, Type, State, Repro Steps, Story Points, and Priority. Get all comments for the work item and summarize them for me.
+```
+
+--------------------------------
+
+### Install Azure DevOps MCP Server in VS Code Insiders
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+Provides instructions and links to install the Azure DevOps MCP Server extension in VS Code Insiders using NPX. It prompts the user for their Azure DevOps organization name.
+
+```bash
+npx @azure-devops/mcp <ado_org>
+```
+
+--------------------------------
+
+### Update Work Items with Markdown Formatting
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Update work items in batches using markdown formatting for large text fields. The `format` parameter can be set to 'Markdown' or defaults to HTML. This functionality is available for `wit_update_work_items_batch`, `wit_add_child_work_items`, and `wit_create_work_item`.
+
+```text
+Update work item 12345 with a new description and use Markdown text. Use Markdown format param. Use bulk update.
+```
+
+--------------------------------
+
+### Dev Container Configuration for MCP
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TROUBLESHOOTING.md
+
+Example of how to configure MCP servers directly within a `devcontainer.json` file for Dev Containers.
+
+```json
+{
+  "name": "My Dev Container",
+  "customizations": {
+    "vscode": {
+      "mcp": [
+        {
+          "name": "MyMCP",
+          "url": "https://my.mcp.server.com"
+        }
+      ]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Check Node.js Version
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TROUBLESHOOTING.md
+
+Command to verify the installed Node.js version, ensuring it meets the minimum requirement of version 20.
+
+```pwsh
+node -v
+```
+
+--------------------------------
+
+### Add Artifact Links to Work Items
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Associate work items with repository artifacts like branches, commits, or pull requests. Artifacts can be linked by providing the full `vstfs` URI or by supplying artifact identifiers directly, which the tool will use to construct the URI.
+
+```text
+Add a branch artifact link to work item 1234 in project "Contoso" with URI "vstfs:///Git/Ref/12341234-1234-1234-1234-123412341234%2F12341234-1234-1234-1234-123412341234%2FGBmain" and link type "Branch" with comment "Linked to main branch for GitHub Copilot integration"
+```
+
+```text
+Get me the list of pull requests for Constoso project and Frabrikam repo. Then link the first pull request to work item 12345.
+```
+
+--------------------------------
+
+### Azure CLI Login
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+Command to log in to Azure DevOps using the Azure CLI. Ensure you have the Azure CLI installed and are authenticated.
+
+```sh
+az login
+```
+
+--------------------------------
+
+### Azure DevOps MCP Server API - Wiki Operations
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+API methods for interacting with Azure DevOps Wikis. Includes functions to list wikis, retrieve a specific wiki, list pages within a wiki, get page content, and create or update pages.
+
+```APIDOC
+wiki_list_wikis(organization: str, project: str)
+  Retrieve a list of wikis for an organization or project.
+
+wiki_get_wiki(organization: str, project: str, wikiIdentifier: str)
+  Get the wiki by wikiIdentifier.
+
+wiki_list_pages(organization: str, project: str, wikiIdentifier: str)
+  Retrieve a list of wiki pages for a specific wiki and project.
+
+wiki_get_page_content(organization: str, project: str, wikiIdentifier: str, path: str)
+  Retrieve wiki page content by wikiIdentifier and path.
+
+wiki_create_or_update_page(organization: str, project: str, wikiIdentifier: str, path: str, content: str, comment: str = '')
+  Create or update wiki pages with full content support.
+```
+
+--------------------------------
+
+### Update Work Item Fields and Add Comment
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Updates specified fields of a work item, such as 'Repro Steps', 'StoryPoints', and 'State', and adds a new comment to the work item. It also allows assigning the work item to a specific user.
+
+```text
+Polish the Repro Steps with more information and details. Then take that value and update the work item. Also update StoryPoints = 5 and State = Active.
+Assign this work item to myemail@outlook.com and add a comment "I will own this Bug and get it fixed"
+```
+
+--------------------------------
+
+### Claude API Error Example
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TOOL-NAME-VALIDATION.md
+
+An example of an API error response from Claude API when tool or parameter names do not comply with the required pattern `^[a-zA-Z0-9_.-]{1,64}$`.
+
+```json
+API Error: 400
+{"type":"error","error":{"type":"invalid_request_error","message":"tools.127.custom.input_schema.properties: Property keys should match pattern '^[a-zA-Z0-9_.-]{1,64}$'"}}
+```
+
+--------------------------------
+
+### Remove Links from Work Items
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Remove specific links or all links of a certain type from a work item. First, retrieve the work item to identify its relations, then specify the links or link types to be removed.
+
+```text
+Get work item 1234 in Contoso project and show me the relations
+```
+
+```text
+Remove link 5678 and 91011 from work item 1234. Also remove any related links and links to pull request 121314
+```
+
+--------------------------------
+
+### Triage Work Items in Azure DevOps
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/EXAMPLES.md
+
+Retrieve work items from a backlog, identify specific types (e.g., security bugs, high-priority user stories), and assign them to current or next iterations. Requires fetching team iterations and backlog levels for context.
+
+```text
+list iterations for Contoso team
+```
+
+```text
+list backlog levels for Contoso team
+```
+
+```text
+List of work items for Stories backlog. But then go thru and find all the security related bugs. Assign the first 4 to the current iteration. If there are more than four, assign the rest to the next iteration. Then find 2-3 high priority user stories and assign them to the current iteration. Do it!
+```
+
+--------------------------------
+
+### Update Work Item Fields with LLM-Generated Content
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+Following the retrieval of a work item, this prompt guides the AI model to refine the 'Repro Steps' field with more detailed information. It then instructs the model to update the work item with the newly generated 'Repro Steps' value, along with updating 'StoryPoints' to 5 and 'State' to 'Active'.
+
+```plaintext
+Polish the Repro Steps with more information and details. Then take that value and update the work item. Also update StoryPoints = 5 and State = Active.
+```
+
+--------------------------------
+
+### Azure DevOps MCP Server - Wiki Content Management
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+Details the capabilities for managing wiki content, including creating, updating, and retrieving wiki pages. It emphasizes automatic ETag handling for safe updates.
+
+```APIDOC
+wiki_create_page:
+  description: Create a new wiki page.
+  parameters:
+    - name: project
+      type: string
+      description: The Azure DevOps project name.
+    - name: path
+      type: string
+      description: The path for the new wiki page (e.g., '/Architecture/Overview').
+    - name: content
+      type: string
+      description: The content for the wiki page.
+    - name: wikiName
+      type: string
+      description: The name of the wiki (e.g., 'Documentation'). Defaults to the project's default wiki.
+  returns:
+    type: object
+    description: Details of the created wiki page.
+
+wiki_update_page:
+  description: Update an existing wiki page.
+  parameters:
+    - name: project
+      type: string
+      description: The Azure DevOps project name.
+    - name: path
+      type: string
+      description: The path of the wiki page to update.
+    - name: content
+      type: string
+      description: The new content for the wiki page.
+    - name: etag
+      type: string
+      description: The ETag of the wiki page for optimistic concurrency control.
+    - name: wikiName
+      type: string
+      description: The name of the wiki. Defaults to the project's default wiki.
+  returns:
+    type: object
+    description: Details of the updated wiki page.
+
+wiki_get_page_content:
+  description: Get the content of a specific wiki page.
+  parameters:
+    - name: project
+      type: string
+      description: The Azure DevOps project name.
+    - name: path
+      type: string
+      description: The path of the wiki page to retrieve.
+    - name: wikiName
+      type: string
+      description: The name of the wiki. Defaults to the project's default wiki.
+  returns:
+    type: object
+    properties:
+      content: string
+      etag: string
+      path: string
+      title: string
+      url: string
+    description: The content and metadata of the wiki page.
+```
+
+--------------------------------
+
+### Azure DevOps MCP Server - Core Service Commands
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+This section details the commands available for interacting with core Azure DevOps services. It includes listing projects, teams, and retrieving identity IDs.
+
+```APIDOC
+core_list_project_teams:
+  description: Retrieve a list of teams for the specified Azure DevOps project.
+  parameters:
+    - name: project
+      type: string
+      description: The Azure DevOps project name.
+  returns:
+    type: array
+    description: A list of teams within the project.
+
+core_list_projects:
+  description: Retrieve a list of projects in your Azure DevOps organization.
+  parameters: []
+  returns:
+    type: array
+    description: A list of projects in the organization.
+
+core_get_identity_ids:
+  description: Retrieve Azure DevOps identity IDs for a list of unique names.
+  parameters:
+    - name: uniqueNames
+      type: array
+      items: string
+      description: A list of unique names for which to retrieve identity IDs.
+  returns:
+    type: object
+    description: An object mapping unique names to their corresponding identity IDs.
+```
+
+--------------------------------
+
+### Generate and Link Test Cases from User Story
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+This prompt directs the AI model to open a specific user story by its ID within a designated Azure DevOps project. It then leverages the user story's description to generate 1-3 detailed test cases with steps, requesting a preview before actual creation. The prompt ensures that the newly generated test cases are automatically linked back to the original user story.
+
+```plaintext
+Open work item 1234 in 'Contoso' project. Then look at the description and create 1-3 Test Cases with test steps. But show me a preview first before creating the Test Case in Azure DevOps. Be sure to link the new Test Case to the User Story 1234 when you do.
+```
+
+--------------------------------
+
+### Configure MCP Servers in VS Code for Azure DevOps and Sequential Thinking
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+This JSON configuration for `.vscode/mcp.json` defines two MCP servers: `ado` for Azure DevOps and `sequential-thinking`. The Azure DevOps server uses `mcp-server-azuredevops` and takes an `ado_org` prompt string as an argument. The `sequential-thinking` server uses `npx` to run `@modelcontextprotocol/server-sequential-thinking`, aiding LLMs in breaking down complex problems.
+
+```json
+{
+  "inputs": [
+    {
+      "id": "ado_org",
+      "type": "promptString",
+      "description": "Azure DevOps organization name  (e.g. 'contoso')"
+    }
+  ],   
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "mcp-server-azuredevops",
+      "args": ["${input:ado_org}"]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### MCP Server Configuration (Nightly Builds)
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+Configuration file for the MCP Server to connect to Azure DevOps using nightly builds. This JSON specifies inputs and server settings, pointing to the '@azure-devops/mcp@next' package.
+
+```json
+{
+  "inputs": [
+    {
+      "id": "ado_org",
+      "type": "promptString",
+      "description": "Azure DevOps organization name  (e.g. 'contoso')"
+    }
+  ],
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp@next", "${input:ado_org}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Format Code with npm
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/CONTRIBUTING.md
+
+Ensures code changes comply with project formatting rules enforced by CI checks. Run this command before committing.
+
+```javascript
+npm run format
+```
+
+--------------------------------
+
+### Azure CLI Login and npm Registry Check
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TROUBLESHOOTING.md
+
+Commands to log in to Azure using the Azure CLI and to check the npm registry configuration, ensuring it points to the correct public registry.
+
+```pwsh
+az login
+```
+
+```pwsh
+npm config get registry
+```
+
+--------------------------------
+
+### Build Management API
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+APIs for managing build definitions, builds, and logs. Supports triggering builds and retrieving build status and changes.
+
+```APIDOC
+Build Management:
+
+- build_get_definitions(project: str): Retrieve a list of build definitions for a given project.
+- build_get_definition_revisions(project: str, definition_id: int): Retrieve a list of revisions for a specific build definition.
+- build_get_builds(project: str): Retrieve a list of builds for a given project.
+- build_get_log(project: str, build_id: int): Retrieve the logs for a specific build.
+- build_get_log_by_id(project: str, build_id: int, log_id: int): Get a specific build log by log ID.
+- build_get_changes(project: str, build_id: int): Get the changes associated with a specific build.
+- build_run_build(project: str, definition_id: int, branch_name: str = None, commit_id: str = None): Trigger a new build for a specified definition.
+- build_get_status(project: str, build_id: int): Fetch the status of a specific build.
+- build_update_build_stage(project: str, build_id: int, stage_name: str, state: str): Update the stage of a specific build.
+```
+
+--------------------------------
+
+### Test Plan Management API
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+APIs for creating and managing test plans and test cases, including adding test cases to suites and retrieving test results.
+
+```APIDOC
+Test Plan Management:
+
+- testplan_create_test_plan(project: str, plan_name: str): Create a new test plan in the project.
+- testplan_create_test_case(project: str, title: str, work_item_type: str = 'Test Case'): Create a new test case work item.
+- testplan_add_test_cases_to_suite(project: str, suite_id: int, test_case_ids: list[int]): Add existing test cases to a test suite.
+- testplan_list_test_plans(project: str, filter_active: bool = True, include_details: bool = False, page_size: int = 100, continuation_token: str = None): Retrieve a paginated list of test plans from an Azure DevOps project. Allows filtering for active plans and toggling detailed information.
+- testplan_list_test_cases(project: str, plan_id: int): Get a list of test cases in the test plan.
+- testplan_show_test_results_from_build_id(project: str, build_id: int): Get a list of test results for a given project and build ID.
+```
+
+--------------------------------
+
+### Copilot Instructions for MCP Server
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+Customizes GitHub Copilot's behavior for Azure DevOps MCP Server, emphasizing the use of batch operations for efficiency when retrieving and updating work items. It specifies default fields to display and the desired output format.
+
+```markdown
+## Using MCP Server for Azure DevOps
+
+When getting work items using MCP Server for Azure DevOps, always try to use batch tools for updates instead of many individual single updates. For updates, try and update up to 200 updates in a single batch. When getting work items, once you get the list of IDs, use the tool `get_work_items_batch_by_ids` to get the work item details. By default, show fields ID, Type, Title, State. Show work item results in a rendered markdown table.
+```
+
+--------------------------------
+
+### Release Management API
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+APIs for retrieving release definitions and releases for a given project.
+
+```APIDOC
+Release Management:
+
+- release_get_definitions(project: str): Retrieve a list of release definitions for a given project.
+- release_get_releases(project: str): Retrieve a list of releases for a given project.
+```
+
+--------------------------------
+
+### Repository Management API
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+APIs for managing repositories, including listing repositories, pull requests, branches, and commits. Supports creating and updating pull requests.
+
+```APIDOC
+Repository Management:
+
+- repo_list_repos_by_project(project: str): Retrieve a list of repositories for a given project.
+- repo_list_pull_requests_by_repo(repository_id: str): Retrieve a list of pull requests for a given repository.
+- repo_list_pull_requests_by_project(project_id_or_name: str): Retrieve a list of pull requests for a given project ID or name.
+- repo_list_branches_by_repo(repository_id: str): Retrieve a list of branches for a given repository.
+- repo_list_my_branches_by_repo(repository_id: str): Retrieve a list of your branches for a given repository ID.
+- repo_list_pull_requests_by_commits(commit_ids: list[str]): List pull requests associated with commits.
+- repo_list_pull_request_threads(repository_id: str, pull_request_id: int): Retrieve a list of comment threads for a pull request.
+- repo_list_pull_request_thread_comments(repository_id: str, pull_request_id: int, thread_id: int): Retrieve a list of comments in a pull request thread.
+- repo_get_repo_by_name_or_id(project: str, repo_name_or_id: str): Get the repository by project and repository name or ID.
+- repo_get_branch_by_name(repository_id: str, branch_name: str): Get a branch by its name.
+- repo_get_pull_request_by_id(repository_id: str, pull_request_id: int): Get a pull request by its ID.
+- repo_create_pull_request(repository_id: str, title: str, source_branch: str, target_branch: str, description: str = None, reviewers: list[str] = None, is_draft: bool = False): Create a new pull request.
+- repo_update_pull_request_status(repository_id: str, pull_request_id: int, status: str): Update the status of an existing pull request to active or abandoned.
+- repo_update_pull_request(repository_id: str, pull_request_id: int, title: str = None, description: str = None, is_draft: bool = None, target_branch: str = None): Update various fields of an existing pull request (title, description, draft status, target branch).
+- repo_update_pull_request_reviewers(repository_id: str, pull_request_id: int, add_reviewers: list[str] = None, remove_reviewers: list[str] = None): Add or remove reviewers for an existing pull request.
+- repo_reply_to_comment(repository_id: str, pull_request_id: int, parent_comment_id: int, comment_text: str): Replies to a specific comment on a pull request.
+- repo_resolve_comment(repository_id: str, pull_request_id: int, thread_id: int): Resolves a specific comment thread on a pull request.
+- repo_search_commits(repository_id: str, search_criteria: dict): Searches for commits.
+- repo_create_pull_request_thread(repository_id: str, pull_request_id: int, comment_text: str, file_path: str = None, position: int = None): Creates a new comment thread on a pull request.
+```
+
+--------------------------------
+
+### Retrieve Azure DevOps Projects and Teams via Chat
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+These plaintext commands demonstrate how to query Azure DevOps for project and team information using the MCP Server. The first command retrieves all projects for the organization defined in `mcp.json`. The second command fetches a list of teams for a specified project, such as 'contoso'.
+
+```plaintext
+get list of ado projects
+```
+
+```plaintext
+get list of teams for project contoso
+```
+
+--------------------------------
+
+### MCP Server Configuration (Public Feed)
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+Configuration file for the MCP Server to connect to Azure DevOps. This JSON defines inputs for organization name and server settings for the 'ado' service using npx.
+
+```json
+{
+  "inputs": [
+    {
+      "id": "ado_org",
+      "type": "promptString",
+      "description": "Azure DevOps organization name  (e.g. 'contoso')"
+    }
+  ],
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp", "${input:ado_org}"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Azure DevOps REST API Documentation
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/CONTRIBUTING.md
+
+Reference for the Azure DevOps REST API, useful for understanding available endpoints and operations when creating issues or suggesting features.
+
+```APIDOC
+OpenAIModel:
+  __init__(model_name: str, provider: str = 'openai')
+    model_name: The name of the OpenAI model to use
+    provider: The provider to use (defaults to 'openai')
+```
+
+--------------------------------
+
+### Work Item Management API
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+APIs for retrieving, creating, updating, and linking work items. Supports batch operations and comment management.
+
+```APIDOC
+Work Item Management:
+
+- wit_my_work_items(): Retrieve a list of work items relevant to the authenticated user.
+- wit_list_backlogs(project: str, team: str): Retrieve a list of backlogs for a given project and team.
+- wit_list_backlog_work_items(project: str, team: str, category: str): Retrieve a list of backlogs for a given project, team, and backlog category.
+- wit_get_work_item(id: int): Get a single work item by ID.
+- wit_get_work_items_batch_by_ids(ids: list[int]): Retrieve a list of work items by IDs in batch.
+- wit_update_work_item(id: int, fields: dict): Update a work item by ID with specified fields.
+- wit_create_work_item(project: str, type: str, fields: dict): Create a new work item in a specified project and work item type.
+- wit_list_work_item_comments(id: int): Retrieve a list of comments for a work item by ID.
+- wit_get_work_items_for_iteration(project: str, iteration: str): Retrieve a list of work items for a specified iteration.
+- wit_add_work_item_comment(id: int, comment: str): Add a comment to a work item by ID.
+- wit_add_child_work_items(parent_id: int, type: str, fields: dict): Create one or more child work items of a specific work item type for the given parent ID.
+- wit_link_work_item_to_pull_request(work_item_id: int, pull_request_id: int, repository_id: str, project_id: str): Link a single work item to an existing pull request.
+- wit_get_work_item_type(type_name: str): Get a specific work item type.
+- wit_get_query(query_id_or_path: str): Get a query by its ID or path.
+- wit_get_query_results_by_id(query_id: str): Retrieve the results of a work item query given the query ID.
+- wit_update_work_items_batch(updates: list[dict]): Update work items in batch.
+- wit_work_items_link(links: list[dict]): Link work items together in batch.
+- wit_work_item_unlink(work_item_id: int, link_ids: list[int]): Unlink one or many links from a work item.
+- wit_add_artifact_link(work_item_id: int, artifact_type: str, artifact_id: str, artifact_url: str): Link to artifacts like branch, pull request, commit, and build.
+```
+
+--------------------------------
+
+### Parameter Naming Conventions
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TOOL-NAME-VALIDATION.md
+
+Guidelines for creating clear and readable parameter names, including recommendations on length and character usage.
+
+```text
+Use clear, descriptive names
+Avoid abbreviations unless commonly understood
+Keep under 32 characters for readability (recommendation)
+Examples: `project`, `repositoryId`, `includeDetails`
+```
+
+--------------------------------
+
+### Azure CLI Login Command
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TROUBLESHOOTING.md
+
+The command to log in to Azure CLI, which should be run on the host machine for User Settings MCP configurations in Dev Container/WSL.
+
+```bash
+az login
+```
+
+--------------------------------
+
+### Advanced Security API
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+APIs for retrieving Advanced Security alerts and their details for a repository.
+
+```APIDOC
+Advanced Security:
+
+- advsec_get_alerts(repository_id: str): Retrieve Advanced Security alerts for a repository.
+- advsec_get_alert_details(repository_id: str, alert_id: str): Get detailed information about a specific Advanced Security alert.
+```
+
+--------------------------------
+
+### Azure DevOps MCP Server - Work Service Commands
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+This section details the commands available for interacting with Azure DevOps work item tracking services. It includes managing iterations and assigning them to teams.
+
+```APIDOC
+work_list_team_iterations:
+  description: Retrieve a list of iterations for a specific team in a project.
+  parameters:
+    - name: project
+      type: string
+      description: The Azure DevOps project name.
+    - name: team
+      type: string
+      description: The team name.
+  returns:
+    type: array
+    description: A list of iterations for the specified team.
+
+work_create_iterations:
+  description: Create new iterations in a specified Azure DevOps project.
+  parameters:
+    - name: project
+      type: string
+      description: The Azure DevOps project name.
+    - name: iterations
+      type: array
+      items: object
+      description: An array of iteration objects to create.
+      properties:
+        name: string
+        startDate: string (ISO 8601 format)
+        endDate: string (ISO 8601 format)
+  returns:
+    type: object
+    description: Details of the created iterations.
+
+work_assign_iterations:
+  description: Assign existing iterations to a specific team in a project.
+  parameters:
+    - name: project
+      type: string
+      description: The Azure DevOps project name.
+    - name: team
+      type: string
+      description: The team name.
+    - name: iterationIds
+      type: array
+      items: string
+      description: A list of iteration IDs to assign to the team.
+  returns:
+    type: object
+    description: Confirmation of the iteration assignments.
+```
+
+--------------------------------
+
+### Running Validation and Linting Commands
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TOOL-NAME-VALIDATION.md
+
+Commands to execute the tool validation process and run ESLint for code quality checks.
+
+```bash
+# Validate all tools
+npm run validate-tools
+
+# Run ESLint on tool files
+npx eslint src/tools/*.ts
+```
+
+--------------------------------
+
+### Retrieve Azure DevOps Backlogs and Work Items via Chat
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+These plaintext commands illustrate how to interact with Azure DevOps backlogs. The first command retrieves available backlog levels (Epics, Stories, Features) for a specified project and team. The second command then fetches all work items within a particular backlog level, such as 'Features', with the model automatically using `wit_get_work_items_batch_by_ids` for details.
+
+```plaintext
+get backlogs for Contoso project and Fabrikam Team
+```
+
+```plaintext
+get list of work items for Features backlog
+```
+
+--------------------------------
+
+### Azure DevOps MCP Server API - Search Operations
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/README.md
+
+API methods for performing searches within Azure DevOps. Supports searching code, wiki content, and work items using specified search text.
+
+```APIDOC
+search_code(organization: str, project: str, search_text: str)
+  Get code search results for a given search text.
+
+search_wiki(organization: str, project: str, search_text: str)
+  Get wiki search results for a given search text.
+
+search_workitem(organization: str, project: str, search_text: str)
+  Get work item search results for a given search text.
+```
+
+--------------------------------
+
+### Retrieve Work Item Details and Comments
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+This prompt instructs an AI model to retrieve a specific work item by its ID, specifying a list of fields to display. It also requests the retrieval and summarization of all comments associated with that work item, setting the context for further operations.
+
+```plaintext
+Get work item 12345 and show me fields ID, Type, State, Repro Steps, Story Points, and Priority. Get all comments for the work item and summarize them for me.
+```
+
+--------------------------------
+
+### Clear VS Code Cache and Node Modules
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TROUBLESHOOTING.md
+
+Steps to clear VS Code's cache and reload the window to resolve configuration issues. Also includes the command to clear the npm cache.
+
+```shell
+npm cache clean --force
+```
+
+--------------------------------
+
+### Development Workflow Steps
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TOOL-NAME-VALIDATION.md
+
+The standard workflow for developing new tools, including validation and committing changes.
+
+```text
+1. Create new tools with descriptive names
+2. Run `npm run validate-tools` to check compliance
+3. Fix any validation errors before committing
+4. ESLint will catch issues in real-time during development
+```
+
+--------------------------------
+
+### Retrieve Assigned Azure DevOps Work Items via Chat
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+This plaintext command allows users to retrieve a list of work items assigned to them. It requires project context (e.g., 'contoso'). The underlying model is expected to automatically utilize the `wit_get_work_items_batch_by_ids` tool to fetch the detailed work item information.
+
+```plaintext
+get my work items for project contoso
+```
+
+--------------------------------
+
+### Assign Work Item and Add New Comment
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/HOWTO.md
+
+This prompt facilitates the assignment of the current work item to a specified email address. Additionally, it instructs the AI model to add a new comment to the work item with a predefined message, indicating ownership and intent to resolve the issue.
+
+```plaintext
+Assign this work item to myemail@outlook.com and add a comment "I will own this Bug and get it fixed"
+```
+
+--------------------------------
+
+### Troubleshooting Common Naming Issues
+
+Source: https://github.com/microsoft/azure-devops-mcp/blob/main/docs/TOOL-NAME-VALIDATION.md
+
+Provides solutions for common errors encountered during tool development, such as names with spaces, excessive length, or invalid characters.
+
+```text
+1. **Tool name contains spaces**
+   ```text
+   Error: Tool name 'my tool name' contains invalid characters
+   ```
+   Solution: Use underscores instead: `my_tool_name`
+
+2. **Tool name too long**
+   ```text
+   Error: Tool name 'very_long_descriptive_tool_name_that_exceeds_limit' is 45 characters long, maximum allowed is 64
+   ```
+   Solution: Shorten the name: `long_tool_name`
+
+3. **Special characters in name**
+   ```text
+   Error: Tool name 'tool/name' contains invalid characters
+   ```
+   Solution: Use allowed characters: `tool_name`
+```

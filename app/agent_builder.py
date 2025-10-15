@@ -4,9 +4,15 @@ import os
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import MemorySaver
+# Use compatibility layer for create_react_agent (removed in LangGraph 0.6.7+)
+from .react_agent_compat import create_react_agent
+from langgraph.prebuilt.tool_node import ToolNode
+from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
+from typing_extensions import Annotated, TypedDict
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from .memory.enhanced_tool_node import EnhancedToolNode
+from .memory.tool_message_filter import patch_agent_with_message_filter
 
 from .checkpointer_manager import get_global_checkpointer
 from .mcp_loader import load_mcp_tools, build_http_tools
@@ -21,11 +27,40 @@ from .gemini_schema_filter import apply_gemini_schema_filtering, is_gemini_model
 from .prompt_loader import load_prompt_content, get_config_directory
 from .llm_payload_logger import LoggingModelWrapper, LLMPayloadLogger
 
+# Import LiteLLM provider (optional)
+try:
+    from .litellm_provider import LiteLLMProvider
+    HAS_LITELLM = True
+except ImportError:
+    HAS_LITELLM = False
+
+# Import custom Azure LiteLLM wrapper
+try:
+    from .azure_litellm_wrapper import AzureLiteLLMChat
+    HAS_AZURE_LITELLM = True
+except ImportError:
+    HAS_AZURE_LITELLM = False
+
+# Import enhanced LiteLLM wrapper with multimodal support
+try:
+    from .enhanced_litellm_wrapper import EnhancedLiteLLMChat, is_litellm_model, get_tool_compatible_model, get_fallback_tool_binding, create_litellm_model
+    HAS_ENHANCED_LITELLM = True
+except ImportError:
+    HAS_ENHANCED_LITELLM = False
+
 log = logging.getLogger("agent_builder")
 
 
+# Import model format utilities
+try:
+    from .config_model_format import parse_model_id, convert_to_litellm_format
+    HAS_MODEL_FORMAT = True
+except ImportError:
+    HAS_MODEL_FORMAT = False
+
 def create_model_instance(
-    model_id: str, default_temperature: float = 0.2
+    model_id: str, default_temperature: float = 0.2, 
+    app_config: Optional[Dict[str, Any]] = None
 ) -> Any:
     """
     Create a model instance based on the model ID prefix.
@@ -35,17 +70,126 @@ def create_model_instance(
                  "openai:gpt-4o", "anthropic:claude-sonnet-4", etc.
                  Can also include temperature like
                  "google:gemini-2.5-flash-lite:0.2"
+                 
+                 LiteLLM format models use forward slash:
+                 "openai/gpt-4o", "anthropic/claude-3-5-sonnet", "gemini/gemini-1.5-pro"
         default_temperature: Default temperature to use if not specified
                            in model_id
+        app_config: Optional application config with litellm settings
 
     Returns:
         Either the original model_id string (for LangGraph built-in support)
-        or a model instance (for custom providers like Google Gemini)
+        or a model instance (for custom providers like Google Gemini or LiteLLM)
     """
     if not isinstance(model_id, str):
         return model_id
 
-    # Parse temperature from model_id if present
+    # Pre-process model_id for consistent format handling
+    temperature = default_temperature
+    model_id_without_temp = model_id
+    
+    # Parse model_id using the new utilities if available
+    if HAS_MODEL_FORMAT:
+        model_info = parse_model_id(model_id)
+        if model_info['temperature'] is not None:
+            temperature = model_info['temperature']
+        
+        # If it's in Google format, convert to LiteLLM format for enhanced wrapper
+        if model_info['original_format'] == 'google':
+            model_id_without_temp = convert_to_litellm_format(model_info)
+            log.info(f"Converted Google format to LiteLLM format: {model_id} -> {model_id_without_temp}")
+        else:
+            # Otherwise, just remove temperature if present
+            model_id_without_temp = model_id
+            if model_info['temperature'] is not None:
+                model_id_parts = model_id.split(':') 
+                model_id_without_temp = ':'.join(model_id_parts[:-1])
+    
+    # Check if enhanced LiteLLM should be used (prioritize enhanced wrapper)
+    if HAS_ENHANCED_LITELLM and is_litellm_model(model_id_without_temp):
+        # We already parsed the temperature above, so no need to do it again
+        log.info(f"Using enhanced LiteLLM wrapper with model {model_id_without_temp} at temperature {temperature}")
+        
+        log.info(f"Creating Enhanced LiteLLM model for {model_id_without_temp} with temperature {temperature}")
+        
+        try:
+            model_instance = create_litellm_model(
+                model_id=model_id_without_temp,
+                temperature=temperature
+            )
+            log.info(f"Successfully created Enhanced LiteLLM model: {type(model_instance).__name__}")
+            return model_instance
+        except Exception as e:
+            log.error(f"Failed to create Enhanced LiteLLM model {model_id}: {e}")
+            log.info("Falling back to legacy LiteLLM handling...")
+    
+    # Check if legacy LiteLLM should be used based on config and format
+    use_litellm = False
+    if app_config and app_config.get("litellm", {}).get("enabled", False):
+        use_litellm = True
+        log.info("Legacy LiteLLM integration enabled via configuration")
+    elif "/" in model_id and not model_id.startswith(("http://", "https://")):
+        # If model uses provider/model format (e.g. "openai/gpt-4o"), assume LiteLLM
+        use_litellm = True
+        log.info(f"Legacy LiteLLM format model ID detected: {model_id}")
+    
+    # Handle legacy LiteLLM provider format models
+    if use_litellm and HAS_LITELLM:
+        try:
+            # Parse temperature from model_id if present
+            # Format: "provider/model:temperature" or "provider/model"
+            temperature = default_temperature
+            if ":" in model_id:
+                parts = model_id.split(":")
+                try:
+                    temperature = float(parts[-1])
+                    model_id_without_temp = ":".join(parts[:-1])
+                except ValueError:
+                    model_id_without_temp = model_id
+            else:
+                model_id_without_temp = model_id
+                
+            log.info(f"Creating LiteLLM model for {model_id_without_temp} with temperature {temperature}")
+            
+            # For Azure OpenAI models, use our custom wrapper
+            if model_id_without_temp.startswith("azure/") and HAS_AZURE_LITELLM:
+                log.info(f"Using custom Azure LiteLLM wrapper for {model_id_without_temp}")
+                model_instance = AzureLiteLLMChat(
+                    model=model_id_without_temp,
+                    temperature=temperature,
+                )
+                return model_instance
+            
+            # For other providers, try standard LangChain integration
+            try:
+                from langchain_community.chat_models import ChatLiteLLM
+                litellm_class = ChatLiteLLM
+            except ImportError:
+                # Fallback: try langchain_litellm if available
+                try:
+                    from langchain_litellm import LiteLLMChatModel
+                    litellm_class = LiteLLMChatModel
+                except ImportError:
+                    log.warning("No LangChain LiteLLM integration available. Falling back to direct LiteLLM usage.")
+                    # For now, return the model_id string and let the framework handle it elsewhere
+                    return model_id
+            
+            # Create and return LangChain-compatible LiteLLM model
+            model_instance = litellm_class(
+                model=model_id_without_temp,
+                temperature=temperature,
+            )
+            
+            return model_instance
+            
+        except ImportError as e:
+            log.error(f"LiteLLM LangChain integration not available: {e}")
+            return model_id
+        except Exception as e:
+            log.error(f"Failed to create LiteLLM model {model_id}: {e}")
+            return model_id
+
+    # Parse temperature from model_id if present (legacy format)
     # Format: "provider:model:temperature" or "provider:model"
     parts = model_id.split(":")
     temperature = default_temperature
@@ -119,10 +263,114 @@ def create_model_instance(
             )
             return model_id
 
-    # For all other model types (openai:, azure_openai:, anthropic:, etc.)
-    # return the original string - LangGraph handles these natively
-    # Note: Temperature for these providers is typically handled by
-    # LangGraph/LangChain
+    # For Azure OpenAI models, create an actual model instance
+    if model_id_without_temp.startswith("azure_openai:") or model_id_without_temp.startswith("azure/"):
+        try:
+            from langchain_openai import AzureChatOpenAI
+            
+            # Extract deployment name from model_id
+            if model_id_without_temp.startswith("azure_openai:"):
+                deployment_name = model_id_without_temp.split("azure_openai:", 1)[1]
+            else:
+                deployment_name = model_id_without_temp.split("azure/", 1)[1]
+            
+            # Get Azure OpenAI configuration from environment
+            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+            azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+            azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2023-05-15")
+            
+            if not azure_endpoint or not azure_api_key:
+                log.warning(
+                    "AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY not found in environment. "
+                    "Azure OpenAI model %s may not work properly.",
+                    model_id
+                )
+                return model_id_without_temp
+            
+            # Use deployment name from config, or fall back to environment variable
+            deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", deployment_name)
+            
+            # Create and return the Azure OpenAI model instance
+            model_instance = AzureChatOpenAI(
+                azure_endpoint=azure_endpoint,
+                api_key=azure_api_key,
+                api_version=azure_api_version,
+                azure_deployment=deployment,
+                temperature=temperature,
+            )
+            
+            log.info(
+                "Created model instance from string: %s", 
+                type(model_instance).__name__
+            )
+            return model_instance
+            
+        except ImportError:
+            log.error(
+                "langchain-openai not installed. "
+                "Cannot create Azure OpenAI model %s",
+                model_id
+            )
+            return model_id_without_temp
+        except Exception as e:
+            log.error(
+                "Failed to create Azure OpenAI model %s: %s",
+                model_id, e
+            )
+            return model_id_without_temp
+    
+    # For OpenAI models
+    if model_id_without_temp.startswith("openai:"):
+        try:
+            from langchain_openai import ChatOpenAI
+            
+            model_name = model_id_without_temp.split("openai:", 1)[1]
+            
+            model_instance = ChatOpenAI(
+                model=model_name,
+                temperature=temperature,
+            )
+            
+            log.info(
+                "Created OpenAI model instance: %s with temperature %s",
+                model_name, temperature
+            )
+            return model_instance
+            
+        except ImportError:
+            log.error("langchain-openai not installed. Cannot create OpenAI model %s", model_id)
+            return model_id_without_temp
+        except Exception as e:
+            log.error("Failed to create OpenAI model %s: %s", model_id, e)
+            return model_id_without_temp
+    
+    # For Anthropic models
+    if model_id_without_temp.startswith("anthropic:"):
+        try:
+            from langchain_anthropic import ChatAnthropic
+            
+            model_name = model_id_without_temp.split("anthropic:", 1)[1]
+            
+            model_instance = ChatAnthropic(
+                model=model_name,
+                temperature=temperature,
+            )
+            
+            log.info(
+                "Created Anthropic model instance: %s with temperature %s",
+                model_name, temperature
+            )
+            return model_instance
+            
+        except ImportError:
+            log.error("langchain-anthropic not installed. Cannot create Anthropic model %s", model_id)
+            return model_id_without_temp
+        except Exception as e:
+            log.error("Failed to create Anthropic model %s: %s", model_id, e)
+            return model_id_without_temp
+    
+    # For all other model types, return the string (fallback)
+    log.warning("Unknown model type %s, returning as string", model_id_without_temp)
     return model_id_without_temp
 
 
@@ -141,7 +389,64 @@ def _format_mcp_summary(servers_cfg: Dict[str, Dict]) -> str:
     return "\n".join(lines)
 
 
-async def build_react_agent(
+# State definition for normal agents (non-ReAct)
+class AgentState(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+
+
+def create_normal_agent(
+    model_with_tools: Any,
+    prompt: str,
+    name: str = "agent",
+    checkpointer=None,
+) -> Any:
+    """
+    Create a normal (non-ReAct) agent that doesn't use tools but can have conversations.
+    
+    Args:
+        model_with_tools: The language model instance
+        prompt: The system prompt for the agent
+        name: Agent name for identification
+        checkpointer: Optional checkpointer for state persistence
+        
+    Returns:
+        LangGraph StateGraph agent
+    """
+    log.info("Creating normal agent '%s' without tool calling capabilities", name)
+    
+    def agent_node(state: AgentState) -> dict:
+        """Main agent node that processes messages with the system prompt."""
+        messages = state["messages"]
+        
+        # Add system message with prompt if not already present
+        if not messages or not any(msg.type == "system" for msg in messages):
+            from langchain_core.messages import SystemMessage
+            messages = [SystemMessage(content=prompt)] + messages
+        
+        # Call the model
+        response = model_with_tools.invoke(messages)
+        
+        return {"messages": [response]}
+    
+    # Build the graph
+    workflow = StateGraph(AgentState)
+    
+    # Add the agent node
+    workflow.add_node("agent", agent_node)
+    
+    # Set the entrypoint
+    workflow.set_entry_point("agent")
+    
+    # Add edge from agent to END
+    workflow.add_edge("agent", END)
+    
+    # Compile the graph
+    agent = workflow.compile(checkpointer=checkpointer)
+    
+    return agent
+
+
+async def build_agent(
     agent_cfg: AgentConfig,
     default_model: str,
     checkpointer=None,
@@ -156,14 +461,14 @@ async def build_react_agent(
     default_temperature: float = 0.2,
     app_config: Optional[Dict[str, Any]] = None,
 ):
-    # Use global checkpointer for memory persistence across API calls
+    # Enable checkpointer for memory persistence (required for multi-turn conversations)
     if checkpointer is None:
         checkpointer = get_global_checkpointer(app_config)
         log.info(f"Using global checkpointer for agent {agent_cfg.name}")
 
     model_id = agent_cfg.model or default_model
-    # Create the appropriate model instance (handles google: prefix)
-    model_instance = create_model_instance(model_id, default_temperature)
+    # Create the appropriate model instance (handles google: prefix and litellm provider/model format)
+    model_instance = create_model_instance(model_id, default_temperature, app_config)
 
     servers_raw = {
         k: v.dict(exclude_none=True)
@@ -310,19 +615,22 @@ async def build_react_agent(
 
         # Bind tools first, then wrap with logging
         if tools:
-            # For Google Gemini models, we need to avoid passing parallel_tool_calls
-            # as the parameter is not supported by the Google Gen AI API
-            if is_gemini_model(model_id):
-                model_with_tools = actual_model.bind_tools(tools)
-                log.info(
-                    "Parallel tool calls for agent %s: %s (Google Gemini - parameter not passed to API)",
-                    agent_cfg.name,
-                    parallel_tool_calls_flag,
-                )
-            else:
-                model_with_tools = actual_model.bind_tools(
-                    tools, parallel_tool_calls=parallel_tool_calls_flag
-                )
+            # Use our custom tool adapter for Gemini models and handle potential errors
+            try:
+                # For Google Gemini models, we need special handling
+                if is_gemini_model(model_id):
+                    log.info(
+                        "Using Gemini-specific tool binding for agent %s",
+                        agent_cfg.name
+                    )
+                    # The EnhancedLiteLLMChat.bind_tools method will handle Gemini models
+                    model_with_tools = actual_model.bind_tools(tools)
+                else:
+                    # For other models, use the standard binding with parallel_tool_calls flag
+                    model_with_tools = actual_model.bind_tools(
+                        tools, parallel_tool_calls=parallel_tool_calls_flag
+                    )
+                    
                 log.info(
                     "Parallel tool calls for agent %s: %s (agent=%s, app=%s, autodetect=%s)",
                     agent_cfg.name,
@@ -331,6 +639,10 @@ async def build_react_agent(
                     app_parallel,
                     autodetect_parallel,
                 )
+            except NotImplementedError:
+                # Use our custom adapter for handling tool binding
+                log.warning("NotImplementedError in bind_tools for %s, using custom adapter", model_id)
+                model_with_tools = get_tool_compatible_model(actual_model, tools)
         else:
             model_with_tools = actual_model
 
@@ -348,48 +660,44 @@ async def build_react_agent(
     except Exception as e:
         log.warning(
             "Failed to create model instance or bind tools with "
-            "parallel_tool_calls=False: %s. Using default.", e
+            "parallel_tool_calls=False: %s. Using fallback binding.", e
         )
         import traceback
         log.warning("Full traceback: %s", traceback.format_exc())
-        model_with_tools = model_instance
+        
+        # Try our fallback tool binding approach
+        try:
+            model_with_tools = get_fallback_tool_binding(model_instance, tools)
+            log.info("Using fallback tool binding for %s", model_id)
+        except Exception:
+            # Last resort: use the model without tools
+            log.warning("Fallback tool binding also failed. Using model without tool binding.")
+            model_with_tools = model_instance
 
-    # Create enhanced tool node for large data handling if enabled
-    large_data_config = app_config.get("large_data_handling") if app_config else None
-    if large_data_config and large_data_config.get("enabled", False):
-        log.info(f"Creating agent {agent_cfg.name} with large data optimization")
+    # Determine agent type (defaults to "react" for backward compatibility)
+    agent_type = getattr(agent_cfg, "agent_type", "react") or "react"
+    
+    # Create agent based on type
+    if agent_type == "normal":
+        # Create normal agent without tool calling
+        log.info(f"Creating normal agent {agent_cfg.name} (no tool calling)")
+        agent = create_normal_agent(
+            model_with_tools=model_with_tools,
+            prompt=prompt_filled,
+            name=agent_cfg.name,
+            checkpointer=checkpointer,
+        )
         
-        # Create agent with enhanced tool node
+    else:  # agent_type == "react" (default)
+        # Standard react agent creation
+        log.info(f"Creating react agent {agent_cfg.name}")
         agent = create_react_agent(
             model=model_with_tools,
             tools=tools,
             prompt=prompt_filled,
-            name=agent_cfg.name,
-            version="v2",
             checkpointer=checkpointer,
         )
-        
-        # Replace tool node with enhanced version
-        enhanced_tool_node = EnhancedToolNode(tools, large_data_config)
-        
-        # Update the agent's tool node (this is LangGraph-specific)
-        if hasattr(agent, '_graph') and hasattr(agent._graph, 'nodes'):
-            # Find and replace the tool node
-            for node_name, node in agent._graph.nodes.items():
-                if 'tool' in node_name.lower():
-                    agent._graph.nodes[node_name] = enhanced_tool_node
-                    break
-        
-    else:
-        # Standard agent creation without large data handling
-        agent = create_react_agent(
-            model=model_with_tools,
-            tools=tools,
-            prompt=prompt_filled,
-            name=agent_cfg.name,
-            version="v2",
-            checkpointer=checkpointer,
-        )
+    
     # Attach model identifier for downstream logging without changing APIs
     try:
         setattr(agent, "_model_id", model_id)
@@ -399,3 +707,7 @@ async def build_react_agent(
     log.info("Agent prompt:\n%s", prompt_filled)
     log.info("Built agent %s with %d tools", agent_cfg.name, len(tools))
     return agent, mcp_client
+
+
+# Backward compatibility: alias old function name to new one
+build_react_agent = build_agent

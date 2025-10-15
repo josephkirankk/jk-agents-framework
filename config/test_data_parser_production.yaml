@@ -1,0 +1,106 @@
+# ============================================================================
+# Production Test Data Parser - Handles Million+ Records
+# ============================================================================
+#
+# CRITICAL FIX: Python tool outputs ARE tokenized!
+#
+# Problem: Tool responses get injected into LLM context as ToolMessages
+# - Without optimization: 1M records = ~20M tokens = FAILURE
+# - With compact JSON: 1M records = ~5M tokens = STILL FAILS
+#
+# Solution: Enable large_data_handling system
+# - Tool outputs >1000 tokens are automatically stored
+# - LLM receives only reference (~200 tokens)
+# - Dynamic tools created for data access
+# - Scales to ANY dataset size
+#
+# ============================================================================
+
+models:
+  default: "azure_openai:gpt-4.1"
+  temperature: 0.0
+
+# Enable large data optimization - CRITICAL for large datasets
+large_data_handling:
+  enabled: true
+  token_threshold: 1000        # Store tool outputs > 1000 tokens
+  
+  large_data:
+    sqlite_path: "./large_tool_data.db"
+    file_path: "./large_tool_data_files/"
+    compression: true
+    max_sqlite_size_mb: 50
+  
+  summarization:
+    max_summary_tokens: 200
+    sample_size: 5
+    include_statistics: true
+  
+  cleanup:
+    reference_ttl_hours: 48
+    cleanup_interval_hours: 6
+
+business_context: |
+  Codes: Program(MFG|ADV|STD), Sector(PFNA|PBNA|QSNA|RSNA|ALL), Plant(p1-4), Market(US|IN|UK|DE), UOM(count|kg|liters|units|percentage|hours)
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    Agents: {{agents}}
+    
+    LARGE DATA OPTIMIZATION ACTIVE:
+    - Tool outputs >1000 tokens are automatically stored as references
+    - Agents receive summaries + dynamic access tools
+    - Can handle million+ record datasets efficiently
+    
+    Plan: s1=parser extracts params, s2=generator creates records (auto-optimized).
+    Return JSON: {"goal":"<goal>","plan":[{"id":"s1","agent":"requirement_parser","task":"extract","depends_on":[],"verify":"ok","timeout_seconds":60,"retry":2},{"id":"s2","agent":"data_generator","task":"generate","depends_on":["s1"],"verify":"ok","timeout_seconds":300,"retry":2}]}
+
+agents:
+  - name: "requirement_parser"
+    description: "Parse NL to JSON params"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Parse query to JSON using run_python_code. Extract: record count, metrics, codes, ranges.
+      Valid: {{business_context}}
+      Defaults: 100 records, US, 30 days.
+      Return JSON only.
+    
+    mcp_servers:
+      python_runner:
+        transport: "stdio"
+        command: "deno"
+        args: ["run", "-N", "-R=node_modules", "-W=node_modules", "--node-modules-dir=auto", "jsr:@pydantic/mcp-run-python", "stdio"]
+
+  - name: "data_generator"
+    description: "Generate test records (large data optimized)"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    
+    prompt: |
+      {{dependent_request_responses}}
+      
+      Generate records using params from s1 via run_python_code.
+      
+      LARGE DATA SYSTEM ACTIVE:
+      - Datasets >1000 tokens are automatically stored as references
+      - You'll receive a summary + dynamic access tools
+      - No token limits - generate millions of records if needed
+      
+      For datasets >100K records, consider batched generation or sampling.
+      
+      Output format: Compact JSON array.
+      Use: print(json.dumps(records, separators=(',',':')))
+      
+      Short field names: id, metric, value, prog, sector, plant, market, uom, date
+    
+    mcp_servers:
+      python_runner:
+        transport: "stdio"
+        command: "deno"
+        args: ["run", "-N", "-R=node_modules", "-W=node_modules", "--node-modules-dir=auto", "jsr:@pydantic/mcp-run-python", "stdio"]

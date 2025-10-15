@@ -17,8 +17,11 @@ business_context: |
     - Maintain READ-ONLY safety; never modify resources.
     - Include temporal context in analysis when relevant (Current analysis session: {{date}} {{time}})
 
-persistence:
-  type: "memory"
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./test_checkpoints"
+    collection_name: "ado_agent_checkpoints"
 
 supervisor:
   name: "supervisor"
@@ -167,7 +170,7 @@ agents:
           and includes domain filtering for optimal performance and tool management.
         transport: "stdio"
         command: "npx"
-        args: ["-y", "@azure-devops/mcp", "PepsiCoIT", "-d", "core", "work", "work-items", "repositories", "builds", "wiki", "search"]
+        args: ["-y", "@azure-devops/mcp", "PepsiCoIT", "-d", "core", "work", "work-items", "repositories", "pipelines", "wiki", "search", "-a", "env"]
         env:
           # Using PAT token authentication (recommended for automation)
           # Replace 'your_pat_token_here' with your actual Azure DevOps Personal Access Token

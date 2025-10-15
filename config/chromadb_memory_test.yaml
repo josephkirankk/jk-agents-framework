@@ -9,7 +9,8 @@ business_context: |
 temperature: 0.1
 
 models:
-  default: "google:gemini-2.5-flash-lite"
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
 
 # ChromaDB Memory Configuration
 memory:
@@ -20,11 +21,11 @@ memory:
 
 # Persistence configuration for LangGraph checkpointing
 persistence:
-  type: "chromadb"
+  type: "memory"
 
 # Supervisor configuration (required)
 supervisor:
-  model: "google:gemini-2.5-flash-lite"
+  model: "azure_openai:gpt-4.1"
   prompt: |
     You are a supervisor coordinating memory-enabled agents.
     
@@ -35,7 +36,7 @@ supervisor:
 
 agents:
   - name: memory_test_agent
-    model: "google:gemini-2.5-flash-lite"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are a memory-enabled agent that can remember conversations across sessions.
       
@@ -57,7 +58,7 @@ agents:
       Provide a helpful response that demonstrates your memory capabilities.
 
   - name: conversation_agent
-    model: "google:gemini-2.5-flash-lite"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are a conversational agent with persistent memory capabilities.
       

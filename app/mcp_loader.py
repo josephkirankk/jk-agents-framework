@@ -2,6 +2,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import json
+import os
+import re
 import time
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -199,27 +201,104 @@ class TimeoutTool(BaseTool):
         raise last_exc or RuntimeError("Inner tool failed with unknown error")
 
  
+def _expand_env_vars(env_dict: Dict[str, str]) -> Dict[str, str]:
+    """
+    Expand environment variables in format ${VAR_NAME} or $VAR_NAME.
+    Also handles direct environment variable references.
+    """
+    expanded = {}
+    for key, value in env_dict.items():
+        if not isinstance(value, str):
+            expanded[key] = value
+            continue
+            
+        # Handle ${VAR} format
+        def replace_var(match):
+            var_name = match.group(1)
+            return os.getenv(var_name, match.group(0))
+        
+        # Replace ${VAR} patterns
+        expanded_value = re.sub(r'\$\{([^}]+)\}', replace_var, value)
+        
+        # Replace $VAR patterns (word boundary)
+        expanded_value = re.sub(r'\$(\w+)', lambda m: os.getenv(m.group(1), m.group(0)), expanded_value)
+        
+        expanded[key] = expanded_value
+        
+        # Log if variable was expanded (helpful for debugging)
+        if expanded_value != value:
+            log.debug(f"Expanded env var {key}: {value} -> {expanded_value[:20]}...")
+    
+    return expanded
+
+
 async def load_mcp_tools(
     servers_cfg: Dict[str, Any],
-    tool_timeout: float = 30.0,
-    tool_retries: int = 0,
+    tool_timeout: float = 60.0,
+    tool_retries: int = 1,
 ) -> Tuple[Optional[MultiServerMCPClient], List[BaseTool]]:
     if not servers_cfg:
         return None, []
 
     client_cfg: Dict[str, Any] = {}
     for name, spec in servers_cfg.items():
+        # Convert Pydantic model to dict if needed
+        if hasattr(spec, 'model_dump'):
+            spec = spec.model_dump()
+        elif hasattr(spec, 'dict'):
+            spec = spec.dict()
+        
         transport = spec.get("transport", "stdio")
         if transport == "stdio":
             if "command" not in spec:
                 raise ValueError(
                     f"stdio MCP server '{name}' requires 'command'"
                 )
+            
+            # Expand environment variables in env dict
+            raw_env = spec.get("env", {})
+            expanded_env = _expand_env_vars(raw_env)
+            
+            # CRITICAL: Merge with current process environment
+            # The MCP subprocess needs to inherit parent environment variables
+            # Otherwise it won't have access to system PATH, Python paths, etc.
+            merged_env = os.environ.copy()
+            merged_env.update(expanded_env)
+            # ROBUSTNESS FIX: Ensure ADO PAT is always passed if available in parent env
+            # This prevents race conditions where the .env is loaded before this runs.
+            if name == "azure_devops" and "AZURE_DEVOPS_EXT_PAT" in os.environ:
+                ado_pat = os.getenv("AZURE_DEVOPS_EXT_PAT")
+                if ado_pat and ado_pat != merged_env.get("AZURE_DEVOPS_EXT_PAT"):
+                    log.info("Injecting AZURE_DEVOPS_EXT_PAT from parent environment into ADO MCP server.")
+                    merged_env["AZURE_DEVOPS_EXT_PAT"] = ado_pat
+            
+            # Log environment for debugging (hide sensitive values)
+            log.info(f"MCP server '{name}' environment variables being set:")
+            for key in expanded_env.keys():
+                value = expanded_env[key]
+                masked_value = value[:10] + "..." if len(value) > 10 else value
+                log.info(f"  {key}: {masked_value}")
+            
+            # Special check for Azure DevOps PAT token - verify it's actually set
+            pat_from_expanded = expanded_env.get("AZURE_DEVOPS_EXT_PAT")
+            pat_from_merged = merged_env.get("AZURE_DEVOPS_EXT_PAT")
+            pat_from_os = os.getenv("AZURE_DEVOPS_EXT_PAT")
+            
+            log.info(f"🔍 Azure DevOps PAT token debug:")
+            log.info(f"  - In expanded_env: {bool(pat_from_expanded)} (len: {len(pat_from_expanded) if pat_from_expanded else 0})")
+            log.info(f"  - In merged_env: {bool(pat_from_merged)} (len: {len(pat_from_merged) if pat_from_merged else 0})")
+            log.info(f"  - In os.environ: {bool(pat_from_os)} (len: {len(pat_from_os) if pat_from_os else 0})")
+            
+            if not pat_from_merged:
+                log.error("⚠ AZURE_DEVOPS_EXT_PAT is NOT set in merged_env! MCP server will fail authentication!")
+            else:
+                log.info(f"✓ AZURE_DEVOPS_EXT_PAT will be passed to MCP server subprocess")
+            
             client_cfg[name] = {
                 "transport": "stdio",
                 "command": spec["command"],
                 "args": spec.get("args", []),
-                "env": spec.get("env", {}),
+                "env": merged_env,  # Use merged environment
             }
         elif transport in ("sse", "streamable_http", "http"):
             if "url" not in spec:

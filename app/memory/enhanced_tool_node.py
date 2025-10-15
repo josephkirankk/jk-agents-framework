@@ -24,13 +24,15 @@ class EnhancedToolNode:
         self.tools_by_name = {tool.name: tool for tool in tools}
         self.config = config or {}
         
-        # Initialize large data handling
-        storage_config = self.config.get("large_data", {})
-        self.large_data_enabled = storage_config.get("enabled", True)
+        # Initialize large data handling - check if enabled in parent config
+        self.large_data_enabled = self.config.get("enabled", False)
         
         if self.large_data_enabled:
+            # Get nested large_data config
+            storage_config = self.config.get("large_data", {})
+            token_threshold = self.config.get("token_threshold", 1000)
+            
             self.data_storage = LargeDataStorage(storage_config)
-            token_threshold = storage_config.get("token_threshold", 1000)
             self.smart_wrapper = SmartToolWrapper(self.data_storage, token_threshold)
             log.info(f"Enhanced tool node initialized with large data handling (threshold: {token_threshold})")
         else:
@@ -111,10 +113,13 @@ class EnhancedToolNode:
                 response_content = f"❌ Tool '{tool_name}' not found"
                 log.error(f"Tool '{tool_name}' not found in available tools")
             
-            # Create tool message
+            # Filter out base64 content from tool messages to prevent token bloat
+            filtered_content = self._filter_large_content(response_content, tool_name)
+            
+            # Create tool message with filtered content
             outputs.append(
                 ToolMessage(
-                    content=response_content,
+                    content=filtered_content,
                     name=tool_name,
                     tool_call_id=tool_call_id
                 )
@@ -251,6 +256,68 @@ class EnhancedToolNode:
         except Exception as e:
             log.error(f"Error during cleanup: {e}")
             return {"error": str(e)}
+    
+    def _filter_large_content(self, content: str, tool_name: str) -> str:
+        """
+        Filter out large base64 content from tool results to prevent token bloat in message history.
+        
+        This is critical for vision workflows where base64 images can be 50K+ tokens each.
+        The base64 content is used by the LLM during tool execution, but should NOT
+        be preserved in message history.
+        
+        Args:
+            content: The tool result content (possibly containing base64)
+            tool_name: Name of the tool that produced this content
+            
+        Returns:
+            Filtered content with base64 data replaced by metadata
+        """
+        # Check if this is a JSON response that might contain base64
+        try:
+            if content.startswith('{') or content.startswith('['):
+                data = json.loads(content)
+                
+                # Check for base64_content field (from get_image_base64 tool)
+                if isinstance(data, dict) and 'base64_content' in data:
+                    base64_len = len(data.get('base64_content', ''))
+                    estimated_tokens = base64_len // 3  # Rough estimate: 3 chars per token
+                    
+                    # Remove base64 content and replace with metadata
+                    filtered_data = data.copy()
+                    filtered_data['base64_content'] = f"[BASE64_REMOVED: {base64_len} chars, ~{estimated_tokens:,} tokens]"
+                    filtered_data['_note'] = "Base64 content was used for vision processing and removed from history to save tokens"
+                    
+                    log.info(
+                        f"Filtered base64 content from {tool_name} tool result: "
+                        f"removed {base64_len} chars (~{estimated_tokens:,} tokens)"
+                    )
+                    
+                    return json.dumps(filtered_data, indent=2)
+                
+                # Check for other large content fields that might need filtering
+                if isinstance(data, dict):
+                    for key in ['content', 'data', 'body']:
+                        if key in data and isinstance(data[key], str) and len(data[key]) > 10000:
+                            content_len = len(data[key])
+                            estimated_tokens = content_len // 4
+                            
+                            filtered_data = data.copy()
+                            filtered_data[key] = f"[LARGE_CONTENT_REMOVED: {content_len} chars, ~{estimated_tokens:,} tokens]"
+                            filtered_data['_note'] = "Large content was removed from history to save tokens"
+                            
+                            log.info(
+                                f"Filtered large content from {tool_name} tool result: "
+                                f"removed {content_len} chars (~{estimated_tokens:,} tokens) from '{key}' field"
+                            )
+                            
+                            return json.dumps(filtered_data, indent=2)
+        
+        except (json.JSONDecodeError, Exception) as e:
+            # If not valid JSON or any error, check for inline base64 patterns
+            if len(content) > 10000:
+                log.debug(f"Large non-JSON content in {tool_name}: {len(content)} chars, checking for base64 patterns")
+        
+        return content
     
     def get_storage_stats(self) -> Dict[str, Any]:
         """Get comprehensive storage statistics"""

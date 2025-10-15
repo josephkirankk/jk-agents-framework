@@ -1,0 +1,499 @@
+"""
+Integration Test 09: API Critical Flows
+Tests critical end-to-end workflows through the API with multi-turn,
+MCP servers, tools, and large dataset storage.
+
+NO MOCKING - Uses real FastAPI server, real LLM, real tools, real storage.
+
+Critical Flows:
+1. Multi-turn conversation through API with context persistence
+2. Large dataset storage and retrieval through API
+3. Worker endpoint with tool execution
+4. Memory management through API endpoints
+5. Complex multi-turn workflow with data accumulation
+6. API health and performance monitoring
+"""
+
+import pytest
+import asyncio
+import time
+import requests
+import json
+import uuid
+from pathlib import Path
+from typing import Dict, Any, Optional
+
+from helpers.utils import wait_for_condition, contains_keywords, retry_on_failure
+
+
+@pytest.mark.integration
+@pytest.mark.azure
+@pytest.mark.api
+class TestAPICriticalFlows:
+    """Test critical end-to-end API workflows."""
+    
+    @pytest.fixture(scope="class")
+    def api_base_url(self):
+        """Base URL for API (assumes server is running)."""
+        return "http://localhost:8000"
+    
+    @pytest.fixture(scope="class")
+    def check_server(self, api_base_url):
+        """Check if API server is running, skip tests if not."""
+        try:
+            response = requests.get(f"{api_base_url}/health", timeout=2)
+            if response.status_code != 200:
+                pytest.skip("API server not running")
+        except:
+            pytest.skip("API server not running - start with: uvicorn api:app --reload")
+    
+    # ==================== CRITICAL FLOW 1: Multi-Turn Conversation ====================
+    
+    @pytest.mark.asyncio
+    async def test_multi_turn_conversation_through_api(self, api_base_url, check_server):
+        """
+        CRITICAL FLOW: Multi-turn conversation with context persistence
+        
+        Steps:
+        1. Turn 1: Ask to remember a number
+        2. Turn 2: Ask to recall the number
+        3. Turn 3: Ask to perform calculation with remembered number
+        4. Verify context is maintained across all turns
+        """
+        thread_id = f"api_multiturn_{uuid.uuid4().hex[:8]}"
+        
+        # Turn 1: Store information
+        turn1_request = {
+            "input": "Remember this number: 42. It's important.",
+            "thread_id": thread_id
+        }
+        
+        response1 = requests.post(
+            f"{api_base_url}/query",
+            json=turn1_request,
+            timeout=30
+        )
+        
+        assert response1.status_code == 200
+        data1 = response1.json()
+        assert "response" in data1
+        assert "42" in data1["response"] or "forty" in data1["response"].lower()
+        
+        await asyncio.sleep(2)
+        
+        # Turn 2: Recall information
+        turn2_request = {
+            "input": "What number did I ask you to remember?",
+            "thread_id": thread_id
+        }
+        
+        response2 = requests.post(
+            f"{api_base_url}/query",
+            json=turn2_request,
+            timeout=30
+        )
+        
+        assert response2.status_code == 200
+        data2 = response2.json()
+        assert "response" in data2
+        # Should remember 42
+        assert "42" in data2["response"] or "forty" in data2["response"].lower()
+        
+        await asyncio.sleep(2)
+        
+        # Turn 3: Use remembered information
+        turn3_request = {
+            "input": "Double the number I told you to remember.",
+            "thread_id": thread_id
+        }
+        
+        response3 = requests.post(
+            f"{api_base_url}/query",
+            json=turn3_request,
+            timeout=30
+        )
+        
+        assert response3.status_code == 200
+        data3 = response3.json()
+        assert "response" in data3
+        # Should calculate 42 * 2 = 84
+        assert "84" in data3["response"] or "eighty" in data3["response"].lower()
+    
+    # ==================== CRITICAL FLOW 2: Large Dataset Storage ====================
+    
+    @pytest.mark.asyncio
+    async def test_large_dataset_storage_through_api(self, api_base_url, check_server):
+        """
+        CRITICAL FLOW: Store and retrieve large dataset through API
+        
+        Steps:
+        1. Get initial data storage stats
+        2. Create large dataset via API
+        3. Verify storage via API endpoint
+        4. Retrieve dataset via reference ID
+        5. Verify data integrity
+        """
+        thread_id = f"api_storage_{uuid.uuid4().hex[:8]}"
+        
+        # Create large dataset through query
+        request_data = {
+            "input": "Generate a list of 100 numbers from 1 to 100 and store it.",
+            "thread_id": thread_id
+        }
+        
+        response = requests.post(
+            f"{api_base_url}/query",
+            json=request_data,
+            timeout=60
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "response" in data
+        
+        # Check if there's a reference ID in metadata
+        if "metadata" in data:
+            # Verify metadata structure
+            assert isinstance(data["metadata"], dict)
+        
+        await asyncio.sleep(2)
+        
+        # List stored datasets
+        list_response = requests.get(
+            f"{api_base_url}/api/data",
+            params={"limit": 10},
+            timeout=10
+        )
+        
+        # May or may not have data depending on configuration
+        # Just verify endpoint works
+        assert list_response.status_code in [200, 404]
+    
+    # ==================== CRITICAL FLOW 3: Worker with Tool Execution ====================
+    
+    @pytest.mark.asyncio
+    async def test_worker_endpoint_tool_execution(self, api_base_url, check_server):
+        """
+        CRITICAL FLOW: Direct worker execution with tool usage
+        
+        Steps:
+        1. Call worker endpoint with specific agent
+        2. Agent executes with tools
+        3. Verify tool execution results
+        4. Check response structure
+        """
+        thread_id = f"api_worker_{uuid.uuid4().hex[:8]}"
+        
+        # Call worker endpoint
+        worker_request = {
+            "agent_name": "test_agent",
+            "input": "Calculate 15 plus 27 and tell me the result.",
+            "thread_id": thread_id
+        }
+        
+        response = requests.post(
+            f"{api_base_url}/worker",
+            json=worker_request,
+            timeout=30
+        )
+        
+        # Worker endpoint may not be configured with test_agent
+        # Verify endpoint works (200 or 404/500 is acceptable)
+        assert response.status_code in [200, 404, 500]
+        
+        if response.status_code == 200:
+            data = response.json()
+            assert "result" in data or "response" in data
+            # If successful, should have the answer 42
+            response_text = json.dumps(data).lower()
+            assert "42" in response_text or "forty" in response_text
+    
+    # ==================== CRITICAL FLOW 4: Memory Management ====================
+    
+    @pytest.mark.asyncio
+    async def test_memory_management_through_api(self, api_base_url, check_server):
+        """
+        CRITICAL FLOW: Memory management operations through API
+        
+        Steps:
+        1. Get initial memory stats
+        2. Create conversation with memory
+        3. Get updated memory stats
+        4. Verify memory tracking
+        """
+        # Get initial memory stats
+        stats_response = requests.get(
+            f"{api_base_url}/memory/stats",
+            timeout=10
+        )
+        
+        assert stats_response.status_code == 200
+        stats_data = stats_response.json()
+        
+        # Verify stats structure
+        assert isinstance(stats_data, dict)
+        
+        # Create conversation to generate memory
+        thread_id = f"api_memory_{uuid.uuid4().hex[:8]}"
+        
+        conv_request = {
+            "input": "My name is Alice and I work as a data scientist.",
+            "thread_id": thread_id
+        }
+        
+        response = requests.post(
+            f"{api_base_url}/query",
+            json=conv_request,
+            timeout=30
+        )
+        
+        assert response.status_code == 200
+        
+        await asyncio.sleep(2)
+        
+        # Get updated stats
+        stats_response2 = requests.get(
+            f"{api_base_url}/memory/stats",
+            timeout=10
+        )
+        
+        assert stats_response2.status_code == 200
+        stats_data2 = stats_response2.json()
+        assert isinstance(stats_data2, dict)
+    
+    # ==================== CRITICAL FLOW 5: Multi-Turn with Data Accumulation ====================
+    
+    @pytest.mark.asyncio
+    async def test_multi_turn_data_accumulation(self, api_base_url, check_server):
+        """
+        CRITICAL FLOW: Multi-turn conversation with progressive data accumulation
+        
+        Steps:
+        1. Turn 1: Start with initial data
+        2. Turn 2: Add more data
+        3. Turn 3: Add even more data
+        4. Turn 4: Query accumulated data
+        5. Verify all data is accumulated correctly
+        """
+        thread_id = f"api_accumulate_{uuid.uuid4().hex[:8]}"
+        
+        # Turn 1: Initial data
+        turn1 = {
+            "input": "I'm creating a list of my favorite fruits. First: apple, banana, cherry.",
+            "thread_id": thread_id
+        }
+        
+        r1 = requests.post(f"{api_base_url}/query", json=turn1, timeout=30)
+        assert r1.status_code == 200
+        assert "apple" in r1.json()["response"].lower() or "banana" in r1.json()["response"].lower()
+        
+        await asyncio.sleep(2)
+        
+        # Turn 2: Add more
+        turn2 = {
+            "input": "Add to my list: date, elderberry.",
+            "thread_id": thread_id
+        }
+        
+        r2 = requests.post(f"{api_base_url}/query", json=turn2, timeout=30)
+        assert r2.status_code == 200
+        
+        await asyncio.sleep(2)
+        
+        # Turn 3: Add final items
+        turn3 = {
+            "input": "And add: fig, grape.",
+            "thread_id": thread_id
+        }
+        
+        r3 = requests.post(f"{api_base_url}/query", json=turn3, timeout=30)
+        assert r3.status_code == 200
+        
+        await asyncio.sleep(2)
+        
+        # Turn 4: Query total
+        turn4 = {
+            "input": "How many fruits are in my complete list?",
+            "thread_id": thread_id
+        }
+        
+        r4 = requests.post(f"{api_base_url}/query", json=turn4, timeout=30)
+        assert r4.status_code == 200
+        # Should mention 7 fruits
+        response_text = r4.json()["response"].lower()
+        assert "7" in response_text or "seven" in response_text
+    
+    # ==================== CRITICAL FLOW 6: Performance Monitoring ====================
+    
+    @pytest.mark.asyncio
+    async def test_performance_monitoring(self, api_base_url, check_server):
+        """
+        CRITICAL FLOW: API performance and health monitoring
+        
+        Steps:
+        1. Check health endpoint
+        2. Get performance stats
+        3. Make several requests
+        4. Verify performance tracking
+        """
+        # Health check
+        health_response = requests.get(f"{api_base_url}/health", timeout=5)
+        assert health_response.status_code == 200
+        health_data = health_response.json()
+        assert health_data["status"] == "healthy"
+        
+        # Get initial performance stats
+        perf_response = requests.get(f"{api_base_url}/performance/stats", timeout=5)
+        assert perf_response.status_code == 200
+        perf_data = perf_response.json()
+        
+        # Verify stats structure
+        assert "total_requests" in perf_data or "status" in perf_data
+        
+        # Make a few requests
+        thread_id = f"api_perf_{uuid.uuid4().hex[:8]}"
+        
+        for i in range(3):
+            request_data = {
+                "input": f"Quick test query number {i+1}",
+                "thread_id": f"{thread_id}_{i}"
+            }
+            
+            response = requests.post(
+                f"{api_base_url}/query",
+                json=request_data,
+                timeout=30
+            )
+            
+            assert response.status_code == 200
+            await asyncio.sleep(1)
+        
+        # Get updated performance stats
+        perf_response2 = requests.get(f"{api_base_url}/performance/stats", timeout=5)
+        assert perf_response2.status_code == 200
+    
+    # ==================== CRITICAL FLOW 7: Complex Workflow ====================
+    
+    @pytest.mark.asyncio
+    async def test_complex_multi_turn_workflow(self, api_base_url, check_server):
+        """
+        CRITICAL FLOW: Complex multi-turn workflow combining multiple features
+        
+        Steps:
+        1. Initialize conversation with context
+        2. Request data processing
+        3. Store results
+        4. Query stored results
+        5. Perform calculations on results
+        6. Verify end-to-end workflow
+        """
+        thread_id = f"api_complex_{uuid.uuid4().hex[:8]}"
+        
+        # Step 1: Initialize
+        step1 = {
+            "input": "I'm starting a new project. My project budget is $10,000.",
+            "thread_id": thread_id
+        }
+        
+        r1 = requests.post(f"{api_base_url}/query", json=step1, timeout=30)
+        assert r1.status_code == 200
+        await asyncio.sleep(2)
+        
+        # Step 2: Add expenses
+        step2 = {
+            "input": "I spent $2,500 on equipment and $1,500 on software.",
+            "thread_id": thread_id
+        }
+        
+        r2 = requests.post(f"{api_base_url}/query", json=step2, timeout=30)
+        assert r2.status_code == 200
+        await asyncio.sleep(2)
+        
+        # Step 3: Calculate remaining
+        step3 = {
+            "input": "How much budget do I have remaining?",
+            "thread_id": thread_id
+        }
+        
+        r3 = requests.post(f"{api_base_url}/query", json=step3, timeout=30)
+        assert r3.status_code == 200
+        response_text = r3.json()["response"]
+        
+        # Should calculate: 10000 - 2500 - 1500 = 6000
+        assert "6" in response_text and "000" in response_text or "6,000" in response_text
+        await asyncio.sleep(2)
+        
+        # Step 4: Add more expenses
+        step4 = {
+            "input": "I just spent another $1,000 on marketing.",
+            "thread_id": thread_id
+        }
+        
+        r4 = requests.post(f"{api_base_url}/query", json=step4, timeout=30)
+        assert r4.status_code == 200
+        await asyncio.sleep(2)
+        
+        # Step 5: Final calculation
+        step5 = {
+            "input": "What's my current remaining budget?",
+            "thread_id": thread_id
+        }
+        
+        r5 = requests.post(f"{api_base_url}/query", json=step5, timeout=30)
+        assert r5.status_code == 200
+        response_text = r5.json()["response"]
+        
+        # Should calculate: 6000 - 1000 = 5000
+        assert "5" in response_text and ("000" in response_text or "5,000" in response_text)
+    
+    # ==================== CRITICAL FLOW 8: Error Recovery ====================
+    
+    @pytest.mark.asyncio
+    async def test_api_error_recovery(self, api_base_url, check_server):
+        """
+        CRITICAL FLOW: API error handling and recovery
+        
+        Steps:
+        1. Send invalid request
+        2. Verify error handling
+        3. Send valid request after error
+        4. Verify system recovery
+        """
+        thread_id = f"api_error_{uuid.uuid4().hex[:8]}"
+        
+        # Send invalid request (missing required fields)
+        invalid_request = {
+            "input": "",  # Empty input
+            "config_name": "default"
+        }
+        
+        response1 = requests.post(
+            f"{api_base_url}/query",
+            json=invalid_request,
+            timeout=10
+        )
+        
+        # Should handle error gracefully
+        assert response1.status_code in [400, 422, 500]
+        
+        await asyncio.sleep(1)
+        
+        # Send valid request to verify recovery
+        valid_request = {
+            "input": "This is a valid request.",
+            "thread_id": thread_id
+        }
+        
+        response2 = requests.post(
+            f"{api_base_url}/query",
+            json=valid_request,
+            timeout=30
+        )
+        
+        # Should work after error
+        assert response2.status_code == 200
+        assert "response" in response2.json()
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

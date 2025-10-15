@@ -13,11 +13,19 @@ import gzip
 import pickle
 import hashlib
 import logging
+import threading
 from typing import Any, Dict, Optional, List, Union
 from pathlib import Path
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
+
+# Import centralized database configuration
+try:
+    from app.database_config import get_large_data_config
+except ImportError:
+    # Fallback for standalone usage
+    get_large_data_config = None
 
 log = logging.getLogger(__name__)
 
@@ -39,17 +47,53 @@ class StorageInfo:
     file_path: Optional[str] = None
 
 class LargeDataStorage:
-    """Optimized storage for large tool call data - separate from ChromaDB"""
-    
-    def __init__(self, config: Dict[str, Any]):
+    """Optimized storage for large tool call data - separate from ChromaDB
+
+    Thread Safety:
+    - Uses SQLite WAL mode for concurrent reads/writes
+    - Reference IDs are UUID4-based (cryptographically unique)
+    - Database operations use thread-safe connection with check_same_thread=False
+    - Write operations are protected by threading.Lock for safety
+    """
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """
+        Initialize Large Data Storage
+        
+        Args:
+            config: Optional configuration dict. If None, loads from environment via database_config.
+                   Expected keys:
+                   - sqlite_path: Path to SQLite database
+                   - file_path: Path to file storage directory
+                   - compression: Enable compression (default: True)
+                   - max_sqlite_size_mb: Max SQLite size in MB (default: 50)
+        """
+        # Load from centralized config if no config provided
+        if config is None:
+            if get_large_data_config is not None:
+                config = get_large_data_config(format="app")
+                log.info("Using centralized database configuration")
+            else:
+                # Fallback to defaults
+                config = {
+                    "sqlite_path": "./data/large_data_storage.db",
+                    "file_path": "./data/large_files/",
+                    "compression": True,
+                    "max_sqlite_size_mb": 50
+                }
+                log.warning("Using fallback database configuration")
+        
         self.db_path = config.get("sqlite_path", "./large_tool_data.db")
         self.file_storage_path = Path(config.get("file_path", "./large_tool_data_files/"))
         self.compression_enabled = config.get("compression", True)
         self.max_sqlite_size_mb = config.get("max_sqlite_size_mb", 50)
-        
+
+        # Thread safety: Lock for write operations
+        self._write_lock = threading.Lock()
+
         # Create directories
         self.file_storage_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Initialize SQLite with optimized settings
         self._init_database()
         log.info(f"Large data storage initialized: DB={self.db_path}, Files={self.file_storage_path}")
@@ -91,10 +135,13 @@ class LargeDataStorage:
         
         self.conn.commit()
     
-    def store_large_data(self, reference_id: str, tool_name: str, 
+    def store_large_data(self, reference_id: str, tool_name: str,
                         data: Any, metadata: Optional[Dict] = None) -> StorageInfo:
-        """Store large data using optimal storage strategy"""
-        
+        """Store large data using optimal storage strategy
+
+        Thread-safe: Uses lock for write operations to prevent race conditions.
+        """
+
         # Serialize data
         if isinstance(data, (dict, list)):
             serialized = json.dumps(data, default=str, ensure_ascii=False)
@@ -105,86 +152,99 @@ class LargeDataStorage:
         else:
             serialized = str(data)
             content_type = 'string'
-        
+
         data_bytes = serialized.encode('utf-8')
         size_bytes = len(data_bytes)
         size_mb = size_bytes / (1024 * 1024)
-        
+
         # Determine optimal storage strategy
         storage_info = self._determine_storage_strategy(size_mb)
         data_hash = hashlib.sha256(data_bytes).hexdigest()
         expires_at = datetime.now() + timedelta(hours=48)  # Default 48h expiry
-        
-        if storage_info["type"] == "sqlite":
-            # Store in SQLite (with optional compression)
-            data_to_store = data_bytes
-            if self.compression_enabled and size_mb > 0.1:  # Compress if >100KB
-                data_to_store = gzip.compress(data_bytes)
-                compressed = True
+
+        # Thread safety: Acquire lock for write operation
+        with self._write_lock:
+            if storage_info["type"] == "sqlite":
+                # Store in SQLite (with optional compression)
+                data_to_store = data_bytes
+                if self.compression_enabled and size_mb > 0.1:  # Compress if >100KB
+                    data_to_store = gzip.compress(data_bytes)
+                    compressed = True
+                else:
+                    compressed = False
+
+                self.conn.execute("""
+                    INSERT OR REPLACE INTO large_tool_data
+                    (reference_id, tool_name, storage_type, data_blob, data_hash,
+                     size_bytes, size_category, content_type, compressed, metadata, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    reference_id, tool_name, storage_info["type"], data_to_store, data_hash,
+                    size_bytes, storage_info["category"].value, content_type, compressed,
+                    json.dumps(metadata or {}), expires_at
+                ))
+
+                result = StorageInfo(
+                    reference_id=reference_id,
+                    storage_type=storage_info["type"],
+                    size_bytes=size_bytes,
+                    size_mb=size_mb,
+                    size_category=storage_info["category"],
+                    content_type=content_type,
+                    compressed=compressed
+                )
+
             else:
-                compressed = False
-            
-            self.conn.execute("""
-                INSERT OR REPLACE INTO large_tool_data 
-                (reference_id, tool_name, storage_type, data_blob, data_hash, 
-                 size_bytes, size_category, content_type, compressed, metadata, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                reference_id, tool_name, storage_info["type"], data_to_store, data_hash,
-                size_bytes, storage_info["category"].value, content_type, compressed,
-                json.dumps(metadata or {}), expires_at
-            ))
-            
-            result = StorageInfo(
-                reference_id=reference_id,
-                storage_type=storage_info["type"],
-                size_bytes=size_bytes,
-                size_mb=size_mb,
-                size_category=storage_info["category"],
-                content_type=content_type,
-                compressed=compressed
-            )
-        
-        else:
-            # Store in file system
-            file_name = f"{reference_id}.json.gz" if self.compression_enabled else f"{reference_id}.json"
-            file_path = self.file_storage_path / file_name
-            
-            if self.compression_enabled:
-                with gzip.open(file_path, 'wb') as f:
-                    f.write(data_bytes)
-                compressed = True
-            else:
-                with open(file_path, 'wb') as f:
-                    f.write(data_bytes)
-                compressed = False
-            
-            # Store metadata in SQLite
-            self.conn.execute("""
-                INSERT OR REPLACE INTO large_tool_data 
-                (reference_id, tool_name, storage_type, storage_location, data_hash, 
-                 size_bytes, size_category, content_type, compressed, metadata, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                reference_id, tool_name, "file_system", str(file_path), data_hash,
-                size_bytes, storage_info["category"].value, content_type, compressed,
-                json.dumps(metadata or {}), expires_at
-            ))
-            
-            result = StorageInfo(
-                reference_id=reference_id,
-                storage_type="file_system",
-                size_bytes=size_bytes,
-                size_mb=size_mb,
-                size_category=storage_info["category"],
-                content_type=content_type,
-                compressed=compressed,
-                file_path=str(file_path)
-            )
-        
-        self.conn.commit()
-        log.debug(f"Stored {size_mb:.2f}MB data with reference {reference_id} using {storage_info['type']}")
-        return result
+                # Store in file system
+                file_name = f"{reference_id}.json.gz" if self.compression_enabled else f"{reference_id}.json"
+                file_path = self.file_storage_path / file_name
+
+                if self.compression_enabled:
+                    with gzip.open(file_path, 'wb') as f:
+                        f.write(data_bytes)
+                    compressed = True
+                else:
+                    with open(file_path, 'wb') as f:
+                        f.write(data_bytes)
+                    compressed = False
+
+                # Store metadata in SQLite
+                self.conn.execute("""
+                    INSERT OR REPLACE INTO large_tool_data
+                    (reference_id, tool_name, storage_type, storage_location, data_hash,
+                     size_bytes, size_category, content_type, compressed, metadata, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    reference_id, tool_name, "file_system", str(file_path), data_hash,
+                    size_bytes, storage_info["category"].value, content_type, compressed,
+                    json.dumps(metadata or {}), expires_at
+                ))
+
+                result = StorageInfo(
+                    reference_id=reference_id,
+                    storage_type="file_system",
+                    size_bytes=size_bytes,
+                    size_mb=size_mb,
+                    size_category=storage_info["category"],
+                    content_type=content_type,
+                    compressed=compressed,
+                    file_path=str(file_path)
+                )
+
+            # Commit transaction (still within lock)
+            self.conn.commit()
+
+            # Force immediate persistence to disk (critical for MCP server processes)
+            # This ensures data is written even if process terminates immediately
+            try:
+                self.conn.execute("PRAGMA wal_checkpoint(FULL)")
+                self.conn.commit()
+                log.debug(f"WAL checkpoint completed for {reference_id}")
+            except Exception as e:
+                log.warning(f"WAL checkpoint failed (non-critical): {e}")
+
+            log.debug(f"Stored {size_mb:.2f}MB data with reference {reference_id} using {storage_info['type']}")
+            return result
     
     def _determine_storage_strategy(self, size_mb: float) -> Dict[str, Any]:
         """Determine optimal storage strategy based on data size"""
@@ -333,3 +393,30 @@ class LargeDataStorage:
             "cleaned_records": cleaned_records,
             "cleaned_files": cleaned_files
         }
+    
+    def list_references(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """List stored data references"""
+        cursor = self.conn.execute("""
+            SELECT reference_id, tool_name, size_bytes, size_category,
+                   storage_type, content_type, created_at, last_accessed
+            FROM large_tool_data 
+            ORDER BY created_at DESC 
+            LIMIT ?
+        """, (limit,))
+        
+        references = []
+        for row in cursor.fetchall():
+            ref_id, tool_name, size_bytes, size_category, storage_type, content_type, created_at, last_accessed = row
+            references.append({
+                "reference_id": ref_id,
+                "tool_name": tool_name,
+                "size_bytes": size_bytes,
+                "size_mb": size_bytes / (1024 * 1024),
+                "size_category": size_category,
+                "storage_type": storage_type,
+                "content_type": content_type,
+                "created_at": created_at,
+                "last_accessed": last_accessed
+            })
+        
+        return references

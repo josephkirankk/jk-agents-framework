@@ -107,3 +107,11 @@ jk_agents_memory/
 test_jk_agents_memory/
 agentlogs/
 simple_memory/
+advanced_memory_test/
+data/backups/
+data/
+youtube_memory/
+test_memory/
+integration_tests/integration_tests/temp/
+integration_tests/test_checkpoints/
+test_checkpoints/

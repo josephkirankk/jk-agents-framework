@@ -1,0 +1,316 @@
+# Large Data MCP Server Demo Configuration
+# 
+# This configuration demonstrates how to use the new Large Data MCP Server
+# to efficiently handle large datasets without flooding the LLM context.
+#
+# Key Features:
+# - Store large datasets in database-backed storage (SQLite + file system)
+# - Retrieve datasets by reference ID
+# - Get previews without loading full data
+# - Automatic cleanup of expired data
+# - Significant token savings for large data operations
+
+business_context: |
+  This is a demonstration of the Large Data MCP Server integration with the JK Agents Framework.
+  
+  The system uses database-backed storage to handle large datasets efficiently:
+  - Datasets are stored in SQLite (for metadata and medium data) and file system (for large data)
+  - Only previews and reference IDs are returned to the LLM, avoiding context overflow
+  - Full datasets can be retrieved when needed using reference IDs
+  - Data persists across sessions and can be accessed multiple times
+  - Automatic compression and multi-tier storage optimization
+  
+  This approach dramatically reduces token usage and improves response times when working
+  with large datasets (e.g., 10K+ records, large JSON files, etc.)
+
+temperature: 0.1
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+
+# ChromaDB Memory Configuration for conversation history
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./large_data_demo_memory"
+    collection_name: "large_data_demo"
+    max_connections: 15
+    l1_cache_size: 3000
+
+# Large data handling configuration
+large_data_handling:
+  enabled: true
+  token_threshold: 1000
+  
+  large_data:
+    sqlite_path: "./data/large_data_storage.db"
+    file_path: "./data/large_files/"
+    compression: true
+    max_sqlite_size_mb: 50
+  
+  summarization:
+    max_summary_tokens: 200
+    sample_size: 5
+    include_statistics: true
+
+# Supervisor configuration
+supervisor:
+  name: "data_supervisor"
+  prompt: |
+    {{agents}}
+
+    Create a JSON execution plan. Output ONLY JSON, nothing else.
+
+    For "generate and analyze" requests, create 2 steps:
+    - Step 1: data_generator (timeout: 180)
+      Task: "Generate [specific data description]"
+    - Step 2: data_analyzer with depends_on: ["s1"] (timeout: 120)
+      Task: "Analyze the dataset from step s1. The reference ID will be available in the previous step's response."
+
+    For "generate only" requests, create 1 step:
+    - Step 1: data_generator (timeout: 180)
+
+    For "analyze only" requests, create 1 step:
+    - Step 1: data_analyzer (timeout: 120)
+
+    CRITICAL: For step 2 (data_analyzer), the task description should mention that the reference ID
+    will be available from step s1's response. The agent will extract it from the context automatically.
+
+    JSON format:
+    {
+      "goal": "brief task description",
+      "plan": [
+        {"id": "s1", "agent": "agent_name", "task": "specific task", "depends_on": [], "verify": null, "timeout_seconds": 180, "retry": 1}
+      ]
+    }
+
+    Output ONLY the JSON. No explanations.
+
+# Agent configurations
+agents:
+  # Agent for generating and storing large datasets
+  - name: "data_generator"
+    description: "Generates large datasets and stores them efficiently using the Large Data MCP Server"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    prompt: |
+      You are a data generation specialist with access to Python execution and automatic large data storage.
+
+      Your capabilities:
+      1. Generate large datasets using Python code
+      2. Datasets are AUTOMATICALLY stored when they exceed 5 records
+      3. You receive a preview + reference ID instead of the full dataset
+
+      CRITICAL: When generating datasets, you MUST generate the FULL dataset as requested by the user.
+      - If user asks for 100 customers with 50 orders each, generate ALL 5000 orders
+      - If user asks for 10000 records, generate ALL 10000 records
+      - DO NOT generate only a preview or sample - generate the COMPLETE dataset
+
+      AUTOMATIC STORAGE WORKFLOW:
+      1. Use run_python_code to generate the COMPLETE dataset
+      2. Return the full dataset as a Python list or dict
+      3. The system AUTOMATICALLY stores datasets with >5 items
+      4. You receive back: {reference_id, preview, total_count, description}
+      5. Share the reference_id and preview with the user
+
+      Example workflow for generating 10000 records:
+      ```python
+      import json
+      # Generate FULL dataset - all 10000 records
+      data = [{"id": i, "value": f"item_{i}"} for i in range(10000)]
+      # Return the complete list (system auto-stores it)
+      data
+      ```
+
+      IMPORTANT:
+      - Just return the Python list/dict from your code
+      - DO NOT call store_large_dataset manually - it happens automatically
+      - The system detects large datasets and stores them for you
+      - You'll receive a response with reference_id and preview
+
+      Always provide clear information to the user about:
+      - TOTAL number of records generated (from the response)
+      - Reference ID for future retrieval
+      - Preview of the first few records
+    
+    mcp_servers:
+      # Python execution with automatic large dataset storage
+      python_runner:
+        description: "Python code execution with auto-storage for large datasets"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_python_wrapper"
+
+      # Large Data MCP Server for manual storage and retrieval
+      large_data_storage:
+        description: "Database-backed storage for large datasets - manual operations"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_large_data_server"
+
+  # Agent for analyzing stored datasets
+  - name: "data_analyzer"
+    description: "Analyzes datasets stored in the Large Data MCP Server using reference IDs"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    prompt: |
+      You are a data analysis specialist with access to stored datasets.
+
+      CRITICAL WORKFLOW - FOLLOW EXACTLY:
+
+      **Step 1: Extract Reference ID**
+      - Check the task description for reference IDs (format: ref_xxxxxxxxxxxx)
+      - If analyzing data from a previous step, look for "Reference ID:" in the context
+      - If no reference ID is provided, use list_stored_datasets to find recent datasets
+
+      **Step 2: Analyze Using Python with Auto-Loaded Dataset**
+      - Use run_python_code with the dataset_reference_id parameter
+      - The dataset will be AUTOMATICALLY loaded into the 'data' variable BEFORE your code runs
+      - You have access to: pandas (as pd), numpy (as np), and standard library
+      - Write Python code that:
+        * DIRECTLY uses the 'data' variable (it's already loaded - DO NOT try to load it yourself)
+        * Converts to pandas DataFrame: df = pd.DataFrame(data)
+        * Uses pandas for efficient data analysis (groupby, agg, etc.)
+        * Calculates statistics and aggregations
+        * Identifies patterns and insights
+        * Generates summary metrics
+      - DO NOT analyze in your head - ALWAYS use Python code
+      - CRITICAL: The 'data' variable is automatically available - DO NOT try to load it with any function or variable
+
+      **Step 4: Present Insights**
+      - Share the analysis results with clear explanations
+      - Include specific numbers and statistics from the Python analysis
+      - Provide actionable insights based on the data
+
+      EXAMPLE WORKFLOW:
+
+      Task: "Analyze the generated customer dataset from step s1"
+
+      1. Extract reference ID from previous step output (e.g., "ref_abc123")
+      2. Call: run_python_code with dataset_reference_id parameter:
+         ```python
+         # Call the tool with:
+         # python_code = "..." (the code below)
+         # dataset_reference_id = "ref_abc123"
+
+         import pandas as pd
+
+         # IMPORTANT: The 'data' variable is ALREADY LOADED for you!
+         # DO NOT try to load it yourself - just use it directly
+         # It contains the full dataset from the reference ID
+
+         # Convert to pandas DataFrame (data is already available)
+         df = pd.DataFrame(data)
+
+         # Calculate statistics
+         total_records = len(df)
+         avg_order_value = df['total_amount'].mean()
+         total_revenue = df['total_amount'].sum()
+
+         # Group by customer
+         customer_stats = df.groupby('customer_id').agg({
+             'order_id': 'count',
+             'total_amount': 'sum'
+         }).reset_index()
+         customer_stats.columns = ['customer_id', 'order_count', 'total_spent']
+         top_customers = customer_stats.nlargest(5, 'total_spent').to_dict('records')
+
+         # CRITICAL: Return a dictionary, NOT a DataFrame
+         # Convert any DataFrames to dictionaries using .to_dict('records')
+         {
+           "total_records": int(total_records),
+           "average_order_value": float(round(avg_order_value, 2)),
+           "total_revenue": float(round(total_revenue, 2)),
+           "top_5_customers": top_customers  # Already converted to dict above
+         }
+         ```
+      3. Present the results to the user
+
+      **CRITICAL: Always return dictionaries or lists, NEVER return DataFrame objects directly**
+      - Use `df.to_dict('records')` to convert DataFrame to list of dicts
+      - Use `df.to_dict()` to convert DataFrame to nested dict
+      - Use `series.to_list()` to convert Series to list
+      - Use `int()`, `float()`, `str()` to convert numpy types to Python types
+
+      CRITICAL RULES:
+      - NEVER make up statistics - always calculate from real data using Python
+      - ALWAYS use Python for calculations - never estimate in your head
+      - You have access to pandas (pd) and numpy (np) for efficient data analysis
+      - The reference ID is ALWAYS passed in your task description from previous steps
+      - Use run_python_code with dataset_reference_id parameter to auto-load data
+      - The 'data' variable will be automatically available in your Python code
+      - If you can't find a reference ID, ask the user or list available datasets
+      - DO NOT use variables like MCP_DATASET_LOAD, MCP_LOAD_DATASET, or any other loading functions
+      - The data is PRE-LOADED - just use the 'data' variable directly in your code
+
+      Available tools:
+      - run_python_code: Execute Python with auto-loaded dataset (pass dataset_reference_id parameter)
+      - retrieve_large_dataset: Get complete dataset by reference_id (optional, for manual retrieval)
+      - get_dataset_preview: Get metadata and sample (optional, for exploration)
+      - list_stored_datasets: See all available datasets (if reference_id unknown)
+    
+    mcp_servers:
+      # Python execution with pandas/numpy support
+      python_runner:
+        description: "Python code execution with pandas and numpy support"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_python_wrapper"
+
+      # Large Data MCP Server for retrieval
+      large_data_storage:
+        description: "Database-backed storage for large datasets - efficient retrieval"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_large_data_server"
+
+  # Agent for data management and cleanup
+  - name: "data_manager"
+    description: "Manages stored datasets, performs cleanup, and monitors storage usage"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    prompt: |
+      You are a data management specialist responsible for maintaining the large data storage system.
+      
+      Your responsibilities:
+      1. Monitor storage usage and statistics
+      2. List and organize stored datasets
+      3. Clean up expired or unnecessary data
+      4. Provide storage health reports
+      
+      Available tools:
+      - list_stored_datasets: View all stored datasets with metadata
+      - get_storage_statistics: Get comprehensive storage stats
+      - cleanup_expired_datasets: Remove expired data to free space
+      - get_dataset_preview: Inspect specific datasets
+      
+      When managing storage:
+      - Regularly check storage statistics
+      - Identify large or old datasets
+      - Recommend cleanup when storage is high
+      - Provide clear reports on storage health
+    
+    mcp_servers:
+      large_data_storage:
+        description: "Database-backed storage management"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_large_data_server"
+
+# Resource limits
+resource_limits:
+  max_memory_mb: 1024
+  max_connections: 50
+  max_concurrent_operations: 100
+

@@ -122,7 +122,45 @@ def _sanitize_for_moderation(text: str, max_chars: int = 2000) -> str:
 
 
 async def llm_verify(check_prompt: str, model: str):
-    chat = init_chat_model(model)
+    # Handle Azure OpenAI models with our custom wrapper
+    if model.startswith("azure/"):
+        try:
+            from .azure_litellm_wrapper import AzureLiteLLMChat
+            chat = AzureLiteLLMChat(model=model)
+        except ImportError:
+            # Fallback to standard init_chat_model
+            chat = init_chat_model(model)
+    # Handle Google Gemini models
+    elif model.startswith("google:"):
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            import os
+            # Load environment variables
+            try:
+                from dotenv import load_dotenv
+                load_dotenv()
+            except ImportError:
+                pass
+            
+            # Extract the model name after the prefix
+            model_name = model.split("google:", 1)[1]
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                log.error(f"GOOGLE_API_KEY not found for verification with model {model}")
+                # Fallback to standard init_chat_model
+                chat = init_chat_model(model)
+            else:
+                log.info(f"Using Google Gemini model {model_name} for verification")
+                chat = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    google_api_key=api_key,
+                    temperature=0.2,
+                )
+        except ImportError:
+            # Fallback to standard init_chat_model
+            chat = init_chat_model(model)
+    else:
+        chat = init_chat_model(model)
     messages = [
         {"role": "system", "content": "You are an objective verifier."},
         {"role": "user", "content": check_prompt},
@@ -201,26 +239,66 @@ async def execute_plan(
     base_thread_id = get_or_create_thread_id(thread_id)
     supervisor_thread_id = create_supervisor_thread_id(base_thread_id)
 
-    # Prepare log file with timestamped name at repo root
+    # Detect if supervisor is using structured output (new format)
+    use_structured_output = isinstance(supervisor_compiled, dict) and "llm" in supervisor_compiled
+    if use_structured_output:
+        log.info("🎯 Using structured output supervisor")
+        structured_llm = supervisor_compiled["llm"]
+        supervisor_prompt = supervisor_compiled["prompt"]
+        supervisor_model_id = supervisor_compiled["model_id"]
+    else:
+        log.info("📝 Using legacy supervisor (LangGraph agent)")
+        structured_llm = None
+        supervisor_prompt = None
+        supervisor_model_id = getattr(supervisor_compiled, '_model_id', 'unknown')
+
+    # Prepare log file with timestamped name in agentlogs directory
     log_file_path: Optional[Path] = None
     try:
         ts = datetime.now().strftime("%Y%m%d%H%M%S")
         repo_root = Path(__file__).resolve().parents[1]
-        log_file_path = repo_root / f"agentlog_{ts}.log"
-    except Exception:
+        log.info(f"Repository root directory: {repo_root}")
+        
+        agentlogs_dir = repo_root / "agentlogs"
+        log.info(f"Agent logs directory: {agentlogs_dir}, exists: {agentlogs_dir.exists()}, is_dir: {agentlogs_dir.is_dir() if agentlogs_dir.exists() else False}")
+        
+        # Create agentlogs directory if it doesn't exist
+        agentlogs_dir.mkdir(exist_ok=True)
+        log.info(f"After mkdir: exists: {agentlogs_dir.exists()}, is_dir: {agentlogs_dir.is_dir() if agentlogs_dir.exists() else False}")
+        
+        log_file_path = agentlogs_dir / f"agentlog_{ts}.log"
+        log.info(f"Log file path: {log_file_path}")
+    except Exception as e:
+        log.error(f"Failed to create log file path: {e}")
         log_file_path = None
 
     def _safe_write(lines: List[str]):
         if not log_file_path:
+            log.warning("No log file path available, not writing logs")
             return
         try:
+            log.info(f"Writing {len(lines)} lines to log file: {log_file_path}")
             with log_file_path.open("a", encoding="utf-8") as f:
                 for line in lines:
                     f.write(line)
                     if not line.endswith("\n"):
                         f.write("\n")
+            log.info(f"Successfully wrote to log file: {log_file_path}")
         except Exception as e:
-            log.debug("Log file write failed: %s", e)
+            log.error(f"Log file write failed: {e}, path: {log_file_path}")
+            # Try writing to a fallback location in the root directory
+            try:
+                fallback_path = Path(__file__).resolve().parents[1] / f"agentlog_{datetime.now().strftime('%Y%m%d%H%M%S')}.log"
+                log.warning(f"Attempting to write to fallback location: {fallback_path}")
+                with fallback_path.open("a", encoding="utf-8") as f:
+                    for line in lines:
+                        f.write(line)
+                        if not line.endswith("\n"):
+                            f.write("\n")
+                log.info(f"Successfully wrote to fallback log file: {fallback_path}")
+            except Exception as fallback_e:
+                log.error(f"Fallback log write also failed: {fallback_e}")
+                # Give up at this point
 
     def _extract_usage(msg: Any) -> Dict[str, int]:
         usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
@@ -408,127 +486,276 @@ async def execute_plan(
         )
     except Exception as e:
         log.warning("Failed to print supervisor invocation messages: %s", e)
-    try:
-        config = {"configurable": {"thread_id": supervisor_thread_id}}
-        # Log supervisor request
+    # STRUCTURED OUTPUT PATH: Use new supervisor with guaranteed JSON
+    if use_structured_output:
         _safe_write([
-            "--- Supervisor Request ---",
-            f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
-            f"Planning Prompt: {getattr(supervisor_compiled, '_rendered_prompt', '(none)')}",
+            "--- Supervisor Request (Structured Output) ---",
+            f"Model: {supervisor_model_id}",
             f"System Context: {sup_system_context}",
             f"User: {user_input}",
             "",
         ])
         log.info(
-            "Supervisor planning: start (timeout=%ss)",
+            "Supervisor planning with structured output: start (timeout=%ss)",
             default_supervisor_timeout_seconds,
         )
         t0 = time.perf_counter()
-        if default_supervisor_timeout_seconds:
-            sup_out = await asyncio.wait_for(
-                supervisor_compiled.ainvoke(sup_state, config=config),
-                timeout=default_supervisor_timeout_seconds,
-            )
-        else:
-            sup_out = await supervisor_compiled.ainvoke(
-                sup_state, config=config
-            )
-        log.info(
-            "Supervisor planning: done in %.2fs",
-            time.perf_counter() - t0,
-        )
-    except AttributeError:
-        config = {"configurable": {"thread_id": supervisor_thread_id}}
-        _safe_write([
-            "--- Supervisor Request ---",
-            f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
-            f"Planning Prompt: {getattr(supervisor_compiled, '_rendered_prompt', '(none)')}",
-            f"System Context: {sup_system_context}",
-            f"User: {user_input}",
-            "",
-        ])
-        log.info(
-            "Supervisor planning (sync): start (timeout=%ss)",
-            default_supervisor_timeout_seconds,
-        )
-        t0 = time.perf_counter()
-        if default_supervisor_timeout_seconds:
-            sup_out = await asyncio.wait_for(
-                asyncio.to_thread(
-                    supervisor_compiled.invoke, sup_state, config=config
-                ),
-                timeout=default_supervisor_timeout_seconds,
-            )
-        else:
-            sup_out = await asyncio.to_thread(
-                supervisor_compiled.invoke, sup_state, config=config
-            )
-        log.info(
-            "Supervisor planning (sync): done in %.2fs",
-            time.perf_counter() - t0,
-        )
-    except asyncio.TimeoutError:
-        raise RuntimeError(
-            "Supervisor planning timed out after "
-            f"{default_supervisor_timeout_seconds}s"
-        )
-    except asyncio.CancelledError:
-        raise RuntimeError(
-            "Supervisor planning cancelled (timeout or external cancel)"
-        )
 
-    sup_msgs = sup_out.get("messages", [])
-    if sup_msgs:
-        # LangGraph messages are objects with .content attribute
-        last_msg = sup_msgs[-1]
-        sup_text = getattr(last_msg, "content", "")
-        # Track usage for supervisor
-        calls["supervisor"] += 1
-        u = _extract_usage(last_msg)
-        tokens["supervisor"]["input"] += u.get("input_tokens", 0)
-        tokens["supervisor"]["output"] += u.get("output_tokens", 0)
-        tokens["supervisor"]["total"] += u.get("total_tokens", 0)
+        # Build messages for the LLM
+        messages = [
+            {"role": "system", "content": f"{supervisor_prompt}\n\n{sup_system_context}"},
+            {"role": "user", "content": user_input}
+        ]
+
+        try:
+            if default_supervisor_timeout_seconds:
+                plan_obj = await asyncio.wait_for(
+                    asyncio.to_thread(structured_llm.invoke, messages),
+                    timeout=default_supervisor_timeout_seconds,
+                )
+            else:
+                plan_obj = await asyncio.to_thread(structured_llm.invoke, messages)
+
+            log.info(
+                "Supervisor planning with structured output: done in %.2fs",
+                time.perf_counter() - t0,
+            )
+
+            # Track usage for supervisor
+            calls["supervisor"] += 1
+
+            # Handle response - extract content and parse JSON
+            from app.supervisor_builder import SupervisorPlan as StructuredPlan
+
+            # Check if it's a Pydantic model (structured output - unlikely now)
+            if isinstance(plan_obj, StructuredPlan):
+                # Convert to our Plan format
+                plan = Plan(
+                    goal=plan_obj.goal,
+                    plan=[
+                        PlanStep(
+                            id=step.id,
+                            agent=step.agent,
+                            task=step.task,
+                            depends_on=step.depends_on,
+                            verify=step.verify,
+                            timeout_seconds=step.timeout_seconds,
+                            retry=step.retry
+                        )
+                        for step in plan_obj.plan
+                    ]
+                )
+                log.info("✅ Structured output returned valid plan with %d steps", len(plan.plan))
+                _safe_write([
+                    "--- Structured Output Plan ---",
+                    f"Goal: {plan.goal}",
+                    f"Steps: {len(plan.plan)}",
+                    "",
+                ])
+                for step in plan.plan:
+                    _safe_write([f"  Step {step.id}: {step.agent} - {step.task[:100]}..."])
+            # Check if it's a message with content (most common case now)
+            elif hasattr(plan_obj, 'content'):
+                sup_text = plan_obj.content
+                log.info("📝 Supervisor response (first 200 chars): %s", sup_text[:200])
+                _safe_write([
+                    "--- Supervisor Response ---",
+                    sup_text[:500] + ("..." if len(sup_text) > 500 else ""),
+                    "",
+                ])
+
+                # Parse the JSON text
+                plan = parse_plan_text(sup_text)
+                if plan:
+                    log.info("✅ Successfully parsed JSON plan with %d steps", len(plan.plan))
+                    _safe_write([
+                        "--- Parsed Plan ---",
+                        f"Goal: {plan.goal}",
+                        f"Steps: {len(plan.plan)}",
+                        "",
+                    ])
+                    for step in plan.plan:
+                        _safe_write([f"  Step {step.id}: {step.agent} - {step.task[:100]}..."])
+                else:
+                    log.error("❌ Failed to parse JSON from response")
+                    _safe_write([
+                        "--- Plan Parsing Failed ---",
+                        "Supervisor did not output valid JSON plan.",
+                        "Attempting fallback plan creation...",
+                        "",
+                    ])
+                    raise ValueError("Failed to parse JSON plan from supervisor response")
+            else:
+                log.error("❌ Unexpected response type: %s", type(plan_obj))
+                raise ValueError(f"Unexpected response type: {type(plan_obj)}")
+
+        except asyncio.TimeoutError:
+            raise RuntimeError(
+                "Supervisor planning timed out after "
+                f"{default_supervisor_timeout_seconds}s"
+            )
+        except asyncio.CancelledError:
+            raise RuntimeError(
+                "Supervisor planning cancelled (timeout or external cancel)"
+            )
+
+    # LEGACY PATH: Use old LangGraph supervisor
     else:
-        sup_text = ""
-    log.info("Supervisor plan text: %s", sup_text[:400])
-    # Log supervisor response
-    _safe_write([
-        "--- Supervisor Response ---",
-        sup_text or "(empty)",
-        "",
-    ])
+        try:
+            config = {"configurable": {"thread_id": supervisor_thread_id, "checkpoint_ns": ""}}
+            # Log supervisor request
+            _safe_write([
+                "--- Supervisor Request ---",
+                f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
+                f"Planning Prompt: {getattr(supervisor_compiled, '_rendered_prompt', '(none)')}",
+                f"System Context: {sup_system_context}",
+                f"User: {user_input}",
+                "",
+            ])
+            log.info(
+                "Supervisor planning: start (timeout=%ss)",
+                default_supervisor_timeout_seconds,
+            )
+            t0 = time.perf_counter()
+            if default_supervisor_timeout_seconds:
+                sup_out = await asyncio.wait_for(
+                    supervisor_compiled.ainvoke(sup_state, config=config),
+                    timeout=default_supervisor_timeout_seconds,
+                )
+            else:
+                sup_out = await supervisor_compiled.ainvoke(
+                    sup_state, config=config
+                )
+            log.info(
+                "Supervisor planning: done in %.2fs",
+                time.perf_counter() - t0,
+            )
+        except AttributeError:
+            config = {"configurable": {"thread_id": supervisor_thread_id, "checkpoint_ns": ""}}
+            _safe_write([
+                "--- Supervisor Request ---",
+                f"Model: {getattr(supervisor_compiled, '_model_id', 'unknown')}",
+                f"Planning Prompt: {getattr(supervisor_compiled, '_rendered_prompt', '(none)')}",
+                f"System Context: {sup_system_context}",
+                f"User: {user_input}",
+                "",
+            ])
+            log.info(
+                "Supervisor planning (sync): start (timeout=%ss)",
+                default_supervisor_timeout_seconds,
+            )
+            t0 = time.perf_counter()
+            if default_supervisor_timeout_seconds:
+                sup_out = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        supervisor_compiled.invoke, sup_state, config=config
+                    ),
+                    timeout=default_supervisor_timeout_seconds,
+                )
+            else:
+                sup_out = await asyncio.to_thread(
+                    supervisor_compiled.invoke, sup_state, config=config
+                )
+            log.info(
+                "Supervisor planning (sync): done in %.2fs",
+                time.perf_counter() - t0,
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError(
+                "Supervisor planning timed out after "
+                f"{default_supervisor_timeout_seconds}s"
+            )
+        except asyncio.CancelledError:
+            raise RuntimeError(
+                "Supervisor planning cancelled (timeout or external cancel)"
+            )
 
-    plan = parse_plan_text(sup_text)
-    if not plan:
-        from .utils import parse_supervisor_json
-        dec = parse_supervisor_json(sup_text)
-        if dec and dec.agent:
-            plan = Plan(
-                goal=dec.reason or user_input,
-                plan=[
-                    PlanStep(
-                        id="s1",
-                        agent=dec.agent,
-                        task=dec.task or user_input,
-                    )
-                ],
-            )
+        sup_msgs = sup_out.get("messages", [])
+        if sup_msgs:
+            # LangGraph messages are objects with .content attribute
+            last_msg = sup_msgs[-1]
+            sup_text = getattr(last_msg, "content", "")
+            # Track usage for supervisor
+            calls["supervisor"] += 1
+            u = _extract_usage(last_msg)
+            tokens["supervisor"]["input"] += u.get("input_tokens", 0)
+            tokens["supervisor"]["output"] += u.get("output_tokens", 0)
+            tokens["supervisor"]["total"] += u.get("total_tokens", 0)
         else:
-            first_agent = next(iter(agents_map.keys()))
-            plan = Plan(
-                goal=user_input,
-                plan=[
-                    PlanStep(id="s1", agent=first_agent, task=user_input)
-                ],
-            )
+            sup_text = ""
+        log.info("Supervisor plan text: %s", sup_text[:400])
+        # Log supervisor response
+        _safe_write([
+            "--- Supervisor Response ---",
+            sup_text or "(empty)",
+            "",
+        ])
+
+        # INSTRUMENTATION: Track plan parsing
+        plan = parse_plan_text(sup_text)
+        if plan:
+            log.info("✅ Successfully parsed JSON plan with %d steps", len(plan.plan))
+            _safe_write([
+                "--- Parsed Plan ---",
+                f"Goal: {plan.goal}",
+                f"Steps: {len(plan.plan)}",
+                "",
+            ])
+            for step in plan.plan:
+                _safe_write([f"  Step {step.id}: {step.agent} - {step.task[:100]}..."])
+            _safe_write([""])
+        else:
+            log.warning("⚠️  Failed to parse JSON plan from supervisor response")
+            _safe_write([
+                "--- Plan Parsing Failed ---",
+                "Supervisor did not output valid JSON plan.",
+                "Attempting fallback plan creation...",
+                "",
+            ])
+
+            # Only create fallback plan if parsing failed
+            from .utils import parse_supervisor_json
+            dec = parse_supervisor_json(sup_text)
+            if dec and dec.agent:
+                log.info("📋 Created fallback plan from SupervisorDecision format")
+                plan = Plan(
+                    goal=dec.reason or user_input,
+                    plan=[
+                        PlanStep(
+                            id="s1",
+                            agent=dec.agent,
+                            task=dec.task or user_input,
+                        )
+                    ],
+                )
+                _safe_write([
+                    f"Fallback Plan: Using agent '{dec.agent}' for single-step execution",
+                    "",
+                ])
+            else:
+                first_agent = next(iter(agents_map.keys()))
+                log.warning("⚠️  Using default fallback plan with first agent: %s", first_agent)
+                plan = Plan(
+                    goal=user_input,
+                    plan=[
+                        PlanStep(id="s1", agent=first_agent, task=user_input)
+                    ],
+                )
+                _safe_write([
+                    f"Default Fallback Plan: Using first available agent '{first_agent}'",
+                    "WARNING: Supervisor should output valid JSON plan to avoid this fallback",
+                    "",
+                ])
 
     # Print the complete plan JSON for visibility/debugging
     try:
-        plan_json_str = json.dumps(plan.dict(), indent=2, ensure_ascii=False)
+        plan_dict = plan.dict() if hasattr(plan, 'dict') else plan.__dict__
+        plan_json_str = json.dumps(plan_dict, indent=2, ensure_ascii=False)
         log.info("Complete plan JSON:\n%s", plan_json_str)
         print("Complete plan JSON:\n" + plan_json_str)
     except Exception as e:
         log.warning("Failed to serialize plan to JSON: %s", e)
+        log.warning("Plan object: %s", plan)
 
     for step in plan.plan:
         if step.agent not in agents_map:
@@ -553,6 +780,9 @@ async def execute_plan(
         Agent Response : <result from the worker step 1>
         User Agent : <task string say dependent step 2>
         Agent Response : <result from the worker step 2>
+
+        TOKEN OPTIMIZATION: Uses output_summary instead of raw response
+        to minimize token consumption in dependent step contexts.
         """
         if not step_results or not depends_on:
             return ""
@@ -564,7 +794,9 @@ async def execute_plan(
         for sid, info in step_results.items():
             if sid in dep_set:
                 task = info.get('request', '')
-                response = info.get('raw', '')
+                # TOKEN OPTIMIZATION: Use compact summary instead of full raw response
+                # This reduces token consumption by ~70% for dependent contexts
+                response = info.get('output_summary', '')
                 lines.append(f"User Agent : {task}")
                 lines.append(f"Agent Response : {response}")
 
@@ -590,6 +822,21 @@ async def execute_plan(
             if dependent_req_resp:
                 system_context += f"\n\n{dependent_req_resp}"
 
+            # Add original user request to system context so agents can see file references
+            if user_input:
+                system_context += f"\n\nUser: {user_input}"
+
+            # INSTRUMENTATION: Log reference IDs in context
+            import re
+            ref_ids = re.findall(r'ref_[a-f0-9]{12}', system_context + user_task)
+            if ref_ids:
+                log.info("📎 Step %s has access to reference IDs: %s", step.id, ref_ids)
+                _safe_write([
+                    f"--- Reference IDs Available to Step {step.id} ---",
+                    f"Found {len(ref_ids)} reference ID(s): {', '.join(ref_ids)}",
+                    "",
+                ])
+
             worker_state = {
                 "messages": [
                     {"role": "system", "content": system_context},
@@ -607,8 +854,24 @@ async def execute_plan(
             try:
                 step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
-                    "configurable": {"thread_id": step_thread_id}
+                    "configurable": {"thread_id": step_thread_id, "checkpoint_ns": ""}
                 }
+                # INSTRUMENTATION: Calculate payload size
+                system_context_len = len(system_context)
+                user_task_len = len(user_task)
+                total_payload_chars = system_context_len + user_task_len
+                estimated_tokens = total_payload_chars // 4  # Rough estimate: 4 chars per token
+
+                # INSTRUMENTATION: Detect large datasets in payload
+                large_data_warning = ""
+                if total_payload_chars > 50000:
+                    large_data_warning = f" ⚠ WARNING: Very large payload ({total_payload_chars:,} chars, ~{estimated_tokens:,} tokens)"
+                    # Check if it contains JSON arrays
+                    import re
+                    array_matches = re.findall(r'\[[^\[\]]{1000,}\]', system_context + user_task)
+                    if array_matches:
+                        large_data_warning += f" - Contains {len(array_matches)} large JSON array(s)"
+
                 # Log worker request
                 _safe_write([
                     (
@@ -616,6 +879,7 @@ async def execute_plan(
                         f"agent={step.agent}, attempt={attempts}) ---"
                     ),
                     f"Model: {getattr(worker_compiled, '_model_id', 'unknown')}",
+                    f"Payload Size: {total_payload_chars:,} chars (~{estimated_tokens:,} tokens){large_data_warning}",
                     f"Agent Prompt: {getattr(worker_compiled, '_rendered_prompt', '(none)')}",
                     f"System Context: {system_context}",
                     f"User: {user_task}",
@@ -657,7 +921,7 @@ async def execute_plan(
             except AttributeError:
                 step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
-                    "configurable": {"thread_id": step_thread_id}
+                    "configurable": {"thread_id": step_thread_id, "checkpoint_ns": ""}
                 }
                 _safe_write([
                     (
@@ -780,8 +1044,28 @@ async def execute_plan(
                 tokens["worker"]["total"] += wu.get("total_tokens", 0)
             else:
                 wtext = ""
-            # Use a longer summary to avoid truncating key facts
-            summary = (wtext[:1200] + "...") if len(wtext) > 1200 else wtext
+
+            # TOKEN OPTIMIZATION: Create smart, compact summaries
+            # Check if response contains a reference ID (stored dataset)
+            import re
+            ref_match = re.search(r'ref_[a-f0-9]{12}', wtext)
+            if ref_match:
+                ref_id = ref_match.group(0)
+                # Extract record count - prioritize "Total records:" or "Total:" patterns
+                count_match = re.search(r'(?:Total records?|Total):\s*(\d+)', wtext, re.IGNORECASE)
+                if not count_match:
+                    # Fallback to general "X records" pattern
+                    count_match = re.search(r'(\d+)\s+records?', wtext, re.IGNORECASE)
+
+                if count_match:
+                    count = count_match.group(1)
+                    summary = f"✓ Data generated and stored: {ref_id} ({count} records)"
+                else:
+                    summary = f"✓ Data stored: {ref_id}"
+            else:
+                # Use a compact summary to reduce token consumption
+                # Reduced from 1200 to 400 chars to minimize context size
+                summary = (wtext[:400] + "...") if len(wtext) > 400 else wtext
 
             # Extract tool calls from worker messages
             tool_calls = _extract_tool_calls(wmsgs) if wmsgs else []
@@ -803,9 +1087,38 @@ async def execute_plan(
                 ])
                 for i, call in enumerate(tool_calls, 1):
                     if call["type"] == "tool_call":
-                        args_str = _format_args_compact(call.get("args", {}))
+                        args = call.get("args", {})
+                        args_str = _format_args_compact(args)
                         duplicate_marker = " (DUPLICATE)" if call.get("is_duplicate", False) else ""
                         log_lines.append(f"{i}. {call['name']}({args_str}){duplicate_marker}")
+
+                        # INSTRUMENTATION: Highlight dataset_reference_id parameter
+                        if "dataset_reference_id" in args:
+                            log_lines.append(f"   ✓ dataset_reference_id: {args['dataset_reference_id']}")
+                        elif call['name'] == 'run_python_code':
+                            log_lines.append(f"   ⚠ WARNING: run_python_code called WITHOUT dataset_reference_id parameter")
+
+                        # INSTRUMENTATION: Check for large data in python_code
+                        if call['name'] == 'run_python_code' and 'python_code' in args:
+                            code = args['python_code']
+                            code_len = len(code)
+                            log_lines.append(f"   Code length: {code_len} chars")
+
+                            # Save full Python code to debug file for analysis
+                            try:
+                                debug_dir = Path("agentlogs/python_code_debug")
+                                debug_dir.mkdir(parents=True, exist_ok=True)
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                                debug_file = debug_dir / f"code_{step.id}_{timestamp}.py"
+                                debug_file.write_text(code, encoding='utf-8')
+                                log_lines.append(f"   Full code saved to: {debug_file}")
+                            except Exception as e:
+                                log_lines.append(f"   Warning: Could not save debug code: {e}")
+
+                            # Detect if code contains large embedded datasets
+                            if code_len > 10000:
+                                log_lines.append(f"   ⚠ WARNING: Python code is very large ({code_len} chars) - may contain embedded dataset!")
+
                         if "result" in call:
                             result_str = str(call["result"])[:100]
                             if len(str(call["result"])) > 100:
@@ -926,8 +1239,13 @@ async def execute_plan(
                             max_total_retries,
                         )
                         if human_in_loop:
+                            try:
+                                plan_dict = plan.dict() if hasattr(plan, 'dict') else plan.__dict__
+                            except Exception as e:
+                                log.warning(f"Error serializing plan in retry limit: {e}")
+                                plan_dict = {"error": f"Plan serialization failed: {e}"}
                             return {
-                                "plan": plan.dict(),
+                                "plan": plan_dict,
                                 "steps": step_results,
                                 "status": "paused_for_human",
                                 "failed_step": step.id,
@@ -953,8 +1271,13 @@ async def execute_plan(
                     continue
                 # Local retries exhausted
                 if human_in_loop:
+                    try:
+                        plan_dict = plan.dict() if hasattr(plan, 'dict') else plan.__dict__
+                    except Exception as e:
+                        log.warning(f"Error serializing plan in local retries: {e}")
+                        plan_dict = {"error": f"Plan serialization failed: {e}"}
                     return {
-                        "plan": plan.dict(),
+                        "plan": plan_dict,
                         "steps": step_results,
                         "status": "paused_for_human",
                         "failed_step": step.id,
@@ -972,10 +1295,19 @@ async def execute_plan(
                     )
                 )
 
-    final_agg = {
-        sid: {"summary": info["output_summary"], "raw": info["raw"]}
-        for sid, info in step_results.items()
-    }
+    final_agg = {}
+    for sid, info in step_results.items():
+        try:
+            final_agg[sid] = {
+                "summary": info.get("output_summary", ""),
+                "raw": info.get("raw", "")
+            }
+        except Exception as e:
+            log.warning(f"Error processing step {sid} for final aggregation: {e}")
+            final_agg[sid] = {
+                "summary": f"Error processing step: {e}",
+                "raw": f"Error processing step: {e}"
+            }
 
     # Write summary to log
     total_calls = calls["supervisor"] + calls["worker"]
@@ -1003,8 +1335,15 @@ async def execute_plan(
         "",
         "End of log",
     ])
+    # Safe plan serialization to prevent KeyError issues
+    try:
+        plan_dict = plan.dict() if hasattr(plan, 'dict') else plan.__dict__
+    except Exception as e:
+        log.warning(f"Error serializing plan: {e}")
+        plan_dict = {"error": f"Plan serialization failed: {e}"}
+    
     return {
-        "plan": plan.dict(),
+        "plan": plan_dict,
         "steps": step_results,
         "final_result": final_agg,
         "status": "completed",

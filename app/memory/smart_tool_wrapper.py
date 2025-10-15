@@ -73,7 +73,11 @@ class SmartToolWrapper:
         
         # Generate dynamic tools for data access
         dynamic_tools = self._generate_dynamic_tools(reference_id, tool_name, tool_result)
-        tool_names = [tool.__name__ for tool in dynamic_tools]
+        # Extract tool names - handle both callable and StructuredTool objects
+        tool_names = [
+            getattr(tool, 'name', None) or getattr(tool, '__name__', 'unknown_tool')
+            for tool in dynamic_tools
+        ]
         
         # Create and store reference
         reference = DataReference(
@@ -91,9 +95,11 @@ class SmartToolWrapper:
         
         self.references[reference_id] = reference
         
-        # Register dynamic tools
+        # Register dynamic tools (handle both callables and StructuredTool objects)
         for tool_func in dynamic_tools:
-            self.dynamic_tools[tool_func.__name__] = tool_func
+            tool_key = getattr(tool_func, 'name', None) or getattr(tool_func, '__name__', None)
+            if tool_key:
+                self.dynamic_tools[tool_key] = tool_func
         
         # Calculate cost savings
         cost_saved = self._calculate_cost_savings(token_count)
@@ -247,13 +253,13 @@ class SmartToolWrapper:
         
         tools = []
         
+        # Create dynamic docstrings (f-strings don't work in function docstrings)
+        subset_desc = f"Get a subset of data from {tool_name} result (Reference: {reference_id}). Filter options: 'first_N', 'last_N', 'random_N', 'contains:term', 'range:start-end'"
+        search_desc = f"Search within the data from {tool_name} (Reference: {reference_id}) using a query term."
+        stats_desc = f"Get statistical summary of {tool_name} data (Reference: {reference_id})."
+        
         # 1. Get data subset tool
         def get_subset(subset_filter: str = "first_10") -> str:
-            f"""Get a subset of data from {tool_name} result (Reference: {reference_id}).
-            
-            Args:
-                subset_filter: Filter to apply - 'first_N', 'last_N', 'random_N', 'contains:term', 'range:start-end'
-            """
             full_data = self.storage.retrieve_large_data(reference_id)
             if not full_data:
                 return "❌ Data not found or expired"
@@ -266,12 +272,6 @@ class SmartToolWrapper:
         
         # 2. Search within data tool  
         def search_data(query: str, max_results: int = 10) -> str:
-            f"""Search within the data from {tool_name} (Reference: {reference_id}).
-            
-            Args:
-                query: Search term or JSON path
-                max_results: Maximum results to return
-            """
             full_data = self.storage.retrieve_large_data(reference_id)
             if not full_data:
                 return "❌ Data not found or expired"
@@ -284,7 +284,6 @@ class SmartToolWrapper:
         
         # 3. Get statistics tool
         def get_stats() -> str:
-            f"""Get statistical summary of {tool_name} data (Reference: {reference_id})"""
             full_data = self.storage.retrieve_large_data(reference_id)
             if not full_data:
                 return "❌ Data not found or expired"
@@ -295,12 +294,17 @@ class SmartToolWrapper:
             except Exception as e:
                 return f"❌ Stats error: {e}"
         
-        # Set unique names and convert to LangChain tools
+        # Set unique names and docstrings
         get_subset.__name__ = f"get_subset_{reference_id}"
-        search_data.__name__ = f"search_data_{reference_id}"  
-        get_stats.__name__ = f"get_stats_{reference_id}"
+        get_subset.__doc__ = subset_desc
         
-        # Convert to proper tools
+        search_data.__name__ = f"search_data_{reference_id}"
+        search_data.__doc__ = search_desc
+        
+        get_stats.__name__ = f"get_stats_{reference_id}"
+        get_stats.__doc__ = stats_desc
+        
+        # Convert to proper tools (now with valid docstrings)
         tools.extend([
             tool(get_subset),
             tool(search_data), 

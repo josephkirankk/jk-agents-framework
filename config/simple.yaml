@@ -1,0 +1,56 @@
+# Simple ADO MCP Test Configuration
+# Minimal config to test ADO MCP tool calling
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
+  temperature: 0.1
+
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./test_data/chromadb"
+    host: "localhost"
+    port: 8001
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: "You are a supervisor."
+
+agents:
+  - name: "ado_test_agent"
+    description: "Simple Azure DevOps MCP test agent"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    prompt: |
+      You are an Azure DevOps assistant. 
+      
+      When asked to list projects, use the core_list_projects tool.
+      
+      CRITICAL: You MUST always generate a text response explaining what you found.
+      NEVER return an empty response - always describe the results.
+      
+      If tool execution fails, explain the error clearly.
+      If tool execution succeeds, describe the results clearly.
+    
+    mcp_servers:
+      azure_devops:
+        description: "Official Microsoft Azure DevOps MCP server"
+        transport: "stdio"
+        command: "deno"
+        args: 
+          - "run"
+          - "--allow-env"
+          - "--allow-net"
+          - "--allow-read"
+          - "--allow-sys"
+          - "--allow-write"
+          - "npm:@azure-devops/mcp"
+          - "PepsiCoIT"
+          - "-d"
+          - "core"
+          - "work"
+          - "work-items"
+        env:
+          AZURE_DEVOPS_EXT_PAT: "${AZURE_DEVOPS_EXT_PAT}"

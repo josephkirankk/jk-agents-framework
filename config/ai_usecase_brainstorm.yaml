@@ -1,0 +1,200 @@
+# =============================================================================
+# JK Agents Framework - AI Use Case Brainstorming System (Enhanced v2.1)
+# =============================================================================
+# Intelligent multi-agent system for brainstorming practical and creative AI use cases
+# 
+# KEY FEATURES:
+# - Context-aware supervisor with dynamic workflow construction
+# - Intelligent planning based on conversation history
+# - Avoids redundant work by analyzing previous turns
+# - Adapts execution path based on user journey (fresh start vs follow-up)
+# - Performance-optimized with minimal, targeted agent execution
+# - Multi-turn conversation support with ChromaDB memory
+# - **UNLIMITED CONVERSATION LENGTH** with intelligent auto-summarization
+#
+# ENHANCEMENTS (v2.0):
+# - Supervisor analyzes conversation_context_metadata for intelligent planning
+# - Agents check context before executing to avoid redundancy
+# - Dynamic workflow patterns (5 patterns vs 4 static types)
+# - Context-aware tasks referencing previous work
+# - Performance optimization with tight timeouts and smart dependencies
+#
+# ENHANCEMENTS (v2.1):
+# - **Intelligent auto-summarization** for long conversations (word_count > 3000)
+# - conversation_summarizer agent preserves 100% data integrity
+# - Compresses narrative fluff while maintaining all use cases, research, validation
+# - Enables unlimited conversation turns without context window overflow
+# - Dynamic summarization logic in supervisor (auto-triggers when needed)
+# =============================================================================
+
+models:
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"        # Intelligent planning with context awareness
+  researcher: "azure_openai:gpt-4.1"        # Web research with redundancy avoidance
+  creative: "azure_openai:gpt-4.1"          # Context-aware ideation
+  validator: "azure_openai:gpt-4.1"         # Targeted feasibility validation
+  synthesizer: "azure_openai:gpt-4.1"       # Conversation-aware synthesis
+  temperature: 0.7                          # Balanced creativity
+
+business_context: |
+  **AI USE CASE BRAINSTORMING INTELLIGENCE SYSTEM**
+  
+  You are part of an advanced AI system designed to help brainstorm, validate, and develop
+  practical and creative AI use cases across industries and domains.
+  
+  **CORE MISSION:**
+  - Generate innovative, actionable AI use case ideas
+  - Research real-world implementations and trends
+  - Validate technical feasibility and business value
+  - Provide quick, intelligent, and to-the-point responses
+  - Balance creativity with practicality
+  
+  **BRAINSTORMING PRINCIPLES:**
+  - **Practicality First**: Focus on implementable solutions with clear ROI
+  - **Creative Edge**: Push boundaries while staying grounded in reality
+  - **Research-Backed**: Use current data and real-world examples
+  - **Multi-Perspective**: Consider technical, business, and user viewpoints
+  - **Rapid Iteration**: Respond quickly and intelligently
+  
+  **SESSION CONTEXT:**
+  - Session Time: {{timestamp}} ({{day_name}}, {{date_long}})
+  - Platform: {{platform}}
+  - Current Focus: {{original_user_question}}
+
+# High-performance ChromaDB memory for conversation continuity
+persistence:
+  type: "chromadb"
+
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./brainstorm_memory"
+    host: "localhost"
+    port: 8000
+    max_connections: 15
+    min_connections: 3
+    connection_timeout: 30.0
+    l1_cache_size: 5000
+    l1_cache_ttl: 1800
+    batch_size: 50
+    enable_batch_processing: true
+    enable_metrics: true
+    checkpoint_collection: "brainstorm_checkpoints"
+    context_collection: "brainstorm_contexts"
+
+conversation_memory:
+  enabled: true
+  max_conversations: 20
+  max_context_length: 4000
+
+resource_limits:
+  max_memory_mb: 2048
+  max_connections: 100
+
+supervisor:
+  name: "brainstorm_coordinator"
+  model: "azure_openai:gpt-4.1"
+  prompt_file: "prompts/brainstorm_supervisor_prompt.txt"
+  # Enhanced supervisor features (v2.1):
+  # - Analyzes conversation_context_metadata (word_count, previous topics)
+  # - Dynamic workflow construction (5 adaptive patterns)
+  # - Intelligent gap identification (what's missing vs what exists)
+  # - Redundancy avoidance (skips work already done)
+  # - Performance optimization (minimal steps, tight timeouts)
+  # - Context-aware task descriptions (references previous work)
+  # - **Auto-summarization logic** (triggers conversation_summarizer when word_count > 3000)
+  # - Enables unlimited conversation length without context overflow
+
+agents:
+  - name: "conversation_summarizer"
+    description: "Intelligently summarize conversation history to reduce memory usage while preserving all critical data (use cases, research, validation)"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    prompt_file: "prompts/conversation_summarizer_prompt.txt"
+    mcp_servers:
+      conversation_manager:
+        description: "Manage conversation memory and cleanup"
+        transport: "stdio"
+        command: "python"
+        args:
+          - "-m"
+          - "app.mcp_conversation_manager"
+
+  - name: "web_researcher"
+    description: "Context-aware research specialist - checks conversation history to avoid redundant searches, complements existing research, focuses on gaps"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    prompt_file: "prompts/web_researcher_prompt.txt"
+    mcp_servers:
+      brave_search:
+        description: "Brave search MCP server for web research"
+        transport: "streamable_http"
+        url: "http://localhost:8080/mcp"
+        env: {}
+        headers: 
+          Content-Type: "application/json"
+
+  - name: "creative_thinker"
+    description: "Context-aware creative specialist - builds on previous ideas for follow-ups, generates fresh ideas for new topics, references conversation history"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "normal"
+    prompt_file: "prompts/creative_thinker_prompt.txt"
+    mcp_servers: {}
+
+  - name: "technical_validator"
+    description: "Context-aware validation specialist - validates specific use cases from context, avoids redundant validation, provides targeted feasibility analysis"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"
+    prompt_file: "prompts/technical_validator_prompt.txt"
+    mcp_servers:
+      python_runner:
+        description: "Python execution for prototypes and technical validation"
+        transport: "stdio"
+        command: "deno"
+        args:
+          - "run"
+          - "-N"
+          - "-R=node_modules"
+          - "-W=node_modules"
+          - "--node-modules-dir=auto"
+          - "jsr:@pydantic/mcp-run-python"
+          - "stdio"
+    python_tools:
+      validation_tools:
+        module_path: "tools.python_function_tools"
+        tool_names: ["data_analyzer", "calculate_percentage", "format_currency"]
+        description: "Analysis and calculation tools for technical validation"
+
+  - name: "synthesizer"
+    description: "Conversation-aware synthesis specialist - acknowledges previous discussion for follow-ups, provides self-contained responses for fresh starts"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "normal"
+    prompt_file: "prompts/synthesizer_prompt.txt"
+    mcp_servers: {}
+
+# =============================================================================
+# SETUP INSTRUCTIONS
+# =============================================================================
+# 
+# PREREQUISITES:
+# 1. Brave Search MCP Server running on localhost:8080
+#    - Get API key: https://api.search.brave.com/app/keys
+#    - Set environment: export BRAVE_API_KEY="your_key"
+# 
+# 2. Deno installed for Python runner MCP
+#    - Install: brew install deno (macOS)
+# 
+# 3. Environment variables in .env:
+#    AZURE_OPENAI_API_KEY=your_key
+#    AZURE_OPENAI_ENDPOINT=your_endpoint
+#    BRAVE_API_KEY=your_brave_key
+# 
+# USAGE:
+# python app/main.py "Generate AI use cases for healthcare" --config config/ai_usecase_brainstorm.yaml
+# 
+# Or via API:
+# curl -X POST http://localhost:8000/execute \
+#   -H "Content-Type: application/json" \
+#   -d '{"query": "AI use cases for retail", "config": "ai_usecase_brainstorm"}'
+# 
+# =============================================================================

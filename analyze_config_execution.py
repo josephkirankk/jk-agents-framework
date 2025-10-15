@@ -133,7 +133,7 @@ def analyze_execution_logs():
     print("=" * 65)
     
     # Read the most recent log file
-    log_path = Path("agentlog/direct_agentlog_20250925153504.log")
+    log_path = Path("agents_direct_logs/direct_agentlog_20250925153504.log")
     
     if log_path.exists():
         print("\n📄 LOG FILE ANALYSIS:")
