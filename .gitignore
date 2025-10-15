@@ -105,3 +105,5 @@ chroma_memory/
 test_chromadb_memory/
 jk_agents_memory/
 test_jk_agents_memory/
+agentlogs/
+simple_memory/
