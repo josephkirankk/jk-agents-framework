@@ -14,11 +14,13 @@ import pickle
 import hashlib
 import logging
 import threading
+import queue
 from typing import Any, Dict, Optional, List, Union
 from pathlib import Path
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
+from contextlib import contextmanager
 
 # Import centralized database configuration
 try:
@@ -87,53 +89,102 @@ class LargeDataStorage:
         self.file_storage_path = Path(config.get("file_path", "./large_tool_data_files/"))
         self.compression_enabled = config.get("compression", True)
         self.max_sqlite_size_mb = config.get("max_sqlite_size_mb", 50)
+        self.pool_size = config.get("connection_pool_size", 10)
 
-        # Thread safety: Lock for write operations
-        self._write_lock = threading.Lock()
+        # Thread safety: Connection pool for concurrent access
+        self._connection_pool: queue.Queue = queue.Queue(maxsize=self.pool_size)
+        self._pool_lock = threading.Lock()
+        self._pool_initialized = False
 
         # Create directories
         self.file_storage_path.mkdir(parents=True, exist_ok=True)
 
-        # Initialize SQLite with optimized settings
-        self._init_database()
-        log.info(f"Large data storage initialized: DB={self.db_path}, Files={self.file_storage_path}")
+        # Initialize connection pool
+        self._init_connection_pool()
+        log.info(f"Large data storage initialized: DB={self.db_path}, Files={self.file_storage_path}, Pool size={self.pool_size}")
     
-    def _init_database(self):
-        """Initialize SQLite database with optimal settings for large data"""
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self.conn.execute("PRAGMA journal_mode=WAL")  # Better concurrency
-        self.conn.execute("PRAGMA synchronous=NORMAL")  # Faster writes
-        self.conn.execute("PRAGMA cache_size=20000")  # 80MB cache
-        self.conn.execute("PRAGMA temp_store=MEMORY")  # Memory for temp operations
-        self.conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
-        
-        # Create optimized table structure
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS large_tool_data (
-                reference_id TEXT PRIMARY KEY,
-                tool_name TEXT NOT NULL,
-                storage_type TEXT NOT NULL,
-                storage_location TEXT,
-                data_blob BLOB,
-                data_hash TEXT,
-                size_bytes INTEGER,
-                size_category TEXT,
-                content_type TEXT,
-                compressed BOOLEAN DEFAULT 0,
-                metadata TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP,
-                access_count INTEGER DEFAULT 0,
-                last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Indexes for fast lookup
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_tool_name ON large_tool_data(tool_name)")
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_size_category ON large_tool_data(size_category)")
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_expires_at ON large_tool_data(expires_at)")
-        
-        self.conn.commit()
+    def _create_connection(self) -> sqlite3.Connection:
+        """Create a new SQLite connection with optimal settings."""
+        conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL")  # Better concurrency
+        conn.execute("PRAGMA synchronous=NORMAL")  # Faster writes
+        conn.execute("PRAGMA cache_size=20000")  # 80MB cache
+        conn.execute("PRAGMA temp_store=MEMORY")  # Memory for temp operations
+        conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
+        return conn
+    
+    def _init_connection_pool(self):
+        """Initialize connection pool with schema creation."""
+        with self._pool_lock:
+            if self._pool_initialized:
+                return
+            
+            # Create initial connection to set up schema
+            init_conn = self._create_connection()
+            
+            # Create optimized table structure
+            init_conn.execute("""
+                CREATE TABLE IF NOT EXISTS large_tool_data (
+                    reference_id TEXT PRIMARY KEY,
+                    tool_name TEXT NOT NULL,
+                    storage_type TEXT NOT NULL,
+                    storage_location TEXT,
+                    data_blob BLOB,
+                    data_hash TEXT,
+                    size_bytes INTEGER,
+                    size_category TEXT,
+                    content_type TEXT,
+                    compressed BOOLEAN DEFAULT 0,
+                    metadata TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP,
+                    access_count INTEGER DEFAULT 0,
+                    last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Indexes for fast lookup
+            init_conn.execute("CREATE INDEX IF NOT EXISTS idx_tool_name ON large_tool_data(tool_name)")
+            init_conn.execute("CREATE INDEX IF NOT EXISTS idx_size_category ON large_tool_data(size_category)")
+            init_conn.execute("CREATE INDEX IF NOT EXISTS idx_expires_at ON large_tool_data(expires_at)")
+            
+            init_conn.commit()
+            
+            # Add connections to pool
+            self._connection_pool.put(init_conn)
+            for _ in range(self.pool_size - 1):
+                self._connection_pool.put(self._create_connection())
+            
+            self._pool_initialized = True
+            log.info(f"Connection pool initialized with {self.pool_size} connections")
+    
+    @contextmanager
+    def _get_connection(self):
+        """Get a connection from the pool (context manager)."""
+        conn = None
+        try:
+            # Get connection from pool (blocks if all connections are in use)
+            conn = self._connection_pool.get(timeout=30.0)
+            yield conn
+        except queue.Empty:
+            log.error("Connection pool exhausted - timeout waiting for connection")
+            raise RuntimeError("Database connection pool exhausted")
+        finally:
+            if conn is not None:
+                # Return connection to pool
+                self._connection_pool.put(conn)
+    
+    def close_pool(self):
+        """Close all connections in the pool."""
+        with self._pool_lock:
+            while not self._connection_pool.empty():
+                try:
+                    conn = self._connection_pool.get_nowait()
+                    conn.close()
+                except queue.Empty:
+                    break
+            self._pool_initialized = False
+            log.info("Connection pool closed")
     
     def store_large_data(self, reference_id: str, tool_name: str,
                         data: Any, metadata: Optional[Dict] = None) -> StorageInfo:
@@ -162,8 +213,8 @@ class LargeDataStorage:
         data_hash = hashlib.sha256(data_bytes).hexdigest()
         expires_at = datetime.now() + timedelta(hours=48)  # Default 48h expiry
 
-        # Thread safety: Acquire lock for write operation
-        with self._write_lock:
+        # Thread safety: Use connection pool for write operation
+        with self._get_connection() as conn:
             if storage_info["type"] == "sqlite":
                 # Store in SQLite (with optional compression)
                 data_to_store = data_bytes
@@ -173,7 +224,7 @@ class LargeDataStorage:
                 else:
                     compressed = False
 
-                self.conn.execute("""
+                conn.execute("""
                     INSERT OR REPLACE INTO large_tool_data
                     (reference_id, tool_name, storage_type, data_blob, data_hash,
                      size_bytes, size_category, content_type, compressed, metadata, expires_at)
@@ -209,7 +260,7 @@ class LargeDataStorage:
                     compressed = False
 
                 # Store metadata in SQLite
-                self.conn.execute("""
+                conn.execute("""
                     INSERT OR REPLACE INTO large_tool_data
                     (reference_id, tool_name, storage_type, storage_location, data_hash,
                      size_bytes, size_category, content_type, compressed, metadata, expires_at)
@@ -231,14 +282,14 @@ class LargeDataStorage:
                     file_path=str(file_path)
                 )
 
-            # Commit transaction (still within lock)
-            self.conn.commit()
+            # Commit transaction
+            conn.commit()
 
             # Force immediate persistence to disk (critical for MCP server processes)
             # This ensures data is written even if process terminates immediately
             try:
-                self.conn.execute("PRAGMA wal_checkpoint(FULL)")
-                self.conn.commit()
+                conn.execute("PRAGMA wal_checkpoint(FULL)")
+                conn.commit()
                 log.debug(f"WAL checkpoint completed for {reference_id}")
             except Exception as e:
                 log.warning(f"WAL checkpoint failed (non-critical): {e}")
@@ -260,26 +311,28 @@ class LargeDataStorage:
     def retrieve_large_data(self, reference_id: str) -> Optional[Any]:
         """Retrieve large data from appropriate storage layer"""
         
-        # Get metadata from SQLite
-        cursor = self.conn.execute("""
-            SELECT storage_type, storage_location, data_blob, content_type, compressed
-            FROM large_tool_data 
-            WHERE reference_id = ?
-        """, (reference_id,))
-        
-        row = cursor.fetchone()
-        if not row:
-            return None
-        
-        storage_type, storage_location, data_blob, content_type, compressed = row
-        
-        # Update access tracking
-        self.conn.execute("""
-            UPDATE large_tool_data 
-            SET access_count = access_count + 1, last_accessed = CURRENT_TIMESTAMP
-            WHERE reference_id = ?
-        """, (reference_id,))
-        self.conn.commit()
+        # Get metadata from SQLite using connection pool
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT storage_type, storage_location, data_blob, content_type, compressed
+                FROM large_tool_data 
+                WHERE reference_id = ?
+            """, (reference_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                log.warning(f"Reference ID {reference_id} not found")
+                return None
+            
+            storage_type, storage_location, data_blob, content_type, compressed = row
+            
+            # Update access tracking
+            conn.execute("""
+                UPDATE large_tool_data 
+                SET access_count = access_count + 1, last_accessed = CURRENT_TIMESTAMP
+                WHERE reference_id = ?
+            """, (reference_id,))
+            conn.commit()
         
         try:
             if storage_type == "sqlite":
@@ -318,10 +371,11 @@ class LargeDataStorage:
     
     def get_storage_stats(self) -> Dict[str, Any]:
         """Get comprehensive storage statistics"""
-        cursor = self.conn.execute("""
-            SELECT 
-                COUNT(*) as total_references,
-                SUM(size_bytes) as total_size_bytes,
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT 
+                    COUNT(*) as total_references,
+                    SUM(size_bytes) as total_size_bytes,
                 AVG(size_bytes) as avg_size_bytes,
                 storage_type,
                 size_category,
@@ -360,34 +414,35 @@ class LargeDataStorage:
     def cleanup_expired_data(self) -> Dict[str, int]:
         """Clean up expired data references"""
         
-        # Find expired records
-        cursor = self.conn.execute("""
-            SELECT reference_id, storage_type, storage_location
-            FROM large_tool_data 
-            WHERE expires_at < CURRENT_TIMESTAMP
-        """)
-        
-        expired_records = cursor.fetchall()
-        cleaned_files = 0
-        cleaned_records = 0
-        
-        for reference_id, storage_type, storage_location in expired_records:
-            try:
-                # Clean up file if it exists
-                if storage_type == "file_system" and storage_location:
-                    file_path = Path(storage_location)
-                    if file_path.exists():
-                        file_path.unlink()
-                        cleaned_files += 1
-                
-                # Remove from database
-                self.conn.execute("DELETE FROM large_tool_data WHERE reference_id = ?", (reference_id,))
-                cleaned_records += 1
-                
-            except Exception as e:
-                log.error(f"Error cleaning up {reference_id}: {e}")
-        
-        self.conn.commit()
+        with self._get_connection() as conn:
+            # Find expired records
+            cursor = conn.execute("""
+                SELECT reference_id, storage_type, storage_location
+                FROM large_tool_data 
+                WHERE expires_at < CURRENT_TIMESTAMP
+            """)
+            
+            expired_records = cursor.fetchall()
+            cleaned_records = 0
+            cleaned_files = 0
+            
+            for reference_id, storage_type, storage_location in expired_records:
+                try:
+                    # Delete file if it exists
+                    if storage_type == "file_system" and storage_location:
+                        file_path = Path(storage_location)
+                        if file_path.exists():
+                            file_path.unlink()
+                            cleaned_files += 1
+                    
+                    # Remove from database
+                    conn.execute("DELETE FROM large_tool_data WHERE reference_id = ?", (reference_id,))
+                    cleaned_records += 1
+                    
+                except Exception as e:
+                    log.error(f"Error cleaning up {reference_id}: {e}")
+            
+            conn.commit()
         
         return {
             "cleaned_records": cleaned_records,
@@ -396,27 +451,28 @@ class LargeDataStorage:
     
     def list_references(self, limit: int = 100) -> List[Dict[str, Any]]:
         """List stored data references"""
-        cursor = self.conn.execute("""
-            SELECT reference_id, tool_name, size_bytes, size_category,
-                   storage_type, content_type, created_at, last_accessed
-            FROM large_tool_data 
-            ORDER BY created_at DESC 
-            LIMIT ?
-        """, (limit,))
-        
-        references = []
-        for row in cursor.fetchall():
-            ref_id, tool_name, size_bytes, size_category, storage_type, content_type, created_at, last_accessed = row
-            references.append({
-                "reference_id": ref_id,
-                "tool_name": tool_name,
-                "size_bytes": size_bytes,
-                "size_mb": size_bytes / (1024 * 1024),
-                "size_category": size_category,
-                "storage_type": storage_type,
-                "content_type": content_type,
-                "created_at": created_at,
-                "last_accessed": last_accessed
+        with self._get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT reference_id, tool_name, size_bytes, size_category,
+                       storage_type, content_type, created_at, last_accessed
+                FROM large_tool_data 
+                ORDER BY created_at DESC 
+                LIMIT ?
+            """, (limit,))
+            
+            references = []
+            for row in cursor.fetchall():
+                ref_id, tool_name, size_bytes, size_category, storage_type, content_type, created_at, last_accessed = row
+                references.append({
+                    "reference_id": ref_id,
+                    "tool_name": tool_name,
+                    "size_bytes": size_bytes,
+                    "size_mb": size_bytes / (1024 * 1024),
+                    "size_category": size_category,
+                    "storage_type": storage_type,
+                    "content_type": content_type,
+                    "created_at": created_at,
+                    "last_accessed": last_accessed
             })
         
         return references

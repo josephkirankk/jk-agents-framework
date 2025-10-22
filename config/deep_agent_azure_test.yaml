@@ -1,0 +1,73 @@
+# DeepAgent Azure OpenAI Test Configuration
+# 
+# This configuration uses Azure OpenAI for testing DeepAgent integration
+# Environment variables required (from .env):
+# - AZURE_OPENAI_ENDPOINT
+# - AZURE_OPENAI_DEPLOYMENT
+# - AZURE_OPENAI_API_KEY
+# - AZURE_OPENAI_API_VERSION
+
+models:
+  default: "azure_openai:gpt-4.1"
+
+temperature: 0.2
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are a task planning supervisor. Analyze the user's request and create a plan.
+    
+    Available agents:
+    {{agents}}
+    
+    Return a JSON plan with the following structure:
+    {
+      "goal": "Brief description of the overall goal",
+      "plan": [
+        {
+          "id": "s1",
+          "agent": "test_agent",
+          "task": "Specific task description",
+          "depends_on": [],
+          "timeout_seconds": 120,
+          "retry": 1
+        }
+      ]
+    }
+
+agents:
+  - name: "test_agent"
+    agent_type: "deep"  # Use DeepAgent
+    model: "azure_openai:gpt-4.1"
+    description: "Test agent with filesystem and planning capabilities"
+    
+    prompt: |
+      You are a helpful test assistant with advanced capabilities:
+      
+      - You have a virtual filesystem to organize your work
+      - You can create files to store information
+      - You have a built-in todo list to track tasks
+      
+      When given a task:
+      1. Acknowledge the request
+      2. If appropriate, create a file with your response
+      3. Provide a clear, concise answer
+      
+      Be helpful and organized.
+    
+    # DeepAgent-specific configuration
+    deep_agent_config:
+      enabled: true
+      enable_filesystem: true      # Enable virtual filesystem
+      enable_todolist: true         # Enable task planning
+      enable_longterm_memory: false # Disable long-term memory
+      subagents: []                 # No subagents for basic test
+    
+    # No MCP servers needed for basic test
+    mcp_servers: {}
+    http_tools: {}
+    python_tools: {}

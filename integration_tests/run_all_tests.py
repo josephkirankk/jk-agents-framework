@@ -20,44 +20,84 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from test_utils import TestStats, print_test_header
 
 
-# Test modules
+# Test modules (with async def main() - can run standalone)
 TEST_MODULES = [
+    {
+        "id": 0,
+        "name": "Super Integrated Test (Comprehensive)",
+        "module": "test_00_super_integrated",
+        "quick": False,
+        "optional": True,
+        "description": "Comprehensive end-to-end test"
+    },
     {
         "id": 1,
         "name": "Agent Types (Normal & React)",
         "module": "test_01_agent_types",
-        "quick": True
+        "quick": True,
+        "description": "Basic agent creation and invocation"
     },
     {
         "id": 2,
         "name": "Tool Calling and MCP",
         "module": "test_02_tool_calling_mcp",
-        "quick": False
+        "quick": False,
+        "description": "Python code execution via MCP"
     },
     {
         "id": 3,
         "name": "ChromaDB Memory",
         "module": "test_03_chromadb_memory",
-        "quick": False
+        "quick": False,
+        "description": "Multi-turn conversation memory"
     },
     {
         "id": 4,
         "name": "Large Data Handling",
         "module": "test_04_large_data_handling",
-        "quick": True
+        "quick": True,
+        "description": "SQLite storage and compression"
     },
     {
         "id": 5,
         "name": "LiteLLM Multi-Provider",
         "module": "test_05_litellm_providers",
-        "quick": True
+        "quick": True,
+        "description": "Azure, Google, Anthropic providers"
     },
     {
         "id": 6,
         "name": "Large Data MCP Demo - Multi-Turn",
         "module": "test_06_large_data_mcp_demo_multi_turn",
-        "quick": False
+        "quick": False,
+        "description": "4-turn multi-agent workflow"
+    },
+    {
+        "id": 10,
+        "name": "Serper Search Integration",
+        "module": "test_10_serper_search_integration",
+        "quick": False,
+        "optional": True,
+        "description": "Google search via Serper MCP (requires SERPER_API_KEY)"
     }
+]
+
+# Pytest-based tests (run separately with pytest)
+PYTEST_MODULES = [
+    "test_00_env_verification.py",
+    "test_01_basic_flow.py",
+    "test_01_ado_mcp_connection.py",
+    "test_02_api_to_llm_flow.py",
+    "test_03_worker_end_to_end.py",
+    "test_04_memory_multi_turn.py",
+    "test_05_error_handling_recovery.py",
+    "test_06_mcp_python_tools.py",
+    "test_07_large_data_storage.py",
+    "test_07_mcp_ado_tools.py",
+    "test_08_concurrency_integration.py",
+    "test_08_image_processing.py",
+    "test_09_api_critical_flows.py",
+    "test_auto_summarization_comprehensive.py"
 ]
 
 
@@ -65,11 +105,17 @@ async def run_test(test_info):
     """Run a single test module"""
     print(f"\n{'#' * 80}")
     print(f"  Running Test {test_info['id']}: {test_info['name']}")
+    if test_info.get('description'):
+        print(f"  {test_info['description']}")
     print(f"{'#' * 80}\n")
     
     try:
         # Import and run test module
         module = __import__(test_info['module'])
+        if not hasattr(module, 'main'):
+            print(f"⚠️  Test module {test_info['module']} has no main() function")
+            return False
+        
         success = await module.main()
         return success
     except Exception as e:
@@ -93,8 +139,36 @@ async def main():
         type=int,
         help='Run specific test IDs (e.g., --test 1 2 3)'
     )
+    parser.add_argument(
+        '--include-optional',
+        action='store_true',
+        help='Include optional tests (e.g., Serper search)'
+    )
+    parser.add_argument(
+        '--list',
+        action='store_true',
+        help='List all available tests and exit'
+    )
     
     args = parser.parse_args()
+    
+    # List tests if requested
+    if args.list:
+        print("\n" + "=" * 80)
+        print("  AVAILABLE INTEGRATION TESTS")
+        print("=" * 80 + "\n")
+        print("Async-based tests (run with this script):")
+        for test in TEST_MODULES:
+            optional = " [OPTIONAL]" if test.get('optional') else ""
+            quick = " [QUICK]" if test.get('quick') else ""
+            print(f"  {test['id']:2d}. {test['name']}{optional}{quick}")
+            if test.get('description'):
+                print(f"      {test['description']}")
+        print(f"\nPytest-based tests (run with 'pytest {Path(__file__).parent}'):")
+        for pytest_test in PYTEST_MODULES:
+            print(f"  - {pytest_test}")
+        print("\n" + "=" * 80 + "\n")
+        return True
     
     print_test_header("JK-AGENTS-CORE INTEGRATION TEST SUITE")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -115,10 +189,16 @@ async def main():
     elif args.quick:
         # Run quick tests only
         tests_to_run = [t for t in TEST_MODULES if t.get('quick', False)]
+        # Exclude optional tests unless explicitly included
+        if not args.include_optional:
+            tests_to_run = [t for t in tests_to_run if not t.get('optional')]
         print("Running QUICK tests only\n")
     else:
         # Run all tests
         tests_to_run = TEST_MODULES
+        # Exclude optional tests unless explicitly included
+        if not args.include_optional:
+            tests_to_run = [t for t in tests_to_run if not t.get('optional')]
         print("Running ALL tests\n")
     
     if not tests_to_run:
@@ -127,7 +207,17 @@ async def main():
     
     print(f"Tests to run: {len(tests_to_run)}")
     for test in tests_to_run:
-        print(f"  {test['id']}. {test['name']}")
+        optional = " [OPTIONAL]" if test.get('optional') else ""
+        quick = " [QUICK]" if test.get('quick') else ""
+        print(f"  {test['id']:2d}. {test['name']}{optional}{quick}")
+    
+    if not args.include_optional:
+        optional_count = sum(1 for t in TEST_MODULES if t.get('optional'))
+        if optional_count > 0:
+            print(f"\n  (Excluding {optional_count} optional test(s). Use --include-optional to run them)")
+    
+    pytest_count = len(PYTEST_MODULES)
+    print(f"\n  Note: {pytest_count} pytest-based tests not included. Run with: pytest integration_tests/")
     print()
     
     # Run tests

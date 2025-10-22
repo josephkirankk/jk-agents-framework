@@ -10,7 +10,7 @@ import importlib
 import logging
 from typing import List, Dict, Any, Optional
 
-from langchain.tools.base import BaseTool
+from langchain_core.tools import BaseTool
 
 log = logging.getLogger("python_tool_loader")
 

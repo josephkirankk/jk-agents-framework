@@ -51,13 +51,15 @@ temperature: 0.1
 business_context: |
   This is a test of multi-turn conversation with data generation and analysis.
   The system should maintain context across multiple turns.
+  
+  You must respond with JSON format for execution plans.
 
 supervisor:
   name: "data_supervisor"
   prompt: |
     {{agents}}
 
-    Create a JSON execution plan. Output ONLY JSON, nothing else.
+    Create a JSON execution plan. Output ONLY valid JSON, nothing else.
 
     For "generate" requests, use data_generator.
     For "analyze" requests, use data_analyzer.
@@ -152,6 +154,7 @@ agents:
             supervisor_compiled=supervisor_1,
             agents_map=agents_map,
             user_input=user_input_1,
+            business_context=app_config.business_context or "",
             thread_id=thread_id,
             default_model_for_verifier=default_model
         )
@@ -201,6 +204,7 @@ agents:
             supervisor_compiled=supervisor_2,
             agents_map=agents_map,
             user_input=user_input_2,
+            business_context=app_config.business_context or "",
             thread_id=thread_id,
             default_model_for_verifier=default_model
         )
@@ -251,6 +255,7 @@ agents:
             supervisor_compiled=supervisor_3,
             agents_map=agents_map,
             user_input=user_input_3,
+            business_context=app_config.business_context or "",
             thread_id=thread_id,
             default_model_for_verifier=default_model
         )
@@ -299,6 +304,7 @@ agents:
             supervisor_compiled=supervisor_4,
             agents_map=agents_map,
             user_input=user_input_4,
+            business_context=app_config.business_context or "",
             thread_id=thread_id,
             default_model_for_verifier=default_model
         )

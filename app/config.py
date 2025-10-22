@@ -57,6 +57,75 @@ class PythonFunctionToolConfig(BaseModel):
     )
 
 
+class SubAgentConfig(BaseModel):
+    """Configuration for DeepAgents subagents."""
+    name: str = Field(
+        ...,
+        description="Unique name for the subagent"
+    )
+    description: str = Field(
+        ...,
+        description="Description of what this subagent does (used by main agent for routing)"
+    )
+    system_prompt: str = Field(
+        ...,
+        description="System prompt for the subagent"
+    )
+    model: Optional[str] = Field(
+        None,
+        description="Model to use for this subagent (if None, uses parent agent's model)"
+    )
+    tools: Optional[List[str]] = Field(
+        default_factory=list,
+        description="List of tool names available to this subagent (subset of parent tools)"
+    )
+    # Could extend with tool definitions if needed
+    mcp_servers: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="MCP servers specific to this subagent"
+    )
+
+
+class DeepAgentConfig(BaseModel):
+    """Configuration for DeepAgents-specific features."""
+    enabled: bool = Field(
+        default=True,
+        description="Enable DeepAgents mode for this agent"
+    )
+    
+    # Middleware configuration
+    enable_filesystem: bool = Field(
+        default=True,
+        description="Enable virtual filesystem middleware for context management"
+    )
+    enable_todolist: bool = Field(
+        default=True,
+        description="Enable todo list middleware for task planning"
+    )
+    enable_longterm_memory: bool = Field(
+        default=False,
+        description="Enable long-term memory across conversation threads"
+    )
+    
+    # Subagent configuration
+    subagents: List[SubAgentConfig] = Field(
+        default_factory=list,
+        description="Subagents for hierarchical task decomposition"
+    )
+    
+    # Human-in-the-loop configuration
+    interrupt_on: Optional[Dict[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Tool names that require human approval before execution"
+    )
+    
+    # Store configuration for long-term memory
+    store_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Configuration for LangGraph Store (long-term memory)"
+    )
+
+
 class AgentConfig(BaseModel):
     name: str
     description: Optional[str] = ""
@@ -67,9 +136,16 @@ class AgentConfig(BaseModel):
     agent_type: Optional[str] = Field(
         default="react",
         description=(
-            "Type of agent to create. Options: 'react' (ReAct agent with tools and reasoning) or 'normal' (basic chat agent without tool calling). Default is 'react' for backward compatibility."
+            "Type of agent to create. Options: 'react' (ReAct agent with tools and reasoning), 'normal' (basic chat agent without tool calling), or 'deep' (DeepAgents with planning and subagents). Default is 'react' for backward compatibility."
         ),
     )
+    
+    # DeepAgents configuration (only used when agent_type="deep")
+    deep_agent_config: Optional[DeepAgentConfig] = Field(
+        default=None,
+        description="Configuration for DeepAgents features (only applies when agent_type='deep')"
+    )
+    
     mcp_servers: Dict[str, MCPServerConfig] = Field(default_factory=dict)
     # Optional simple HTTP tools configuration (non-MCP)
     # Each entry defines a callable HTTP endpoint exposed as a LangChain Tool
@@ -93,9 +169,9 @@ class AgentConfig(BaseModel):
     @classmethod
     def check_agent_type(cls, v):
         """Validate agent_type is one of the supported options."""
-        if v is not None and v not in ("react", "normal"):
+        if v is not None and v not in ("react", "normal", "deep"):
             raise ValueError(
-                "agent_type must be one of: 'react', 'normal'"
+                "agent_type must be one of: 'react', 'normal', 'deep'"
             )
         return v
 

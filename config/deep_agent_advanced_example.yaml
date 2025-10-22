@@ -1,0 +1,120 @@
+# Advanced DeepAgent Example Configuration
+#
+# This configuration demonstrates advanced DeepAgent features:
+# - Multiple specialized subagents
+# - Hierarchical task decomposition
+# - Context isolation between subagents
+# - Virtual filesystem for organization
+#
+# Use Case: Complex research requiring multiple specialized agents
+
+models:
+  default: "azure_openai:gpt-4.1"
+
+temperature: 0.2
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are a task planning supervisor. Analyze the user's request and create a plan.
+    
+    Available agents:
+    {{agents}}
+    
+    Return a JSON plan with the following structure:
+    {
+      "goal": "Brief description of the overall goal",
+      "plan": [
+        {
+          "id": "s1",
+          "agent": "research_orchestrator",
+          "task": "Specific task description",
+          "depends_on": [],
+          "timeout_seconds": 300,
+          "retry": 1
+        }
+      ]
+    }
+
+agents:
+  - name: "research_orchestrator"
+    agent_type: "deep"
+    model: "azure_openai:gpt-4.1"
+    description: "Master research orchestrator with specialized subagents for different research tasks"
+    
+    prompt: |
+      You are a master research orchestrator with access to specialized subagents:
+      
+      Available Subagents:
+      - web-researcher: Conducts web research on specific topics
+      - data-analyzer: Analyzes structured data and statistics
+      - synthesis-specialist: Synthesizes information from multiple sources
+      
+      Your workflow:
+      1. Break down the research task into focused subtasks
+      2. Delegate to appropriate specialized subagents
+      3. Store findings in organized files (e.g., /web_research.md, /analysis.md)
+      4. Use the synthesis specialist to create final reports
+      5. Present a comprehensive, well-structured final report
+      
+      You have filesystem tools to manage context efficiently.
+    
+    deep_agent_config:
+      enabled: true
+      enable_filesystem: true
+      enable_todolist: true
+      enable_longterm_memory: false
+      
+      # Specialized subagents for different research tasks
+      subagents:
+        - name: "web-researcher"
+          description: "Specialized in web research - use for gathering online information, articles, and current data"
+          system_prompt: |
+            You are a web research specialist. Your job is to:
+            - Conduct thorough web searches on given topics
+            - Summarize findings from multiple sources
+            - Store results in files for the main agent
+            - Focus on accuracy and citation of sources
+            
+            Return your findings in a structured format.
+          model: "azure_openai:gpt-4.1"  # Can use a different model
+          tools: []  # Inherits parent tools by default
+        
+        - name: "data-analyzer"
+          description: "Specialized in data analysis - use for analyzing statistics, trends, and structured data"
+          system_prompt: |
+            You are a data analysis specialist. Your job is to:
+            - Analyze numerical data and statistics
+            - Identify trends and patterns
+            - Create clear visualizations (descriptions)
+            - Provide evidence-based insights
+            
+            Return your analysis in a structured format.
+          model: "azure_openai:gpt-4.1"
+          tools: []
+        
+        - name: "synthesis-specialist"
+          description: "Specialized in synthesis - use for combining information from multiple sources into coherent reports"
+          system_prompt: |
+            You are an information synthesis specialist. Your job is to:
+            - Read findings from multiple files
+            - Identify key themes and connections
+            - Create coherent, well-structured reports
+            - Ensure all claims are supported by gathered evidence
+            
+            Return a polished, publication-ready report.
+          model: "azure_openai:gpt-4.1"  # Use full model for synthesis
+          tools: []
+    
+    mcp_servers:
+        brave_search:
+          description: "Brave search MCP server running in Docker"
+          transport: "streamable_http"
+          url: "http://localhost:8080/mcp"
+          env: {}
+          headers: 
+            Content-Type: "application/json"

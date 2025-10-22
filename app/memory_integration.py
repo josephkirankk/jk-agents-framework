@@ -63,6 +63,9 @@ def enhance_system_message_with_memory(
     """
     Enhance system message with conversation memory.
     
+    FIXED: Now uses simple_conversation_memory_fixed for consistency.
+    This ensures we read from the SAME storage we write to.
+    
     Args:
         system_message: Original system message
         thread_id: Conversation thread ID
@@ -84,27 +87,30 @@ def get_conversation_context(thread_id: str) -> str:
     """
     Get conversation context for a thread.
     
+    FIXED: Now retrieves from simple_conversation_memory_fixed to match
+    where we store conversations.
+    
     Args:
         thread_id: Conversation thread ID
         
     Returns:
         Formatted conversation context
     """
-    if thread_id not in _conversations:
+    try:
+        # Use the SAME memory system that stores conversations
+        from .simple_conversation_memory_fixed import get_conversation_memory
+        
+        memory = get_conversation_memory()
+        if not memory.has_conversation(thread_id):
+            return ""
+        
+        # Get conversation summary (includes turn tracking)
+        context = memory.get_conversation_summary(thread_id)
+        return context
+        
+    except Exception as e:
+        log.error(f"Failed to retrieve conversation context for thread {thread_id}: {e}")
         return ""
-    
-    messages = _conversations[thread_id]
-    if not messages:
-        return ""
-    
-    # Build context string
-    context = "Previous conversation context:\n"
-    for msg in messages:
-        role = msg.get("role", "unknown")
-        content = msg.get("content", "")
-        context += f"[{role}]: {content}\n"
-    
-    return context
 
 async def store_conversation_memory(
     thread_id: str,

@@ -1,0 +1,21 @@
+{
+  "module": "app/memory (all memory modules)",
+  "verdict": "Needs Work",
+  "critical_issues": 8,
+  "high_priority_issues": 15,
+  "medium_priority_issues": 24,
+  "low_priority_issues": 8,
+  "total_issues": 55,
+  "top_actions": [
+    "Fix thread-safety issues in ChromaDB connection pooling - PersistentClient is documented as NOT thread-safe but code uses RLock",
+    "Fix async/sync event loop mismanagement in langgraph_adapter.py - sync wrappers creating tasks without awaiting",
+    "Remove unnecessary embedding computations from checkpointer implementations - massive performance overhead for key-value storage",
+    "Fix race conditions in LRUCache.set() and MemoryPool buffer management",
+    "Implement proper resource cleanup and connection lifecycle management across all modules"
+  ],
+  "modules_analyzed": 17,
+  "lines_of_code_reviewed": 4892,
+  "test_coverage_status": "Limited - only 2 memory-specific test files found",
+  "security_issues": 3,
+  "performance_issues": 12
+}

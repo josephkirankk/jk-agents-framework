@@ -1,0 +1,446 @@
+# Critical Fixes Patch for Memory System
+# Apply with: git apply MEMORY_CRITICAL_FIXES.patch
+
+# Fix 1: Thread-Safety in ChromaDB Backend
+# File: app/memory/chromadb_backend.py
+
+--- a/app/memory/chromadb_backend.py
++++ b/app/memory/chromadb_backend.py
+@@ -11,6 +11,7 @@
+ import asyncio
+ import json
+ import time
++import concurrent.futures
+ import threading
+ from typing import Optional, Dict, Any, List, AsyncGenerator
+ import logging
+@@ -80,18 +81,21 @@ class AsyncConnectionPool:
+     """
+     ChromaDB client manager with singleton pattern for persistent storage.
+     
+-    ChromaDB PersistentClient is NOT thread-safe and should not be pooled.
+-    Instead, we use a singleton client with thread-safe access patterns.
+-    For high-concurrency scenarios, consider using ChromaDB in client-server mode.
++    ChromaDB PersistentClient is NOT thread-safe.
++    This implementation uses single-thread executor to serialize all access.
+     """
+     
+     # Class-level singleton client for persistent storage
+     _persistent_clients: Dict[str, chromadb.Client] = {}
+     _client_lock = threading.Lock()
++    _executors: Dict[str, concurrent.futures.ThreadPoolExecutor] = {}
+     
+     def __init__(self, config: ChromaDBConfig):
+         self.config = config
+         self._client: Optional[chromadb.Client] = None
+-        self._lock = threading.RLock()  # Reentrant lock for thread safety
++        self._lock = asyncio.Lock()  # Async lock (lazy init)
++        self._lock_initialized = False
++        self._executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+         self._closed = False
+         self._is_persistent = bool(config.path)
+         self._client_key = config.path if config.path else f"{config.host}:{config.port}"
+@@ -101,6 +105,7 @@ class AsyncConnectionPool:
+             "connection_errors": 0,
+             "active_operations": 0
+         }
++        self._stats_lock = threading.Lock()
+     
+     async def initialize(self):
+         """Initialize the ChromaDB client (singleton for persistent storage)."""
+@@ -108,10 +113,24 @@ class AsyncConnectionPool:
+             raise RuntimeError("ChromaDB not installed. Run: pip install chromadb")
+         
+         with self._client_lock:
++            # Initialize async lock if needed
++            if not self._lock_initialized:
++                self._lock = asyncio.Lock()
++                self._lock_initialized = True
++            
++            # Get or create executor for this client
++            if self._client_key not in AsyncConnectionPool._executors:
++                # Single thread executor ensures serial access to ChromaDB
++                executor = concurrent.futures.ThreadPoolExecutor(
++                    max_workers=1,
++                    thread_name_prefix=f"chromadb_{self._client_key[:8]}"
++                )
++                AsyncConnectionPool._executors[self._client_key] = executor
++            
++            self._executor = AsyncConnectionPool._executors[self._client_key]
++            
+             # Check if singleton client already exists for this path/host
+             if self._client_key in AsyncConnectionPool._persistent_clients:
+                 self._client = AsyncConnectionPool._persistent_clients[self._client_key]
+                 log.info(f"Reusing existing ChromaDB client for {self._client_key}")
+                 return
+             
+             try:
++                # Create client in executor thread
++                loop = asyncio.get_event_loop()
++                self._client = await loop.run_in_executor(
++                    self._executor,
++                    self._create_client_sync
++                )
++                
+-                if self._is_persistent:
+-                    # Create PersistentClient for local storage
+-                    log.info(f"Creating ChromaDB PersistentClient: {self.config.path}")
+-                    self._client = chromadb.PersistentClient(
+-                        path=self.config.path,
+-                        settings=Settings(anonymized_telemetry=False)
+-                    )
+-                else:
+-                    # Create HttpClient for server connection
+-                    log.info(f"Creating ChromaDB HttpClient: {self.config.host}:{self.config.port}")
+-                    self._client = chromadb.HttpClient(
+-                        host=self.config.host,
+-                        port=self.config.port,
+-                        settings=Settings(anonymized_telemetry=False)
+-                    )
+-                
+                 # Store in singleton registry
+                 AsyncConnectionPool._persistent_clients[self._client_key] = self._client
+                 log.info(f"ChromaDB client initialized successfully for {self._client_key}")
+                 
+             except Exception as e:
+                 log.error(f"Failed to create ChromaDB client: {e}")
+-                self._stats["connection_errors"] += 1
++                with self._stats_lock:
++                    self._stats["connection_errors"] += 1
+                 raise
++    
++    def _create_client_sync(self):
++        """Synchronous client creation (runs in executor thread)"""
++        if self._is_persistent:
++            log.info(f"Creating ChromaDB PersistentClient: {self.config.path}")
++            return chromadb.PersistentClient(
++                path=self.config.path,
++                settings=Settings(anonymized_telemetry=False)
++            )
++        else:
++            log.info(f"Creating ChromaDB HttpClient: {self.config.host}:{self.config.port}")
++            return chromadb.HttpClient(
++                host=self.config.host,
++                port=self.config.port,
++                settings=Settings(anonymized_telemetry=False)
++            )
+     
+     @asynccontextmanager
+     async def acquire(self) -> AsyncGenerator[chromadb.Client, None]:
+-        """Acquire the singleton ChromaDB client with thread-safe access."""
++        """Acquire the ChromaDB client for operations (serialized through executor)."""
+         if self._closed:
+             raise RuntimeError("ChromaDB client manager is closed")
+         
+         if not self._client:
+             raise RuntimeError("ChromaDB client not initialized. Call initialize() first.")
+         
+-        with self._lock:
++        async with self._lock:
++            with self._stats_lock:
++                self._stats["active_operations"] += 1
++                self._stats["total_operations"] += 1
+-            self._stats["active_operations"] += 1
+-            self._stats["total_operations"] += 1
+         
+         try:
+             yield self._client
+         except Exception as e:
+             log.error(f"ChromaDB operation error: {e}")
+-            self._stats["connection_errors"] += 1
++            with self._stats_lock:
++                self._stats["connection_errors"] += 1
+             raise
+         finally:
+-            with self._lock:
++            with self._stats_lock:
+                 self._stats["active_operations"] -= 1
++    
++    async def execute_in_thread(self, operation, *args, **kwargs):
++        """Execute ChromaDB operation in dedicated thread"""
++        if not self._executor:
++            raise RuntimeError("Executor not initialized")
++        
++        loop = asyncio.get_event_loop()
++        return await loop.run_in_executor(
++            self._executor,
++            operation,
++            *args,
++            **kwargs
++        )
+
+# Fix 2: LRUCache Race Condition
+# File: app/memory/structures.py
+
+--- a/app/memory/structures.py
++++ b/app/memory/structures.py
+@@ -290,20 +290,21 @@ class LRUCache:
+     def set(self, key: Any, value: Any) -> None:
+         """Set value in cache."""
+         with self._lock:
+             if key in self._cache:
+                 # Update existing node
+                 node = self._cache[key]
+                 node.value = value
+                 self._move_to_head(node)
+             else:
+-                # Add new node
+-                new_node = self._Node(key, value)
+-                
++                # Check size and evict BEFORE adding (atomic)
+                 if len(self._cache) >= self.maxsize:
+                     # Evict least recently used
+                     tail = self._pop_tail()
+                     del self._cache[tail.key]
+                     self._stats["evictions"] += 1
+                 
++                # Now safe to add (guaranteed space exists)
++                new_node = self._Node(key, value)
+                 self._cache[key] = new_node
+                 self._add_node(new_node)
+
+# Fix 3: SQL Injection in Conversation Store
+# File: app/memory/conversation_store.py
+
+--- a/app/memory/conversation_store.py
++++ b/app/memory/conversation_store.py
+@@ -401,17 +401,34 @@ class ConversationStore:
+             batch_size: Batch size for deletion (default 1000)
+             
+         Returns:
+             Total number of deleted conversations
+         """
+-        cleanup_sql = """
+-        DELETE FROM conversations 
+-        WHERE timestamp < NOW() - INTERVAL '%s days'
+-        """ % days_to_keep
++        # Validate input
++        if not isinstance(days_to_keep, int) or days_to_keep < 0:
++            raise ValueError("days_to_keep must be non-negative integer")
++        
++        # Use parameterized query with DELETE...RETURNING for accurate count
++        cleanup_sql = """
++        DELETE FROM conversations 
++        WHERE id IN (
++            SELECT id FROM conversations
++            WHERE timestamp < NOW() - $1::interval
++            LIMIT $2
++        )
++        RETURNING id
++        """
+ 
++        total_deleted = 0
+         try:
+-            async with self._get_connection() as conn:
+-                result = await conn.execute(cleanup_sql)
+-                deleted_count = int(result.split()[-1]) if result.split()[-1].isdigit() else 0
+-                logger.info(f"Cleaned up {deleted_count} old conversations (older than {days_to_keep} days)")
+-                return deleted_count
++            # Delete in batches to avoid long-running transactions
++            while True:
++                async with self._get_connection() as conn:
++                    deleted_rows = await conn.fetch(
++                        cleanup_sql,
++                        f"{days_to_keep} days",  # Parameterized
++                        batch_size
++                    )
++                    
++                    if not deleted_rows:
++                        break
++                    
++                    total_deleted += len(deleted_rows)
++            
++            logger.info(f"Cleaned up {total_deleted} old conversations (older than {days_to_keep} days)")
++            return total_deleted
+                 
+         except Exception as e:
+             logger.error(f"Failed to cleanup old conversations: {e}")
+             raise
+
+# Fix 4: Event Loop Issues in LangGraph Adapter
+# File: app/memory/langgraph_adapter.py
+
+--- a/app/memory/langgraph_adapter.py
++++ b/app/memory/langgraph_adapter.py
+@@ -138,17 +138,14 @@ class HighPerformanceCheckpointer(BaseCheckpointSaver if HAS_LANGGRAPH else obj
+     def get(self, config: RunnableConfig) -> Optional[Checkpoint]:
+         """
+-        Sync get checkpoint - runs async method in event loop.
++        Sync get checkpoint - NOT SUPPORTED in async contexts.
++        
++        Raises NotImplementedError if called from async context.
++        Use aget() instead for async code.
+         """
+         try:
+-            # Try to get current event loop
+-            loop = asyncio.get_event_loop()
+-            if loop.is_running():
+-                # We're already in an async context, create a task
+-                task = loop.create_task(self.aget(config))
+-                # For sync compatibility, we need to return None and log
+-                log.warning("Sync get() called in async context - use aget() instead")
+-                return None
+-            else:
+-                # No running loop, run the async method
+-                return loop.run_until_complete(self.aget(config))
+-        except RuntimeError:
+-            # No event loop, create new one
++            # Always try to run in new event loop
+             return asyncio.run(self.aget(config))
++        except RuntimeError as e:
++            if "running event loop" in str(e).lower():
++                raise NotImplementedError(
++                    "Cannot call sync get() from async context. "
++                    "Use aget() instead. "
++                    "This checkpointer requires async usage in LangGraph agents."
++                ) from e
++            raise
+
+# Fix 5: Circuit Breaker Async Support
+# File: app/memory/manager.py
+
+--- a/app/memory/manager.py
++++ b/app/memory/manager.py
+@@ -214,12 +214,14 @@ class PerformanceMonitor:
+ class CircuitBreaker:
+     """Circuit breaker pattern for graceful degradation."""
+     
+     def __init__(self, failure_threshold: int = 5, timeout: int = 60):
+         self.failure_threshold = failure_threshold
+         self.timeout = timeout
+         self.failure_count = 0
+         self.last_failure_time = 0
+         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+-        self._lock = threading.RLock()
++        self._lock: Optional[asyncio.Lock] = None
++        self._sync_lock = threading.RLock()
++    
++    def _ensure_async_lock(self):
++        """Lazy init async lock"""
++        if self._lock is None:
++            self._lock = asyncio.Lock()
++        return self._lock
+     
+     def call(self, func, *args, **kwargs):
+-        """Execute function through circuit breaker."""
++        """Execute SYNC function through circuit breaker."""
++        # Detect if function is async
++        if asyncio.iscoroutinefunction(func):
++            raise TypeError(
++                f"{func.__name__} is a coroutine function. "
++                f"Use acall() instead of call()"
++            )
++        
+-        with self._lock:
++        with self._sync_lock:
+             if self.state == "OPEN":
+                 if time.time() - self.last_failure_time > self.timeout:
+                     self.state = "HALF_OPEN"
+                 else:
+                     raise RuntimeError("Circuit breaker is OPEN")
+             
+             try:
+                 result = func(*args, **kwargs)
+                 if self.state == "HALF_OPEN":
+                     self.state = "CLOSED"
+                     self.failure_count = 0
+                 return result
+             except Exception as e:
+                 self.failure_count += 1
+                 self.last_failure_time = time.time()
+                 
+                 if self.failure_count >= self.failure_threshold:
+                     self.state = "OPEN"
+                     log.warning(f"Circuit breaker opened after {self.failure_count} failures")
+                 
+                 raise e
++    
++    async def acall(self, func, *args, **kwargs):
++        """Execute ASYNC function through circuit breaker."""
++        lock = self._ensure_async_lock()
++        
++        async with lock:
++            if self.state == "OPEN":
++                if time.time() - self.last_failure_time > self.timeout:
++                    self.state = "HALF_OPEN"
++                else:
++                    raise RuntimeError(
++                        f"Circuit breaker is OPEN. "
++                        f"Retry after {self.timeout - (time.time() - self.last_failure_time):.1f}s"
++                    )
++            
++            try:
++                # Properly await async function
++                result = await func(*args, **kwargs)
++                
++                if self.state == "HALF_OPEN":
++                    self.state = "CLOSED"
++                    self.failure_count = 0
++                    log.info("Circuit breaker closed after successful half-open attempt")
++                
++                return result
++                
++            except Exception as e:
++                self.failure_count += 1
++                self.last_failure_time = time.time()
++                
++                if self.failure_count >= self.failure_threshold:
++                    self.state = "OPEN"
++                    log.warning(
++                        f"Circuit breaker opened after {self.failure_count} failures: {e}"
++                    )
++                
++                raise e
+     
+     def get_stats(self) -> Dict[str, Any]:
+         """Get circuit breaker statistics."""
+-        with self._lock:
++        with self._sync_lock:
+             return {
+                 "state": self.state,
+                 "failure_count": self.failure_count,
+                 "failure_threshold": self.failure_threshold,
+                 "last_failure_time": self.last_failure_time,
+                 "timeout": self.timeout
+             }
+@@ -370,7 +412,7 @@ class HighPerformanceMemoryManager:
+         start_time = time.time()
+         
+         try:
+-            result = await self._circuit_breaker.call(
++            result = await self._circuit_breaker.acall(
+                 self._backend.checkpoint_store.store_checkpoint,
+                 user_id, thread_id, data
+             )
+@@ -390,7 +432,7 @@ class HighPerformanceMemoryManager:
+         start_time = time.time()
+         
+         try:
+-            result = await self._circuit_breaker.call(
++            result = await self._circuit_breaker.acall(
+                 self._backend.checkpoint_store.retrieve_checkpoint,
+                 user_id, thread_id
+             )
+
+# Fix 6: Memory Pool Buffer Security
+# File: app/memory/structures.py
+
+--- a/app/memory/structures.py
++++ b/app/memory/structures.py
+@@ -169,10 +169,13 @@ class MemoryPool:
+     def release(self, buffer: bytearray) -> None:
+         """Release a buffer back to the pool."""
+         if not isinstance(buffer, bytearray):
+             return
+             
+         with self._lock:
+             buffer_id = id(buffer)
+             if buffer_id in self._in_use:
+                 self._in_use.remove(buffer_id)
+-                # Clear buffer and return to pool
++                # SECURITY: Zero buffer memory before reuse
++                buffer[:] = b'\x00' * len(buffer)
+                 buffer.clear()
+                 self._available.append(buffer)
+
+# End of patch file

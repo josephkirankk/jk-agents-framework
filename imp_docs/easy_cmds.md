@@ -46,3 +46,10 @@ rm .current_thread_id
 ./temp_tests/query_with_memory.sh "write fibonacci for each number here"
 ./temp_tests/query_with_memory.sh "print the highest and lowest"
 ```
+
+## Serper API Test
+```bash
+python serpapi_test.py
+```
+MCP Server
+https://github.com/marcopesani/mcp-server-serper

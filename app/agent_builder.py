@@ -27,6 +27,13 @@ from .gemini_schema_filter import apply_gemini_schema_filtering, is_gemini_model
 from .prompt_loader import load_prompt_content, get_config_directory
 from .llm_payload_logger import LoggingModelWrapper, LLMPayloadLogger
 
+# Import DeepAgents adapter for advanced agent features
+try:
+    from .deep_agent_adapter import create_deep_agent_from_config
+    HAS_DEEPAGENTS = True
+except ImportError:
+    HAS_DEEPAGENTS = False
+
 # Import LiteLLM provider (optional)
 try:
     from .litellm_provider import LiteLLMProvider
@@ -678,7 +685,42 @@ async def build_agent(
     agent_type = getattr(agent_cfg, "agent_type", "react") or "react"
     
     # Create agent based on type
-    if agent_type == "normal":
+    if agent_type == "deep":
+        # Create DeepAgent with advanced features (subagents, planning, context management)
+        if not HAS_DEEPAGENTS:
+            log.error(
+                f"Cannot create DeepAgent '{agent_cfg.name}': deepagents package not installed. "
+                "Install with: pip install deepagents"
+            )
+            raise ImportError(
+                "DeepAgents package is required for agent_type='deep'. "
+                "Install with: pip install deepagents"
+            )
+        
+        log.info(f"Creating deep agent {agent_cfg.name} with DeepAgents framework")
+        
+        # DeepAgent uses the base model instance (without tool binding), as it handles tools internally
+        # Get the actual model - if model_instance is a string, create the model; otherwise use it directly
+        if isinstance(model_instance, str):
+            from langchain.chat_models import init_chat_model
+            deep_agent_model = init_chat_model(model_instance)
+        else:
+            deep_agent_model = model_instance
+        
+        agent = create_deep_agent_from_config(
+            model=deep_agent_model,  # Use base model, not model_with_tools
+            tools=tools,
+            system_prompt=prompt_filled,
+            agent_config=agent_cfg,
+            checkpointer=checkpointer,
+        )
+        
+        log.info(
+            f"DeepAgent '{agent_cfg.name}' created with "
+            f"{len(agent_cfg.deep_agent_config.subagents) if agent_cfg.deep_agent_config else 0} subagents"
+        )
+        
+    elif agent_type == "normal":
         # Create normal agent without tool calling
         log.info(f"Creating normal agent {agent_cfg.name} (no tool calling)")
         agent = create_normal_agent(

@@ -1,0 +1,79 @@
+# Basic DeepAgent Example Configuration
+# 
+# This configuration demonstrates a simple DeepAgent with:
+# - Virtual filesystem for context management
+# - TodoList middleware for task planning
+# - No subagents (single deep agent)
+#
+# Use Case: Research tasks that need organized context and planning
+
+models:
+  default: "openai:gpt-4o"
+
+temperature: 0.2
+
+persistence:
+  type: "memory"
+
+supervisor:
+  name: "supervisor"
+  model: "openai:gpt-4o"
+  prompt: |
+    You are a task planning supervisor. Analyze the user's request and create a plan.
+    
+    Available agents:
+    {{agents}}
+    
+    Return a JSON plan with the following structure:
+    {
+      "goal": "Brief description of the overall goal",
+      "plan": [
+        {
+          "id": "s1",
+          "agent": "research_agent",
+          "task": "Specific task description",
+          "depends_on": [],
+          "timeout_seconds": 120,
+          "retry": 1
+        }
+      ]
+    }
+
+agents:
+  - name: "research_agent"
+    agent_type: "deep"  # Use DeepAgent
+    model: "openai:gpt-4o"
+    description: "Advanced research agent with context management and planning capabilities"
+    
+    prompt: |
+      You are an expert research assistant with advanced capabilities:
+      
+      - You have a virtual filesystem to organize your work
+      - You can create files to store research findings
+      - You have a built-in todo list to track your progress
+      - You can plan complex multi-step research tasks
+      
+      When conducting research:
+      1. Break down the task into manageable steps
+      2. Store intermediate findings in files (e.g., /research_notes.md)
+      3. Use the filesystem to organize large amounts of information
+      4. Provide a final summary of your findings
+      
+      Your goal is to conduct thorough, well-organized research.
+    
+    # DeepAgent-specific configuration
+    deep_agent_config:
+      enabled: true
+      enable_filesystem: true      # Enable virtual filesystem
+      enable_todolist: true         # Enable task planning
+      enable_longterm_memory: false # Disable long-term memory for this example
+      subagents: []                 # No subagents in this basic example
+    
+    # MCP servers for tools (example with search capability)
+    mcp_servers:
+      brave_search:
+        description: "Web search via Brave Search API"
+        transport: "sse"
+        url: "http://localhost:3100/sse"
+        headers:
+          Authorization: "Bearer ${BRAVE_API_KEY}"

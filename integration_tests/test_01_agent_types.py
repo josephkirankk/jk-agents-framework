@@ -35,6 +35,10 @@ async def test_normal_agent():
     result = TestResult("Normal Agent with Azure OpenAI")
     env = TestEnvironment("normal_agent")
     
+    # Generate unique thread_id (may be needed if agent has checkpointer)
+    import uuid
+    thread_id = f"test_normal_{uuid.uuid4().hex[:8]}"
+    
     try:
         print_section("Testing Normal Agent Creation")
         
@@ -86,7 +90,8 @@ agents:
         
         response = await invoke_agent(
             agent,
-            "What type of agent are you? Answer in one sentence."
+            "What type of agent are you? Answer in one sentence.",
+            thread_id=thread_id
         )
         
         print(f"✓ Response received ({response['duration']:.2f}s)")
@@ -111,7 +116,8 @@ agents:
         
         response2 = await invoke_agent(
             agent,
-            "What is 2+2? Just give the number."
+            "What is 2+2? Just give the number.",
+            thread_id=thread_id
         )
         
         print(f"✓ Second response received")
@@ -144,6 +150,10 @@ async def test_react_agent():
     """Test react agent (with tools) with Azure OpenAI"""
     result = TestResult("React Agent with Azure OpenAI")
     env = TestEnvironment("react_agent")
+    
+    # Generate unique thread_id for this test (react agents require checkpointer)
+    import uuid
+    thread_id = f"test_react_{uuid.uuid4().hex[:8]}"
     
     try:
         print_section("Testing React Agent Creation")
@@ -216,7 +226,8 @@ agents:
         
         response = await invoke_agent(
             agent,
-            "Hello! Just say 'Hi' back."
+            "Hello! Just say 'Hi' back.",
+            thread_id=thread_id
         )
         
         print(f"✓ Response received ({response['duration']:.2f}s)")
@@ -234,7 +245,8 @@ agents:
         
         response2 = await invoke_agent(
             agent,
-            "Calculate: 15 * 23 + 100. Use Python to compute this."
+            "Calculate: 15 * 23 + 100. Use Python to compute this.",
+            thread_id=thread_id
         )
         
         print(f"✓ Response received ({response2['duration']:.2f}s)")

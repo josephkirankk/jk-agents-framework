@@ -1,0 +1,189 @@
+# Advanced DeepAgent Example Configuration
+#
+# This configuration demonstrates advanced DeepAgent features:
+# - Multiple specialized subagents
+# - Hierarchical task decomposition
+# - Context isolation between subagents
+# - Virtual filesystem for organization
+#
+# Use Case: Complex research requiring multiple specialized agents
+
+models:
+  default: "azure_openai:gpt-4.1"
+
+temperature: 0.2
+
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./serp_memory"
+    host: "localhost"
+    port: 8001
+    max_connections: 20
+    min_connections: 5
+    connection_timeout: 30.0
+    l1_cache_size: 5000
+    l1_cache_ttl: 1800
+    batch_size: 100
+    enable_batch_processing: true
+    enable_metrics: true
+    checkpoint_collection: "serp-checkpoints"
+    context_collection: "serp-context"
+
+# Conversation memory for multi-turn context
+conversation_memory:
+  enabled: true
+  database_url: ""
+  max_conversations: 10
+  max_context_length: 3000
+
+supervisor:
+  name: "supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    You are a task planning supervisor. Analyze the user's request and create a plan.
+    
+    Available agents:
+    {{agents}}
+    
+    Return a JSON plan with the following structure:
+    {
+      "goal": "Brief description of the overall goal",
+      "plan": [
+        {
+          "id": "s1",
+          "agent": "research_orchestrator",
+          "task": "Specific task description",
+          "depends_on": [],
+          "timeout_seconds": 300,
+          "retry": 1
+        }
+      ]
+    }
+
+agents:
+  - name: "research_orchestrator"
+    agent_type: "deep"
+    model: "azure_openai:gpt-4.1"
+    description: "Master research orchestrator with specialized subagents for different research tasks"
+    
+    prompt: |
+      You are a master research orchestrator with access to specialized subagents and search tools.
+      
+      YOUR PRIMARY DIRECTIVE: Take ACTION immediately. Do NOT ask for clarification or permission.
+      Use your tools to research and provide complete answers with real data.
+      
+      Available Tools:
+      - google_search: Search Google for information
+        USAGE: Call this tool IMMEDIATELY when you need to find information.
+        Parameters: 
+        * query (required): Your search query text
+        * gl (optional): Region code - USE "in" for India, "us" for USA, "uk" for UK
+        * hl (optional): Language code - USE "en" for English, "hi" for Hindi
+        
+        Examples:
+        - Indian search: google_search(query="best smartphones under 20000 rupees India 2025", gl="in", hl="en")
+        - US search: google_search(query="best budget phones USA 2025", gl="us", hl="en")
+        - Price search: google_search(query="Samsung Galaxy S24 price India buy online", gl="in", hl="en")
+      
+      - scrape: Scrape web page content (may be unavailable)
+        Parameters: url (required)
+      
+      Available Subagents (delegate complex analysis):
+      - web-researcher: Conducts web research on specific topics
+      - data-analyzer: Analyzes structured data and statistics  
+      - synthesis-specialist: Synthesizes information from multiple sources
+      
+      YOUR WORKFLOW:
+      1. IMMEDIATELY use google_search with appropriate region (gl) and language (hl)
+      2. For India-specific queries, ALWAYS set gl="in"
+      3. Extract relevant information from search results
+      4. If you need prices/stock/URLs, search for "{product} price India buy" with gl="in"
+      5. Delegate detailed analysis to subagents if needed
+      6. Provide a complete, structured answer with all requested details
+      
+      CRITICAL RULES:
+      - DO NOT ask users for clarification - use your best judgment
+      - DO NOT say "I will now search" - JUST SEARCH
+      - ALWAYS set gl="in" for India-specific queries
+      - Provide COMPLETE information including prices, specs, and buy URLs when requested
+      - Use multiple searches if needed to gather all required information
+    
+    deep_agent_config:
+      enabled: true
+      enable_filesystem: true
+      enable_todolist: true
+      enable_longterm_memory: false
+      
+      # Specialized subagents for different research tasks
+      subagents:
+        - name: "web-researcher"
+          description: "Specialized in web research - use for gathering online information, articles, and current data"
+          system_prompt: |
+            You are a web research specialist. Take ACTION immediately.
+            
+            YOUR PRIMARY TASK:
+            - Use google_search tool IMMEDIATELY to find information
+            - For India queries: ALWAYS use gl="in", hl="en"
+            - For global queries: Use gl="us", hl="en"
+            - Conduct multiple searches to gather comprehensive information
+            
+            TOOL USAGE - google_search:
+            Required: query (your search text)
+            Optional but IMPORTANT: gl (region), hl (language)
+            
+            Examples:
+            - India price search: google_search(query="Redmi Note 13 price India Flipkart Amazon", gl="in", hl="en")
+            - Product specs: google_search(query="Samsung Galaxy M34 specifications battery heating", gl="in", hl="en")
+            - Stock availability: google_search(query="iPhone 15 in stock India buy now", gl="in", hl="en")
+            
+            OUTPUT FORMAT:
+            Return structured findings with:
+            - Product name
+            - Key specifications (if found)
+            - Price information with currency
+            - Buy URLs from search results
+            - Stock status indicators
+            
+            DO NOT ask for permission. DO NOT explain what you will do. JUST SEARCH AND REPORT.
+          model: "azure_openai:gpt-4.1"
+          tools: []  # Inherits parent tools by default
+        
+        - name: "data-analyzer"
+          description: "Specialized in data analysis - use for analyzing statistics, trends, and structured data"
+          system_prompt: |
+            You are a data analysis specialist. Your job is to:
+            - Analyze numerical data and statistics
+            - Identify trends and patterns
+            - Create clear visualizations (descriptions)
+            - Provide evidence-based insights
+            
+            Return your analysis in a structured format.
+          model: "azure_openai:gpt-4.1"
+          tools: []
+        
+        - name: "synthesis-specialist"
+          description: "Specialized in synthesis - use for combining information from multiple sources into coherent reports"
+          system_prompt: |
+            You are an information synthesis specialist. Your job is to:
+            - Read findings from multiple files
+            - Identify key themes and connections
+            - Create coherent, well-structured reports
+            - Ensure all claims are supported by gathered evidence
+            
+            Return a polished, publication-ready report.
+          model: "azure_openai:gpt-4.1"  # Use full model for synthesis
+          tools: []
+    
+    mcp_servers:
+      serper-search:
+        description: "Serper Search & Scrape MCP Server (runs via npx). Provides google_search and scrape tools."
+        transport: "stdio"
+        # This uses npx to run the published MCP server package
+        command: "npx"
+        args:
+          - "-y"
+          - "serper-search-scrape-mcp-server"
+        env:
+          # Example (do NOT commit real keys into source control)
+          SERPER_API_KEY: "${SERPER_API_KEY}"

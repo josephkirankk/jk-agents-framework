@@ -373,7 +373,8 @@ async def phase2_single_agent_execution(test: SuperIntegratedTest) -> TestResult
         print("\n[2.2] Testing Normal Agent...")
         response = await invoke_agent(
             normal_agent,
-            "What is the capital of France? Answer in one sentence."
+            "What is the capital of France? Answer in one sentence.",
+            thread_id=test.test_thread_id
         )
         
         print(f"  ✓ Response received ({response['duration']:.2f}s)")
@@ -411,7 +412,8 @@ async def phase2_single_agent_execution(test: SuperIntegratedTest) -> TestResult
         print("\n[2.4] Testing React Agent with Tool Calling...")
         response2 = await invoke_agent(
             react_agent,
-            "Calculate the factorial of 5 using Python. Show me the result."
+            "Calculate the factorial of 5 using Python. Show me the result.",
+            thread_id=test.test_thread_id
         )
         
         tool_calls = extract_tool_calls(response2['messages'])
@@ -760,7 +762,8 @@ async def phase5_advanced_features(test: SuperIntegratedTest) -> TestResult:
         print("\n[5.2] Testing Complex Calculation...")
         response = await invoke_agent(
             react_agent,
-            "Calculate the sum of squares of numbers from 1 to 10. Show your work."
+            "Calculate the sum of squares of numbers from 1 to 10. Show your work.",
+            thread_id=test.test_thread_id
         )
         
         tool_calls = extract_tool_calls(response['messages'])
@@ -784,7 +787,8 @@ async def phase5_advanced_features(test: SuperIntegratedTest) -> TestResult:
         print("\n[5.3] Testing Sequential Tool Calls...")
         response2 = await invoke_agent(
             react_agent,
-            "First, calculate 100 factorial. Then, calculate how many digits are in that number."
+            "First, calculate 100 factorial. Then, calculate how many digits are in that number.",
+            thread_id=test.test_thread_id
         )
         
         tool_calls2 = extract_tool_calls(response2['messages'])

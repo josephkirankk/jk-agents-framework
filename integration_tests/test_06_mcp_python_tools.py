@@ -33,8 +33,12 @@ from helpers.utils import contains_keywords, extract_numbers
 def check_deno_available():
     """Check if Deno is available."""
     try:
-        result = subprocess.run(['which', 'deno'], capture_output=True, text=True)
+        # Try running deno --version to check if it's available
+        result = subprocess.run(['deno', '--version'], capture_output=True, text=True, timeout=5)
         return result.returncode == 0
+    except FileNotFoundError:
+        # Deno not in PATH
+        return False
     except Exception:
         return False
 

@@ -161,30 +161,54 @@ class SimpleConversationMemory:
         return "Turn-1"  # Fallback for first conversation or missing turn_id
     
     def _basic_summarize(self, thread_id: str):
-        """Very basic summarization to prevent memory bloat."""
+        """Very basic summarization to prevent memory bloat.
+        
+        Triggers when conversation exceeds 30 messages.
+        Keeps summary + last 10 messages = 11 total messages.
+        This allows unlimited conversation turns without memory bloat.
+        """
         messages = self.conversations.get(thread_id, [])
         
+        # Only summarize if we have more than 30 messages
         if len(messages) <= 30:
             return
-            
-        # Keep last 10 messages only
+        
+        # Count non-summary messages for accurate reporting
+        non_summary_messages = [m for m in messages if m.get('role') != 'system' or m.get('turn_id') != 'Summary']
+        
+        # Keep last 10 messages (these are the most recent, critical for context)
         recent_messages = messages[-10:]
         
-        # Create a simple summary message
-        summary = f"CONVERSATION SUMMARY: {len(messages) - 10} earlier messages have been summarized."
+        # Count how many messages are being summarized
+        summarized_count = len(messages) - 10
+        
+        # Create a comprehensive summary message with metadata
+        summary_content = (
+            f"CONVERSATION SUMMARY: {summarized_count} earlier messages have been summarized. "
+            f"Recent context preserved for continuity."
+        )
         
         summary_message = {
             'role': 'system',
-            'content': summary,
+            'content': summary_content,
             'timestamp': datetime.now().isoformat(),
             'turn_id': 'Summary',
-            'metadata': {'type': 'basic_summary', 'count': len(messages) - 10}
+            'metadata': {
+                'type': 'basic_summary',
+                'count': summarized_count,
+                'summarization_timestamp': datetime.now().isoformat(),
+                'original_message_count': len(messages),
+                'preserved_message_count': 10
+            }
         }
         
         # Replace conversation with summary + recent messages
+        # This ensures we maintain 11 messages total (1 summary + 10 recent)
         self.conversations[thread_id] = [summary_message] + recent_messages
         
-        log.info(f"Basic summarization for thread {thread_id}: kept last 10 messages")
+        log.info(f"Auto-summarization for thread {thread_id}: "
+                f"summarized {summarized_count} messages, kept last 10 messages, "
+                f"total now: {len(self.conversations[thread_id])} messages")
 
 # Global instance
 _global_conversation_memory: Optional[SimpleConversationMemory] = None

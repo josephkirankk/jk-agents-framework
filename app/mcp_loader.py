@@ -5,15 +5,174 @@ import json
 import os
 import re
 import time
+import sys
+import traceback
 from typing import Any, Dict, List, Tuple, Optional
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain.tools.base import BaseTool
-from langchain.tools import Tool
+from langchain_core.tools import BaseTool, Tool
 import aiohttp
 import requests
 
 log = logging.getLogger("mcp_loader")
+
+# Import MCP-specific exceptions for better error handling
+try:
+    from mcp.shared.exceptions import McpError
+    MCP_ERROR_AVAILABLE = True
+except ImportError:
+    McpError = Exception
+    MCP_ERROR_AVAILABLE = False
+    log.warning("MCP exceptions not available, using generic Exception")
+
+
+def _extract_exception_details(exc: Exception) -> tuple[str, str, str]:
+    """
+    Extract detailed information from an exception, including ExceptionGroup.
+    
+    Returns:
+        Tuple of (error_type, error_message, traceback_str)
+    """
+    error_type = type(exc).__name__
+    error_msg = str(exc)
+    
+    # Handle ExceptionGroup (Python 3.11+)
+    if hasattr(exc, '__cause__') and exc.__cause__:
+        cause = exc.__cause__
+        error_type = f"{error_type} (caused by {type(cause).__name__})"
+        error_msg = f"{error_msg} | Cause: {str(cause)}"
+    
+    # Try to extract from ExceptionGroup
+    if sys.version_info >= (3, 11):
+        try:
+            from builtins import ExceptionGroup as BuiltinExceptionGroup
+            if isinstance(exc, BuiltinExceptionGroup):
+                # Extract first exception from the group
+                if exc.exceptions:
+                    first_exc = exc.exceptions[0]
+                    error_type = type(first_exc).__name__
+                    error_msg = str(first_exc)
+                    # Get full traceback of the inner exception
+                    tb_str = ''.join(traceback.format_exception(type(first_exc), first_exc, first_exc.__traceback__))
+                    return error_type, error_msg, tb_str
+        except (ImportError, AttributeError):
+            pass
+    
+    # Fallback: get traceback from current exception
+    tb_str = ''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    
+    return error_type, error_msg, tb_str
+
+
+class SerperToolWrapper(BaseTool):
+    """
+    Wrapper for Serper MCP tools (google_search, scrape) that injects default parameters.
+    
+    The Serper API requires certain parameters that LLMs might not always provide:
+    - google_search: requires query, gl (region), hl (language)
+    - scrape: requires url
+    """
+    name: str = "serper_wrapper"
+    description: str = ""
+    
+    def __init__(self, inner: BaseTool, **kwargs):
+        super().__init__(**kwargs)
+        self._inner = inner
+        self.name = getattr(inner, "name", "unknown_tool")
+        self.description = getattr(inner, "description", "")
+        
+        # Determine default region and language
+        self._default_gl = "us"  # Default region code (can be overridden)
+        self._default_hl = "en"  # Default language (can be overridden)
+    
+    def _inject_defaults(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Inject default parameters for Serper tools."""
+        # For google_search tool
+        if self.name == "google_search":
+            # CRITICAL: Serper MCP server expects 'q' not 'query'
+            # Convert 'query' to 'q' for compatibility
+            if "query" in params and "q" not in params:
+                query_value = params.pop("query")
+                # Filter out invalid values
+                if query_value and str(query_value).strip() and str(query_value).lower() != "undefined":
+                    params["q"] = query_value
+            
+            # CRITICAL FIX: Filter out 'undefined' and empty strings from 'q' parameter
+            if "q" in params:
+                q_value = params["q"]
+                # Check if q is invalid (undefined, empty, or None)
+                if not q_value or str(q_value).strip() == "" or str(q_value).lower() == "undefined":
+                    log.error(f"google_search called with invalid 'q' parameter: {repr(q_value)}")
+                    # Remove the invalid parameter
+                    params.pop("q")
+            
+            # Ensure required parameters exist
+            if "gl" not in params or not params.get("gl"):
+                params["gl"] = self._default_gl
+            if "hl" not in params or not params.get("hl"):
+                params["hl"] = self._default_hl
+            
+            # Final validation: ensure we have a valid query
+            if "q" not in params or not params.get("q"):
+                error_msg = "google_search requires a valid 'q' or 'query' parameter. Cannot search with empty or 'undefined' query."
+                log.error(error_msg)
+                # Raise an error instead of proceeding with invalid parameters
+                raise ValueError(error_msg)
+        
+        return params
+    
+    def _run(self, *args: Any, **kwargs: Any) -> str:
+        raise NotImplementedError("Use async arun")
+    
+    async def _arun(self, *args: Any, **kwargs: Any) -> str:
+        """Async run with parameter injection.
+        
+        Args:
+            *args: Tool parameters passed as positional argument (typically a dict)
+            **kwargs: Tool parameters passed as keyword arguments (e.g., query="...", gl="...", hl="...")
+        
+        Returns:
+            Tool execution result as string
+        """
+        # Extract parameters from either args or kwargs
+        # Prefer kwargs if provided, otherwise use first positional arg
+        if kwargs:
+            params = dict(kwargs)
+        elif args:
+            # Handle different argument formats:
+            # - args[0] is a dict: use it directly
+            # - args[0] is a list containing a dict: unwrap it  
+            # - args[0] is something else: convert to query param
+            first_arg = args[0]
+            if isinstance(first_arg, dict):
+                params = first_arg
+            elif isinstance(first_arg, list) and len(first_arg) > 0 and isinstance(first_arg[0], dict):
+                # Handle args=[[{...}]] format
+                params = first_arg[0]
+            else:
+                # CRITICAL FIX: Validate the string before using it as query
+                arg_str = str(first_arg).strip()
+                # Don't accept "undefined", "None", or empty strings
+                if arg_str and arg_str.lower() not in ("undefined", "none", "null"):
+                    params = {"query": arg_str}
+                else:
+                    log.warning(f"Received invalid string argument: {repr(first_arg)}. Treating as empty params.")
+                    params = {}
+        else:
+            params = {}
+        
+        # Inject default parameters and convert 'query' to 'q' for Serper tools
+        params = self._inject_defaults(params)
+        
+        # Call inner tool with parameters
+        # BaseTool.arun() expects: arun(tool_input, **kwargs)
+        # So we pass the entire params dict as the first positional argument
+        if hasattr(self._inner, "arun") and callable(self._inner.arun):
+            return await self._inner.arun(params)  # Pass params as positional arg
+        elif hasattr(self._inner, "run") and callable(self._inner.run):
+            return self._inner.run(params)  # Pass params as positional arg
+        else:
+            raise RuntimeError(f"Tool {self.name} has no run/arun method")
 
 
 class TimeoutTool(BaseTool):
@@ -158,40 +317,95 @@ class TimeoutTool(BaseTool):
                 )
                 return result
             except Exception as e:
-                error_msg = str(e)
-                error_type = type(e).__name__
+                # Extract detailed error information, handling ExceptionGroup
+                error_type, error_msg, tb_str = _extract_exception_details(e)
                 
-                # Categorize common error patterns for better user experience
-                if "parameter" in error_msg.lower() and ("conflict" in error_msg.lower() or "cannot" in error_msg.lower()):
-                    log.error(
-                        f"Tool {self._inner.name} failed due to parameter conflict on "
-                        f"attempt {attempt + 1}: {error_msg}"
+                # Check if this is a known MCP error that should gracefully degrade
+                is_scrape_failure = "scrape" in error_msg.lower() or "scraping failed" in error_msg.lower()
+                is_mcp_server_error = "500" in error_msg or "Internal Server Error" in error_msg
+                is_param_error = "required" in error_msg.lower() and ("parameter" in error_msg.lower() or "region" in error_msg.lower() or "language" in error_msg.lower())
+                is_broken_resource = "BrokenResourceError" in error_type
+                
+                # For scrape failures with 500 errors, provide graceful degradation
+                if is_scrape_failure and is_mcp_server_error and self._inner.name == "scrape":
+                    log.warning(
+                        f"Tool {self._inner.name} failed on attempt {attempt + 1} (non-fatal):\n"
+                        f"  Error Type: {error_type}\n"
+                        f"  Error Message: {error_msg}\n"
+                        f"  Note: Scrape tool is experiencing issues. Agent can still use search results."
                     )
+                    # Return a graceful error message instead of failing
+                    if attempt >= self._retries:
+                        return json.dumps({
+                            "error": "scrape_unavailable",
+                            "message": "Web scraping is temporarily unavailable. Using search results only.",
+                            "suggestion": "The search tool can still provide relevant information."
+                        })
+                    last_exc = e
+                    continue
+                
+                # Handle missing parameter errors for google_search
+                if is_param_error and self._inner.name == "google_search":
+                    log.error(
+                        f"Tool {self._inner.name} failed on attempt {attempt + 1}:\n"
+                        f"  Error Type: {error_type}\n"
+                        f"  Error Message: {error_msg}\n"
+                        f"  Issue: Missing required parameters (query, gl, hl)"
+                    )
+                    # Don't retry parameter errors - they won't succeed
+                    raise ValueError(
+                        f"google_search tool requires parameters: 'query' (search text), "
+                        f"'gl' (region code like 'us' or 'in'), 'hl' (language like 'en'). "
+                        f"Error: {error_msg}"
+                    )
+                
+                # Handle BrokenResourceError (connection issues)
+                if is_broken_resource:
+                    log.warning(
+                        f"Tool {self._inner.name} failed on attempt {attempt + 1}:\n"
+                        f"  Error Type: {error_type} (MCP connection broken)\n"
+                        f"  This usually happens after a previous error."
+                    )
+                    # Don't retry broken connections immediately
+                    if attempt >= self._retries:
+                        raise RuntimeError(
+                            f"MCP connection broken for tool {self._inner.name}. "
+                            f"This may be caused by a previous error. Check logs for root cause."
+                        )
+                    last_exc = e
+                    continue
+                
+                # Log with detailed information for other errors
+                log.error(
+                    f"Tool {self._inner.name} failed on attempt {attempt + 1}:\n"
+                    f"  Error Type: {error_type}\n"
+                    f"  Error Message: {error_msg}"
+                )
+                
+                # Log full traceback at DEBUG level to reduce noise
+                log.debug(f"Full traceback for {self._inner.name}:\n{tb_str}")
+                
+                # Categorize common error patterns for user-friendly hints
+                hint = None
+                if is_param_error:
+                    hint = "Missing required parameters - check tool schema and ensure all required fields are provided"
+                elif "parameter" in error_msg.lower() and ("conflict" in error_msg.lower() or "cannot" in error_msg.lower()):
+                    hint = "Check tool parameters - there may be a parameter conflict"
                 elif "authentication" in error_msg.lower() or "unauthorized" in error_msg.lower():
-                    log.error(
-                        f"Tool {self._inner.name} failed due to authentication issue on "
-                        f"attempt {attempt + 1}: {error_type}: {error_msg}"
-                    )
+                    hint = "Check API key or authentication credentials"
                 elif "permission" in error_msg.lower() or "access denied" in error_msg.lower():
-                    log.error(
-                        f"Tool {self._inner.name} failed due to permission issue on "
-                        f"attempt {attempt + 1}: {error_type}: {error_msg}"
-                    )
+                    hint = "Check access permissions for the API or service"
                 elif "timeout" in error_msg.lower() or "connection" in error_msg.lower():
-                    log.error(
-                        f"Tool {self._inner.name} failed due to connectivity issue on "
-                        f"attempt {attempt + 1}: {error_type}: {error_msg}"
-                    )
-                else:
-                    log.error(
-                        f"Tool {self._inner.name} failed on "
-                        f"attempt {attempt + 1}: {error_type}: {error_msg}"
-                    )
+                    hint = "Check network connectivity or increase timeout"
+                elif "rate limit" in error_msg.lower():
+                    hint = "API rate limit reached - wait before retrying"
+                elif is_broken_resource:
+                    hint = "MCP connection broken - likely caused by a previous error"
+                elif is_mcp_server_error:
+                    hint = "External service error - the service provider may be experiencing issues"
                 
-                # Only show full traceback on debug level to avoid clutter
-                if log.isEnabledFor(logging.DEBUG):
-                    import traceback
-                    log.debug(f"Full traceback: {traceback.format_exc()}")
+                if hint:
+                    log.error(f"  Hint: {hint}")
                 
                 last_exc = e
         log.error(
@@ -340,8 +554,17 @@ async def load_mcp_tools(
         ):
             bad.append(type(t).__name__)
             continue
-    # Wrap with timeout/retry so a single tool call
-    # can't stall the step
+        
+        # Apply Serper-specific wrapper first (for parameter injection)
+        tool_name = getattr(t, "name", "")
+        if tool_name in ("google_search", "scrape"):
+            try:
+                t = SerperToolWrapper(inner=t)
+                log.info(f"Applied SerperToolWrapper to {tool_name}")
+            except Exception as e:
+                log.warning(f"Failed to wrap {tool_name} with SerperToolWrapper: {e}")
+        
+        # Then wrap with timeout/retry so a single tool call can't stall the step
         try:
             wrapped.append(
                 TimeoutTool(

@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from test_utils import (
-    TestResult, TestEnvironment, print_test_header, print_section,
+    TestResult, TestEnvironment, TestStats, print_test_header, print_section,
     check_azure_credentials, check_google_credentials, check_anthropic_credentials, invoke_agent,
     convert_app_config_to_dict
 )
@@ -31,6 +31,10 @@ async def test_azure_litellm():
     """Test Azure OpenAI via standard interface"""
     result = TestResult("Azure OpenAI Provider")
     env = TestEnvironment("azure_provider")
+    
+    # Generate unique thread_id
+    import uuid
+    thread_id = f"test_azure_{uuid.uuid4().hex[:8]}"
     
     try:
         if not check_azure_credentials():
@@ -72,7 +76,7 @@ agents:
         
         print(f"✓ Agent built with Azure OpenAI")
         
-        response = await invoke_agent(agent, "Say 'Hello from Azure'")
+        response = await invoke_agent(agent, "Say 'Hello from Azure'", thread_id=thread_id)
         
         has_response = len(response['response']) > 5
         result.add_sub_test(
@@ -99,6 +103,10 @@ async def test_google_gemini():
     """Test Google Gemini if credentials available"""
     result = TestResult("Google Gemini Provider")
     env = TestEnvironment("gemini_provider")
+    
+    # Generate unique thread_id
+    import uuid
+    thread_id = f"test_gemini_{uuid.uuid4().hex[:8]}"
     
     try:
         if not check_google_credentials():
@@ -140,7 +148,7 @@ agents:
         
         print(f"✓ Agent built with Google Gemini")
         
-        response = await invoke_agent(agent, "Say 'Hello from Gemini'")
+        response = await invoke_agent(agent, "Say 'Hello from Gemini'", thread_id=thread_id)
         
         has_response = len(response['response']) > 5
         result.add_sub_test(
@@ -167,6 +175,10 @@ async def test_anthropic_claude():
     """Test Anthropic Claude if credentials available"""
     result = TestResult("Anthropic Claude Provider")
     env = TestEnvironment("anthropic_provider")
+    
+    # Generate unique thread_id
+    import uuid
+    thread_id = f"test_anthropic_{uuid.uuid4().hex[:8]}"
     
     try:
         if not check_anthropic_credentials():
@@ -208,7 +220,7 @@ agents:
         
         print(f"✓ Agent built with Anthropic Claude")
         
-        response = await invoke_agent(agent, "Say 'Hello from Claude'")
+        response = await invoke_agent(agent, "Say 'Hello from Claude'", thread_id=thread_id)
         
         has_response = len(response['response']) > 5
         result.add_sub_test(

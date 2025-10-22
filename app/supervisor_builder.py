@@ -312,6 +312,71 @@ def build_supervisor_with_structured_output(
         supervisor_model, default_temperature
     )
 
+    # CRITICAL FIX: If create_model_instance returned a string (fallback), 
+    # create an actual model instance directly
+    if isinstance(supervisor_model_instance, str):
+        log.warning(f"create_model_instance returned string: {supervisor_model_instance}. Creating model directly.")
+        import os
+        
+        # For Azure OpenAI
+        if supervisor_model_instance.startswith("azure_openai:") or supervisor_model_instance.startswith("azure/"):
+            try:
+                from langchain_openai import AzureChatOpenAI
+                deployment_name = supervisor_model_instance.replace("azure_openai:", "").replace("azure/", "")
+                supervisor_model_instance = AzureChatOpenAI(
+                    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2023-05-15"),
+                    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT", deployment_name),
+                    temperature=default_temperature,
+                )
+                log.info(f"✅ Created Azure OpenAI model instance: {deployment_name}")
+            except Exception as e:
+                raise ValueError(f"Cannot create Azure OpenAI model {supervisor_model}: {e}")
+        
+        # For OpenAI
+        elif supervisor_model_instance.startswith("openai:"):
+            try:
+                from langchain_openai import ChatOpenAI
+                model_name = supervisor_model_instance.replace("openai:", "")
+                supervisor_model_instance = ChatOpenAI(
+                    model=model_name,
+                    temperature=default_temperature,
+                )
+                log.info(f"✅ Created OpenAI model instance: {model_name}")
+            except Exception as e:
+                raise ValueError(f"Cannot create OpenAI model {supervisor_model}: {e}")
+        
+        # For Google Gemini
+        elif supervisor_model_instance.startswith("google:"):
+            try:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                model_name = supervisor_model_instance.replace("google:", "")
+                supervisor_model_instance = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    google_api_key=os.getenv("GOOGLE_API_KEY"),
+                    temperature=default_temperature,
+                )
+                log.info(f"✅ Created Google Gemini model instance: {model_name}")
+            except Exception as e:
+                raise ValueError(f"Cannot create Google model {supervisor_model}: {e}")
+        
+        # For Anthropic
+        elif supervisor_model_instance.startswith("anthropic:"):
+            try:
+                from langchain_anthropic import ChatAnthropic
+                model_name = supervisor_model_instance.replace("anthropic:", "")
+                supervisor_model_instance = ChatAnthropic(
+                    model=model_name,
+                    temperature=default_temperature,
+                )
+                log.info(f"✅ Created Anthropic model instance: {model_name}")
+            except Exception as e:
+                raise ValueError(f"Cannot create Anthropic model {supervisor_model}: {e}")
+        
+        else:
+            raise ValueError(f"Unsupported model type: {supervisor_model_instance}. Cannot create supervisor.")
+
     # For Azure OpenAI, we need to use a different approach
     # The API version doesn't support structured output, so we'll just use the base model
     # and rely on the prompt to enforce JSON output

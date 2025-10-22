@@ -146,7 +146,7 @@ class TestApiToLlmFlow:
         # First query
         payload1 = {
             "input": "My favorite number is 42. Remember this.",
-            "config_path": "config/python_exec_agent_working.yaml",
+            "config_path": "config/simple_memory_test_agent.yaml",
             "thread_id": thread_id
         }
         
@@ -164,7 +164,7 @@ class TestApiToLlmFlow:
         # Second query
         payload2 = {
             "input": "What is my favorite number?",
-            "config_path": "config/python_exec_agent_working.yaml",
+            "config_path": "config/simple_memory_test_agent.yaml",
             "thread_id": thread_id
         }
         

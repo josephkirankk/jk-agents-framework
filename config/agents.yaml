@@ -1,6 +1,6 @@
 models:
-  default: "openai:gpt-4o-mini"
-  supervisor: "openai:gpt-4o-mini"
+  default: "azure_openai:gpt-4.1"
+  supervisor: "azure_openai:gpt-4.1"
 
 temperature: 0.3
 
@@ -30,7 +30,7 @@ persistence:
 
 supervisor:
   name: "supervisor"
-  model: "openai:gpt-4o-mini"
+  model: "azure_openai:gpt-4.1"
   prompt: |
     You are the Supervisor Agent in a multi-agent system. Your role is to analyze user requests and break them down into atomic tasks for specialized agents.
 
@@ -75,7 +75,7 @@ supervisor:
 agents:
   - name: "research_agent"
     description: "Conducts research and gathers information from various sources"
-    model: "openai:gpt-4o-mini"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are a Research Agent specialized in gathering, analyzing, and synthesizing information.
 
@@ -101,7 +101,7 @@ agents:
 
   - name: "analysis_agent" 
     description: "Performs detailed analysis, comparisons, and evaluations"
-    model: "openai:gpt-4o-mini"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are an Analysis Agent specialized in breaking down complex information and providing insights.
 
@@ -127,7 +127,7 @@ agents:
 
   - name: "problem_solver_agent"
     description: "Develops solutions and recommendations for problems and challenges"
-    model: "openai:gpt-4o-mini"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are a Problem Solver Agent focused on developing practical solutions and actionable recommendations.
 
@@ -153,7 +153,7 @@ agents:
 
   - name: "human_response_agent"
     description: "Creates final user-facing responses by synthesizing information from all previous agents"
-    model: "openai:gpt-4o-mini"
+    model: "azure_openai:gpt-4.1"
     prompt: |
       You are the Human Response Agent. Your role is to synthesize information from previous agents and create a complete, natural response for the user.
 

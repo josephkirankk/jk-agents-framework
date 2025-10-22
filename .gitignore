@@ -115,3 +115,6 @@ test_memory/
 integration_tests/integration_tests/temp/
 integration_tests/test_checkpoints/
 test_checkpoints/
+node_modules 2/
+integration_tests/*_memory/
+/*_memory/

@@ -33,6 +33,10 @@ async def test_python_execution_mcp():
     result = TestResult("Python Execution via MCP")
     env = TestEnvironment("python_mcp")
     
+    # Generate unique thread_id for react agent
+    import uuid
+    thread_id = f"test_python_mcp_{uuid.uuid4().hex[:8]}"
+    
     try:
         print_section("Testing Python MCP Server")
         
@@ -88,7 +92,8 @@ agents:
         print_section("Test 1: Simple Calculation")
         response = await invoke_agent(
             agent,
-            "Calculate the factorial of 10 using Python. Show me the result."
+            "Calculate the factorial of 10 using Python. Show me the result.",
+            thread_id=thread_id
         )
         
         tool_calls = extract_tool_calls(response['messages'])
@@ -108,7 +113,8 @@ agents:
         print_section("Test 2: List Processing")
         response2 = await invoke_agent(
             agent,
-            "Create a Python list with numbers 1 to 20, filter only even numbers, and sum them."
+            "Create a Python list with numbers 1 to 20, filter only even numbers, and sum them.",
+            thread_id=thread_id
         )
         
         tool_calls2 = extract_tool_calls(response2['messages'])
@@ -128,7 +134,8 @@ agents:
         print_section("Test 3: String Manipulation")
         response3 = await invoke_agent(
             agent,
-            "Reverse the string 'Hello World' and convert to uppercase using Python."
+            "Reverse the string 'Hello World' and convert to uppercase using Python.",
+            thread_id=thread_id
         )
         
         tool_calls3 = extract_tool_calls(response3['messages'])
@@ -170,6 +177,10 @@ async def test_multiple_tool_calls():
     """Test multiple tool calls in sequence"""
     result = TestResult("Multiple Sequential Tool Calls")
     env = TestEnvironment("multi_tools")
+    
+    # Generate unique thread_id for react agent
+    import uuid
+    thread_id = f"test_multi_tools_{uuid.uuid4().hex[:8]}"
     
     try:
         print_section("Testing Multiple Tool Calls")
@@ -215,7 +226,8 @@ async def test_multiple_tool_calls():
             2. Take that result and add 1000
             3. Divide the final result by 10
             Show me each step.
-            """
+            """,
+            thread_id=thread_id
         )
         
         tool_calls = extract_tool_calls(response['messages'])

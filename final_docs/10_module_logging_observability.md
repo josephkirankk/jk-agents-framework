@@ -23,6 +23,8 @@ graph TB
     
     subgraph "Output"
         AGENTLOGS[agents_direct_logs/]
+        PLANNERLOG[agentlogs/agentlog_*.log]
+        APILOGS[logs/api_*.log]
         LLMLOGS[logs/llm_payload_*.json]
         SYSLOG[System Logs]
     end
@@ -76,8 +78,17 @@ class DirectAgentLogger:
 
 **Log File Structure**:
 ```
+# Supervisor/Planner Execution Logs
+agentlogs/
+  agentlog_20251016081827.log  # Timestamped execution logs
+
+# Direct Agent Execution Logs
 agents_direct_logs/
   direct_agentlog_20250113_152430.log
+
+# API Server Logs (✅ Oct 2024 - NEW)
+logs/
+  api_20251016.log  # Daily API logs
 
 Format:
 ==========================================

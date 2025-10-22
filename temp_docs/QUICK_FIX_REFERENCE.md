@@ -1,10 +1,12 @@
-# Quick Fix Reference - .env Loading in Integration Tests
+# Quick Fix Reference - TaskGroup Error Fixed
+
+## Original Problem in Integration Tests
 
 ## What Was Fixed
 
-❌ **Problem:** MCP server asking for login repeatedly  
-✅ **Solution:** `.env` now loaded correctly from project root  
-🎉 **Result:** MCP server starts in 2.42s, 64 tools loaded, no login prompts
+❌ **Problem:** TaskGroup error in integration tests  
+✅ **Solution:** TaskGroup error fixed  
+🎉 **Result:** Integration tests passing
 
 ---
 

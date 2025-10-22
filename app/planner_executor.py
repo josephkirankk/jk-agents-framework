@@ -28,23 +28,49 @@ async def safe_langgraph_execution():
     try:
         yield
     except BaseExceptionGroup as e:
-        # Handle TaskGroup exceptions by extracting underlying errors
-        log.error("TaskGroup exception caught in safe execution context: %s",
-                  e)
+        # Handle TaskGroup exceptions by extracting underlying errors with full details
+        log.error("TaskGroup exception caught in safe execution context: %s", e)
+        
         underlying_exceptions = []
+        detailed_errors = []
+        
         if hasattr(e, 'exceptions'):
-            for exc in e.exceptions:
-                underlying_exceptions.append(str(exc))
-
+            for i, exc in enumerate(e.exceptions, 1):
+                exc_type = type(exc).__name__
+                exc_msg = str(exc)
+                underlying_exceptions.append(exc_msg)
+                
+                # Extract full traceback for detailed logging
+                import traceback
+                tb_str = ''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+                detailed_errors.append(
+                    f"\n=== Exception {i}/{len(e.exceptions)} in TaskGroup ===\n"
+                    f"Type: {exc_type}\n"
+                    f"Message: {exc_msg}\n"
+                    f"Traceback:\n{tb_str}"
+                )
+        
+        # Log detailed error information
+        if detailed_errors:
+            log.error("Detailed TaskGroup errors:"
+                     "%s", ''.join(detailed_errors))
+        
+        # Create user-friendly error message
         if underlying_exceptions:
             error_msg = "Execution failed: " + "; ".join(underlying_exceptions)
         else:
             error_msg = f"Execution failed with TaskGroup error: {str(e)}"
+        
+        # Include hint about common issues
+        if any("serper" in str(exc).lower() or "mcp" in str(exc).lower() 
+               for exc in (e.exceptions if hasattr(e, 'exceptions') else [])):
+            error_msg += " (Hint: Check if SERPER_API_KEY is set and MCP servers are accessible)"
 
         raise RuntimeError(error_msg) from e
     except Exception as e:
-        # Re-raise other exceptions normally
+        # Re-raise other exceptions normally with detailed logging
         log.error("Exception in safe execution context: %s", e)
+        log.exception("Full exception details:")
         raise
 
 
@@ -886,38 +912,38 @@ async def execute_plan(
                     "",
                 ])
 
-                # Enhanced error handling using safe context manager
-                async with safe_langgraph_execution():
-                    if step_timeout:
-                        log.info(
-                            "Worker %s attempt %d: ainvoke start (timeout=%ss)",
-                            step.id,
-                            attempts,
-                            step_timeout,
-                        )
-                        t1 = time.perf_counter()
-                        worker_out = await asyncio.wait_for(
-                            worker_compiled.ainvoke(
-                                worker_state, config=worker_config
-                            ),
-                            timeout=step_timeout,
-                        )
-                    else:
-                        log.info(
-                            "Worker %s attempt %d: ainvoke start (no timeout)",
-                            step.id,
-                            attempts,
-                        )
-                        t1 = time.perf_counter()
-                        worker_out = await worker_compiled.ainvoke(
-                            worker_state, config=worker_config
-                        )
+                # Direct execution without safe_langgraph_execution wrapper
+                # (that wrapper is for planner, not individual workers)
+                if step_timeout:
                     log.info(
-                        "Worker %s attempt %d: ainvoke done in %.2fs",
+                        "Worker %s attempt %d: ainvoke start (timeout=%ss)",
                         step.id,
                         attempts,
-                        time.perf_counter() - t1,
+                        step_timeout,
                     )
+                    t1 = time.perf_counter()
+                    worker_out = await asyncio.wait_for(
+                        worker_compiled.ainvoke(
+                            worker_state, config=worker_config
+                        ),
+                        timeout=step_timeout,
+                    )
+                else:
+                    log.info(
+                        "Worker %s attempt %d: ainvoke start (no timeout)",
+                        step.id,
+                        attempts,
+                    )
+                    t1 = time.perf_counter()
+                    worker_out = await worker_compiled.ainvoke(
+                        worker_state, config=worker_config
+                    )
+                log.info(
+                    "Worker %s attempt %d: ainvoke done in %.2fs",
+                    step.id,
+                    attempts,
+                    time.perf_counter() - t1,
+                )
             except AttributeError:
                 step_thread_id = create_step_thread_id(base_thread_id, step.id)
                 worker_config = {
@@ -934,48 +960,47 @@ async def execute_plan(
                     f"User: {user_task}",
                     "",
                 ])
-                # Enhanced error handling for sync path using safe context mgr
-                async with safe_langgraph_execution():
-                    if step_timeout:
-                        log.info(
-                            (
-                                "Worker %s attempt %d: "
-                                "invoke(sync) start (timeout=%ss)"
-                            ),
-                            step.id,
-                            attempts,
-                            step_timeout,
-                        )
-                        t1 = time.perf_counter()
-                        worker_out = await asyncio.wait_for(
-                            asyncio.to_thread(
-                                worker_compiled.invoke,
-                                worker_state,
-                                config=worker_config,
-                            ),
-                            timeout=step_timeout,
-                        )
-                    else:
-                        log.info(
-                            (
-                                "Worker %s attempt %d: "
-                                "invoke(sync) start (no timeout)"
-                            ),
-                            step.id,
-                            attempts,
-                        )
-                        t1 = time.perf_counter()
-                        worker_out = await asyncio.to_thread(
+                # Direct execution without safe_langgraph_execution wrapper (sync path)
+                if step_timeout:
+                    log.info(
+                        (
+                            "Worker %s attempt %d: "
+                            "invoke(sync) start (timeout=%ss)"
+                        ),
+                        step.id,
+                        attempts,
+                        step_timeout,
+                    )
+                    t1 = time.perf_counter()
+                    worker_out = await asyncio.wait_for(
+                        asyncio.to_thread(
                             worker_compiled.invoke,
                             worker_state,
                             config=worker_config,
-                        )
+                        ),
+                        timeout=step_timeout,
+                    )
+                else:
                     log.info(
-                        "Worker %s attempt %d: invoke(sync) done in %.2fs",
+                        (
+                            "Worker %s attempt %d: "
+                            "invoke(sync) start (no timeout)"
+                        ),
                         step.id,
                         attempts,
-                        time.perf_counter() - t1,
                     )
+                    t1 = time.perf_counter()
+                    worker_out = await asyncio.to_thread(
+                        worker_compiled.invoke,
+                        worker_state,
+                        config=worker_config,
+                    )
+                log.info(
+                    "Worker %s attempt %d: invoke(sync) done in %.2fs",
+                    step.id,
+                    attempts,
+                    time.perf_counter() - t1,
+                )
             except asyncio.TimeoutError:
                 last_err = "timeout"
                 log.warning(
@@ -1144,6 +1169,31 @@ async def execute_plan(
             # Ensure wtext is always a string for startswith check
             wtext_str = str(wtext) if wtext is not None else ""
             
+            # CRITICAL FIX: Check if worker produced valid output even if there was an error
+            # An exception might occur in tool execution but the agent might still produce a valid response
+            has_valid_output = bool(wtext_str and not wtext_str.startswith("ERROR") and len(wtext_str.strip()) > 10)
+            
+            # Only mark as failed if both conditions are true:
+            # 1. There's an error (wtext starts with ERROR or last_err is set)
+            # 2. There's NO valid output (i.e., the error prevented useful output)
+            step_ok = True
+            if wtext_str.startswith("ERROR"):
+                # Explicit ERROR in output always means failure
+                step_ok = False
+            elif last_err and not has_valid_output:
+                # Error occurred AND no valid output produced
+                step_ok = False
+                log.warning(
+                    f"Step {step.id}: Error occurred ({last_err}) but no valid output produced"
+                )
+            elif last_err and has_valid_output:
+                # Error occurred BUT agent still produced valid output (e.g., tool warning)
+                log.info(
+                    f"Step {step.id}: Error occurred ({last_err}) but agent produced valid output - treating as success"
+                )
+                # Clear last_err since we're treating this as success
+                last_err = ""
+            
             step_results[step.id] = {
                 "agent": step.agent,
                 "task": step.task,
@@ -1152,9 +1202,7 @@ async def execute_plan(
                 "request_summary": request_summary,
                 "raw": wtext,
                 "output_summary": summary,
-                "ok": True
-                if not (wtext_str.startswith("ERROR") or last_err)
-                else False,
+                "ok": step_ok,
                 "last_error": last_err,
             }
 

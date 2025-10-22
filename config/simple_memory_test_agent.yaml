@@ -1,0 +1,54 @@
+# Simple agent for memory testing
+# Single conversational agent with checkpointer for multi-turn conversations
+
+models:
+  default: "azure_openai:gpt-4.1"
+  temperature: 0.3
+
+business_context: |
+  You are a helpful AI assistant with memory.
+  Remember information across conversation turns.
+
+# Conversation memory for multi-turn context
+conversation_memory:
+  enabled: true
+  database_url: ""
+  max_conversations: 10
+  max_context_length: 3000
+
+memory:
+  backend: "chromadb"
+  chromadb:
+    path: "./test_memory"
+    checkpoint_collection: "test-checkpoints"
+    context_collection: "test-context"
+
+supervisor:
+  name: "simple_supervisor"
+  model: "azure_openai:gpt-4.1"
+  prompt: |
+    Available agents:
+    {{agents}}
+    
+    Create a simple JSON plan. Output ONLY JSON:
+    {
+      "goal": "user request",
+      "plan": [
+        {"id": "s1", "agent": "memory_agent", "task": "user request", "depends_on": [], "verify": null, "timeout_seconds": 60, "retry": 1}
+      ]
+    }
+
+agents:
+  - name: "memory_agent"
+    description: "Conversational agent with memory"
+    model: "azure_openai:gpt-4.1"
+    agent_type: "react"  # React agent has checkpointer for memory
+    prompt: |
+      You are a helpful AI assistant. 
+      
+      When a user asks you to remember something, acknowledge it clearly.
+      When asked to recall information, retrieve it from conversation history.
+      
+      Always maintain context across the conversation.
+      Be concise and direct in your responses.
+    mcp_servers: {}

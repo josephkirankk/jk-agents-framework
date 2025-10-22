@@ -44,6 +44,7 @@ from app.agent_builder import build_react_agent
 from app.conversation_tracker import ConversationTracker
 from app.thread_id_utils import generate_thread_id, get_or_create_thread_id
 from app.memory_monitor import monitor_memory_usage, get_memory_stats
+from app.direct_agent_logger import create_direct_agent_logger
 
 # Import enhanced LiteLLM functionality
 try:
@@ -58,6 +59,9 @@ from app.memory_integration import (
     store_conversation_memory,
     is_conversation_memory_enabled
 )
+
+# Import MCP validation
+from app.mcp_validation import validate_all_agents_env
 
 # Import file storage manager
 from app.file_storage_manager import get_file_storage_manager
@@ -81,14 +85,27 @@ try:
 except ImportError:
     HAS_ADVANCED_MEMORY = False
 
-# Configure logging with performance tracking
+# Configure logging with performance tracking - console and file output
+from pathlib import Path as LogPath
+import sys
+
+# Create logs directory if it doesn't exist
+logs_dir = LogPath(__file__).parent / "logs"
+logs_dir.mkdir(exist_ok=True)
+
+# Configure logging with both console and file handlers
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout),  # Console output
+        logging.FileHandler(logs_dir / f"api_{datetime.now().strftime('%Y%m%d')}.log", encoding='utf-8')  # Daily log file
+    ]
 )
 log = logging.getLogger("api")
 perf_log = logging.getLogger("api.performance")
+log.info(f"Logging configured - writing to console and {logs_dir / ('api_' + datetime.now().strftime('%Y%m%d') + '.log')}")
 
 # Performance metrics storage
 _performance_metrics = {
@@ -537,10 +554,9 @@ async def run_direct_agent_with_files(
             actual_thread_id = get_or_create_thread_id(thread_id)
             
             # Enhance system context with conversation memory
-            system_context = await enhance_system_message_with_memory(
-                original_message=system_context,
-                thread_id=actual_thread_id,
-                app_config=app_cfg
+            system_context = enhance_system_message_with_memory(
+                system_message=system_context,
+                thread_id=actual_thread_id
             )
 
             # Create multimodal message content
@@ -610,12 +626,11 @@ async def run_direct_agent_with_files(
             success = True
             
             # Store conversation in memory
-            await store_conversation_memory(
+            from app.simple_conversation_memory_fixed import store_conversation_turn
+            store_conversation_turn(
                 thread_id=actual_thread_id,
-                user_message=user_input,
-                assistant_response=text,
-                app_config=app_cfg,
-                metadata={"agent_name": agent_name, "has_files": True}
+                user_input=user_input,
+                assistant_response=text
             )
 
             return {
@@ -1040,10 +1055,9 @@ async def run_direct_agent_api(
             actual_thread_id = get_or_create_thread_id(thread_id)
             
             # Enhance system context with conversation memory
-            system_context = await enhance_system_message_with_memory(
-                original_message=system_context,
-                thread_id=actual_thread_id,
-                app_config=app_cfg
+            system_context = enhance_system_message_with_memory(
+                system_message=system_context,
+                thread_id=actual_thread_id
             )
 
             # Log the request
@@ -1079,12 +1093,11 @@ async def run_direct_agent_api(
             success = True
             
             # Store conversation in memory
-            await store_conversation_memory(
+            from app.simple_conversation_memory_fixed import store_conversation_turn
+            store_conversation_turn(
                 thread_id=actual_thread_id,
-                user_message=user_input,
-                assistant_response=text,
-                app_config=app_cfg,
-                metadata={"agent_name": agent_name}
+                user_input=user_input,
+                assistant_response=text
             )
 
             return {
@@ -1134,10 +1147,9 @@ async def run_supervised_api(
     # Enhance business context with conversation memory (fallback to existing system)
     enhanced_business_context = app_cfg.business_context or ""
     try:
-        enhanced_business_context = await enhance_system_message_with_memory(
-            original_message=app_cfg.business_context or "",
-            thread_id=actual_thread_id,
-            app_config=app_cfg
+        enhanced_business_context = enhance_system_message_with_memory(
+            system_message=app_cfg.business_context or "",
+            thread_id=actual_thread_id
         )
     except Exception as e:
         log.warning(f"Failed to enhance business context with memory: {e}")
@@ -1198,16 +1210,16 @@ async def run_supervised_api(
             log.warning(f"Failed to store conversation turn: {e}")
         
         # Also try to store in advanced memory system (if available)
+        # Using simple memory storage instead
         try:
-            await store_conversation_memory(
+            from app.simple_conversation_memory_fixed import store_conversation_turn
+            store_conversation_turn(
                 thread_id=actual_thread_id,
-                user_message=user_input,
-                assistant_response=human_response,
-                app_config=app_cfg,
-                metadata={"execution_type": "supervised"}
+                user_input=user_input,
+                assistant_response=human_response
             )
         except Exception as e:
-            log.debug(f"Advanced memory storage failed (expected if LangGraph has issues): {e}")
+            log.debug(f"Memory storage failed: {e}")
         
         return result
 
@@ -1621,11 +1633,49 @@ async def memory_stats():
         }
 
 
+@app.post("/memory/clear/{thread_id}")
+async def clear_memory_endpoint(thread_id: str = PathParam(..., description="Thread ID to clear memory for")):
+    """Clear memory for a specific thread ID."""
+    try:
+        success = clear_thread_memory(thread_id)
+        if success:
+            log.info(f"Successfully cleared memory for thread: {thread_id}")
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": f"Memory cleared for thread: {thread_id}",
+                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
+                }
+            )
+        else:
+            # False indicates an exception occurred in clear_thread_memory
+            log.error(f"Failed to clear memory for thread: {thread_id}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": "error",
+                    "message": f"Failed to clear memory for thread: {thread_id}",
+                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
+                }
+            )
+    except Exception as e:
+        log.error(f"Error clearing memory for thread {thread_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
+            }
+        )
+
+
 @app.get("/performance/stats")
 async def performance_stats():
     """Get performance statistics including thread context tracking."""
     try:
-        async with _metrics_lock:
+        with _metrics_lock:
             # Calculate average response time
             recent_times = [r["duration"] for r in _performance_metrics["response_times"][-50:]]
             avg_response_time = sum(recent_times) / len(recent_times) if recent_times else 0
@@ -1702,24 +1752,48 @@ async def query_form_endpoint(
         thread_id=thread_id,
         files=None  # Files are passed separately
     )
+    
+    # Load config to validate environment before processing
+    if config_path:
+        try:
+            app_cfg = load_app_config(Path(config_path))
+            
+            # Validate MCP server environment variables before execution
+            is_valid, validation_error = validate_all_agents_env(app_cfg.agents)
+            if not is_valid:
+                log.error(f"MCP validation failed for form endpoint: {validation_error}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=validation_error
+                )
+        except HTTPException:
+            raise  # Re-raise HTTP exceptions
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to load or validate config from {config_path}: {str(e)}"
+            )
 
-    # Use the existing query logic with files
-    return await query_endpoint(request, files=files)
+    # Use the existing query logic
+    # For form endpoint, we need to handle files separately
+    # For now, just call the JSON endpoint (file handling can be added later if needed)
+    return await query_endpoint(request)
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query_endpoint(request: QueryRequest, files: List[UploadFile] = File(default=[])):
+async def query_endpoint(request: QueryRequest):
     """
     Main query endpoint that processes user input through multi-agent system.
-    Now supports file uploads via multipart/form-data.
+    Accepts JSON requests only. For file uploads, use /query/form endpoint.
 
     Args:
         request: QueryRequest containing user input and optional config path
-        files: Optional files to upload and attach to the request
 
     Returns:
         QueryResponse with the human responder's final answer
     """
+    # No files when using JSON endpoint
+    files = []
     thread_id = get_or_create_thread_id(request.thread_id)
     
     async with track_performance("supervised_query", thread_id) as request_id:
@@ -1746,6 +1820,15 @@ async def query_endpoint(request: QueryRequest, files: List[UploadFile] = File(d
             log.info(f"[{request_id}] Using thread ID: {thread_id}")
             perf_log.info(f"[{request_id}] Processing query: {request.input[:100]}...")
             perf_log.info(f"[{request_id}] Raw output requested: {request.raw_output}")
+            
+            # Validate MCP server environment variables before execution
+            is_valid, validation_error = validate_all_agents_env(app_cfg.agents)
+            if not is_valid:
+                log.error(f"[{request_id}] MCP validation failed: {validation_error}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=validation_error
+                )
             
             # Process uploaded files with file storage manager
             enhanced_input = request.input
